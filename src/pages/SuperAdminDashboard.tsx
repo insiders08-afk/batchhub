@@ -57,13 +57,20 @@ export default function SuperAdminDashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
-  const fetchInstitutes = async () => {
+  const fetchInstitutes = async (city?: string | null) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("institutes")
         .select("*")
         .order("created_at", { ascending: false });
+
+      // Filter by city if this super_admin has a city scope
+      if (city) {
+        query = query.eq("city" as never, city as never);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       setInstitutes(data || []);
     } catch (err: unknown) {
