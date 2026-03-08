@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, UserCircle, Eye, Loader2 } from "lucide-react";
+import { ArrowLeft, Zap, UserCircle, Eye, EyeOff, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,6 +20,8 @@ export default function ParentAuth() {
   const [submittedName, setSubmittedName] = useState("");
   const [submittedStudentId, setSubmittedStudentId] = useState("");
   const [submittedInstitute, setSubmittedInstitute] = useState("");
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   const [form, setForm] = useState({
     parentName: "", parentId: "", studentId: "",
@@ -162,7 +164,6 @@ export default function ParentAuth() {
               <p className="text-muted-foreground text-sm">Register or sign in to track your child's progress</p>
             </div>
 
-            {/* Toggle */}
             <div className="flex rounded-lg bg-muted p-1 mb-6">
               <button onClick={() => setScreen("register")}
                 className={`flex-1 text-sm font-medium py-2 rounded-md transition-all ${screen === "register" ? "bg-card shadow text-foreground" : "text-muted-foreground"}`}>
@@ -213,7 +214,19 @@ export default function ParentAuth() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="password">Password *</Label>
-                    <Input id="password" name="password" type="password" placeholder="Min. 8 characters" required minLength={8} onChange={handleChange} value={form.password} />
+                    <div className="relative">
+                      <Input
+                        id="password" name="password"
+                        type={showRegPassword ? "text" : "password"}
+                        placeholder="Min. 8 characters" required minLength={8}
+                        onChange={handleChange} value={form.password}
+                        className="pr-10"
+                      />
+                      <button type="button" onClick={() => setShowRegPassword(!showRegPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                        {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-violet-500 to-purple-600 text-white border-0 hover:opacity-90 h-11 font-semibold">
                     {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</> : "Submit for Admin Approval"}
@@ -227,7 +240,19 @@ export default function ParentAuth() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="loginPassword">Password *</Label>
-                    <Input id="loginPassword" name="password" type="password" placeholder="Your password" required onChange={handleLoginChange} value={loginForm.password} />
+                    <div className="relative">
+                      <Input
+                        id="loginPassword" name="password"
+                        type={showLoginPassword ? "text" : "password"}
+                        placeholder="Your password" required
+                        onChange={handleLoginChange} value={loginForm.password}
+                        className="pr-10"
+                      />
+                      <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                        {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-violet-500 to-purple-600 text-white border-0 hover:opacity-90 h-11 font-semibold">
                     {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in...</> : "Sign In"}
