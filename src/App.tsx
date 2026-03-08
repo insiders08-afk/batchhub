@@ -14,9 +14,14 @@ import AdminFees from "./pages/AdminFees";
 import AdminAnnouncements from "./pages/AdminAnnouncements";
 import AdminTests from "./pages/AdminTests";
 import AdminSettings from "./pages/AdminSettings";
+import AdminApprovals from "./pages/AdminApprovals";
 import BatchWorkspace from "./pages/BatchWorkspace";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
+import AdminAuth from "./pages/auth/AdminAuth";
+import TeacherAuth from "./pages/auth/TeacherAuth";
+import StudentAuth from "./pages/auth/StudentAuth";
+import ParentAuth from "./pages/auth/ParentAuth";
 
 const queryClient = new QueryClient();
 
