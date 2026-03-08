@@ -52,18 +52,24 @@ export default function AdminAuth() {
       if (!userId) throw new Error("No user ID returned");
 
       // 2. Insert institute record (status: pending)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: instError } = await (supabase.from("institutes") as any).insert({
+      const institutePayload = {
         owner_user_id: userId,
         owner_name: regForm.ownerName,
         institute_name: regForm.instituteName,
         institute_code: regForm.instituteId.toUpperCase(),
         govt_registration_no: regForm.govtRegistrationNo,
-        city: regForm.city,
         email: regForm.email,
         phone: regForm.phone,
-        status: "pending",
-      });
+        status: "pending" as const,
+      };
+      const { error: instError } = await supabase.from("institutes").insert(institutePayload);
+      // Update city separately since types may not reflect new column yet
+      if (!instError) {
+        await supabase.from("institutes")
+          .update({ city: regForm.city } as never)
+          .eq("institute_code", regForm.instituteId.toUpperCase())
+          .eq("owner_user_id", userId);
+      }
       if (instError) throw instError;
 
       // 3. Insert profile (status: pending)
