@@ -99,6 +99,39 @@ export type Database = {
           },
         ]
       }
+      batch_messages: {
+        Row: {
+          batch_id: string
+          created_at: string
+          id: string
+          institute_code: string
+          message: string
+          sender_id: string
+          sender_name: string
+          sender_role: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          id?: string
+          institute_code: string
+          message: string
+          sender_id: string
+          sender_name: string
+          sender_role?: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          id?: string
+          institute_code?: string
+          message?: string
+          sender_id?: string
+          sender_name?: string
+          sender_role?: string
+        }
+        Relationships: []
+      }
       batches: {
         Row: {
           course: string
