@@ -166,19 +166,29 @@ export default function SuperAdminDashboard() {
       {/* Nav */}
       <nav className="border-b border-border/50 bg-card sticky top-0 z-10">
         <div className="container mx-auto flex items-center justify-between h-14 px-4">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="text-lg font-display font-bold text-gradient">Lamba</span>
+          <div className="flex items-center gap-2">
+            <Link to="/" className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
+                <Zap className="w-3.5 h-3.5 text-white" />
+              </div>
+              <span className="text-lg font-display font-bold text-gradient">Lamba</span>
+            </Link>
             <Badge className="bg-primary-light text-primary border-0 text-xs ml-1">Super Admin</Badge>
             {adminCity && (
               <Badge className="bg-muted text-muted-foreground border-0 text-xs flex items-center gap-1">
                 <MapPin className="w-2.5 h-2.5" />{adminCity}
               </Badge>
             )}
-          </Link>
+            {adminName && (
+              <span className="text-sm text-muted-foreground hidden sm:inline">· {adminName}</span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+                <ArrowLeft className="w-4 h-4" /> Home
+              </Button>
+            </Link>
             <Button variant="ghost" size="sm" onClick={() => fetchInstitutes(adminCity)} className="gap-2">
               <RefreshCw className="w-4 h-4" /> Refresh
             </Button>

@@ -41,6 +41,8 @@ export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [ownerName, setOwnerName] = useState<string>("Krishna");
+  const [drilldown, setDrilldown] = useState<{ type: string; items: { label: string; sublabel?: string }[] } | null>(null);
 
   useEffect(() => {
     checkOwnerAccess();
