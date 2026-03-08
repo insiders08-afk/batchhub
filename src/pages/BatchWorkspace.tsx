@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,7 @@ const rankings = [
 
 export default function BatchWorkspace() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const batch = batchInfo[id || "jee-a"] || batchInfo["jee-a"];
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState(chatMessages);
@@ -95,11 +96,9 @@ export default function BatchWorkspace() {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border/50 bg-card flex items-center gap-3 px-4 h-14 flex-shrink-0">
-        <Link to="/admin/batches">
-          <Button variant="ghost" size="icon" className="w-8 h-8">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate(-1)}>
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
         <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center text-white text-xs font-bold">
           {batch.name.slice(0, 2)}
         </div>
