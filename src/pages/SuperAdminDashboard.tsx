@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Zap, Shield, CheckCircle2, XCircle, Clock, Search,
-  Building2, LogOut, Loader2, RefreshCw, MapPin
+  Building2, LogOut, Loader2, RefreshCw, MapPin, ArrowLeft, User
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +33,7 @@ export default function SuperAdminDashboard() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [adminCity, setAdminCity] = useState<string | null>(null);
+  const [adminName, setAdminName] = useState<string | null>(null);
 
   // Guard: only super_admin
   useEffect(() => {

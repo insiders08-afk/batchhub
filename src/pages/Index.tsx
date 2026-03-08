@@ -472,7 +472,7 @@ export default function Index() {
             <span className="font-display font-bold text-gradient">Lamba</span>
           </div>
           <p className="text-sm text-muted-foreground">© 2025 Lamba. Built for India's coaching ecosystem.</p>
-          <div className="flex gap-6 text-sm text-muted-foreground">
+          <div className="flex flex-wrap gap-6 text-sm text-muted-foreground justify-center">
             <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors">Terms</a>
             <a href="#" className="hover:text-foreground transition-colors">Contact</a>
@@ -481,6 +481,10 @@ export default function Index() {
             </Link>
             <Link to="/apply/city-partner" className="hover:text-foreground transition-colors opacity-60 hover:opacity-100">
               Become a City Partner
+            </Link>
+            {/* Hidden owner access — bookmark this URL */}
+            <Link to="/auth/owner" className="hover:text-foreground transition-colors opacity-20 hover:opacity-60 text-xs">
+              ·
             </Link>
           </div>
         </div>

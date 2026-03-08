@@ -136,6 +136,7 @@ export default function OwnerAuth() {
           </Card>
         </motion.div>
       </div>
+      </div>
     </div>
   );
 }
