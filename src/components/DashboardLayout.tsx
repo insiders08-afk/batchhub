@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, CalendarCheck, Megaphone,
@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 type Role = "admin" | "teacher" | "student" | "parent";
 
@@ -56,20 +57,6 @@ const roleLabels: Record<Role, string> = {
   parent: "Parent",
 };
 
-const roleAvatars: Record<Role, string> = {
-  admin: "RK",
-  teacher: "AG",
-  student: "AS",
-  parent: "SS",
-};
-
-const roleNames: Record<Role, string> = {
-  admin: "Rajesh Kumar",
-  teacher: "Amit Gupta",
-  student: "Arjun Sharma",
-  parent: "Sunita Sharma",
-};
-
 interface DashboardLayoutProps {
   children: React.ReactNode;
   title?: string;
@@ -78,20 +65,70 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children, title, role = "admin" }: DashboardLayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [userName, setUserName] = useState("Loading...");
+  const [userInitials, setUserInitials] = useState("...");
+  const [instituteName, setInstituteName] = useState("");
 
   const menuItems = menusByRole[role];
   const isAdmin = role === "admin";
 
   useEffect(() => {
+    // Fetch real user profile
+    const fetchProfile = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, institute_code")
+        .eq("user_id", user.id)
+        .single();
+
+      if (profile) {
+        setUserName(profile.full_name || user.email || "User");
+        const parts = (profile.full_name || "U").split(" ");
+        setUserInitials(parts.map((p: string) => p[0]).join("").toUpperCase().slice(0, 2));
+
+        if (profile.institute_code) {
+          // Try to fetch institute name
+          const { data: institute } = await supabase
+            .from("institutes")
+            .select("institute_name, city")
+            .eq("institute_code", profile.institute_code)
+            .single();
+          if (institute) {
+            setInstituteName(`${institute.institute_name}${institute.city ? ", " + institute.city : ""}`);
+          } else {
+            setInstituteName(profile.institute_code);
+          }
+        }
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  useEffect(() => {
     if (isAdmin) {
-      const stored = JSON.parse(localStorage.getItem("lamba_pending_requests") || "[]");
-      const pending = stored.filter((r: { status: string }) => r.status === "pending").length;
-      setPendingCount(pending + 4);
+      const fetchPending = async () => {
+        const { data } = await supabase
+          .from("pending_requests")
+          .select("id")
+          .eq("status", "pending");
+        setPendingCount(data?.length || 0);
+      };
+      fetchPending();
     }
   }, [isAdmin]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/");
+  };
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -117,16 +154,15 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
       {!collapsed && (
         <div className="mx-3 mt-3 mb-1 p-2.5 rounded-lg bg-sidebar-accent border border-sidebar-border">
           <p className="text-xs text-sidebar-foreground/60 font-medium">Institute</p>
-          <p className="text-sm font-semibold text-sidebar-foreground truncate">Apex Classes, Kota</p>
+          <p className="text-sm font-semibold text-sidebar-foreground truncate">
+            {instituteName || "Loading..."}
+          </p>
         </div>
       )}
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
         {menuItems.map((item, idx) => {
-          const active = location.pathname === item.path && (
-            isAdmin ? location.pathname === item.path : idx === 0
-          );
           const isActiveItem = isAdmin
             ? location.pathname === item.path
             : location.pathname === item.path && idx === 0;
@@ -160,20 +196,21 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
         {!collapsed && (
           <div className="flex items-center gap-3 px-3 mb-3">
             <div className="w-8 h-8 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold">
-              {roleAvatars[role]}
+              {userInitials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-sidebar-foreground truncate">{roleNames[role]}</p>
+              <p className="text-xs font-semibold text-sidebar-foreground truncate">{userName}</p>
               <p className="text-xs text-sidebar-foreground/60">{roleLabels[role]}</p>
             </div>
           </div>
         )}
-        <Link to="/">
-          <button className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent w-full transition-colors">
-            <LogOut className="w-4 h-4 flex-shrink-0" />
-            {!collapsed && <span>Logout</span>}
-          </button>
-        </Link>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent w-full transition-colors"
+        >
+          <LogOut className="w-4 h-4 flex-shrink-0" />
+          {!collapsed && <span>Logout</span>}
+        </button>
       </div>
     </div>
   );
@@ -227,7 +264,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
               Live
             </div>
             <div className="w-8 h-8 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold">
-              {roleAvatars[role]}
+              {userInitials}
             </div>
           </div>
         </header>

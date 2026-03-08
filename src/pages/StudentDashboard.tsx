@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
@@ -6,25 +7,125 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarCheck, Trophy, BookOpen, ExternalLink,
-  FlaskConical, Megaphone, Clock
+  FlaskConical, Megaphone, Clock, Loader2
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-const upcomingTests = [
-  { name: "Physics Mock Test", date: "Mar 15", time: "9:00 AM", type: "Mock" },
-  { name: "Chemistry DPP #42", date: "Mar 12", time: "8:00 AM", type: "DPP" },
-];
+interface Batch {
+  id: string;
+  name: string;
+  teacher_name: string | null;
+  course: string;
+}
 
-const homework = [
-  { title: "Electrostatics — Chapter 8 DPP", due: "Mar 12", subject: "Physics", done: false },
-  { title: "Organic Chemistry Practice Set", due: "Mar 14", subject: "Chemistry", done: true },
-];
+interface TestScore {
+  id: string;
+  test_name: string;
+  test_date: string;
+  score: number;
+  max_marks: number;
+}
 
-const announcements = [
-  { title: "Mock Test on March 15", desc: "Full syllabus Physics mock. Bring calculator.", time: "2 hrs ago" },
-  { title: "Holiday on March 10", desc: "Institute closed for Holi. Classes resume March 11.", time: "Yesterday" },
-];
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+}
 
 export default function StudentDashboard() {
+  const [userName, setUserName] = useState("Student");
+  const [instituteName, setInstituteName] = useState("");
+  const [batch, setBatch] = useState<Batch | null>(null);
+  const [tests, setTests] = useState<TestScore[]>([]);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [attendanceRate, setAttendanceRate] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, institute_code")
+        .eq("user_id", user.id)
+        .single();
+
+      if (profile) {
+        setUserName(profile.full_name);
+        if (profile.institute_code) {
+          const { data: inst } = await supabase
+            .from("institutes")
+            .select("institute_name, city")
+            .eq("institute_code", profile.institute_code)
+            .single();
+          if (inst) setInstituteName(`${inst.institute_name}${inst.city ? ", " + inst.city : ""}`);
+        }
+      }
+
+      // Find enrolled batch
+      const { data: enrollment } = await supabase
+        .from("students_batches")
+        .select("batch_id")
+        .eq("student_id", user.id)
+        .limit(1)
+        .single();
+
+      if (enrollment) {
+        const { data: batchData } = await supabase
+          .from("batches")
+          .select("id, name, teacher_name, course")
+          .eq("id", enrollment.batch_id)
+          .single();
+        if (batchData) {
+          setBatch(batchData);
+
+          // Test scores for this batch
+          const { data: testData } = await supabase
+            .from("test_scores")
+            .select("*")
+            .eq("batch_id", batchData.id)
+            .eq("student_id", user.id)
+            .order("test_date", { ascending: false })
+            .limit(5);
+          setTests(testData || []);
+
+          // Announcements for this batch
+          const { data: annData } = await supabase
+            .from("announcements")
+            .select("id, title, content, created_at")
+            .eq("batch_id", batchData.id)
+            .order("created_at", { ascending: false })
+            .limit(3);
+          setAnnouncements(annData || []);
+
+          // Attendance rate
+          const { data: attData } = await supabase
+            .from("attendance")
+            .select("present")
+            .eq("batch_id", batchData.id)
+            .eq("student_id", user.id);
+          if (attData && attData.length > 0) {
+            const rate = Math.round((attData.filter(a => a.present).length / attData.length) * 100);
+            setAttendanceRate(rate);
+          }
+        }
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
+
+  const timeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return "Just now";
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  };
+
   return (
     <DashboardLayout title="My Dashboard" role="student">
       <div className="space-y-5 max-w-2xl">
@@ -33,17 +134,19 @@ export default function StudentDashboard() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <div className="gradient-hero rounded-xl p-5 text-white">
             <p className="text-white/70 text-sm">Welcome back,</p>
-            <h2 className="font-display font-bold text-2xl">Arjun Sharma</h2>
-            <p className="text-white/70 text-sm mt-0.5">JEE Advanced A · Roll: JA-001</p>
+            <h2 className="font-display font-bold text-2xl">{loading ? "..." : userName}</h2>
+            <p className="text-white/70 text-sm mt-0.5">
+              {batch ? `${batch.name} · ${instituteName}` : instituteName || "..."}
+            </p>
           </div>
         </motion.div>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
-            { label: "Attendance", value: "92%", color: "text-success", icon: CalendarCheck },
-            { label: "Batch Rank", value: "#1", color: "text-accent", icon: Trophy },
-            { label: "Assignments", value: "2 due", color: "text-primary", icon: BookOpen },
+            { label: "Attendance", value: loading ? "—" : attendanceRate !== null ? `${attendanceRate}%` : "N/A", color: attendanceRate !== null && attendanceRate >= 75 ? "text-success" : "text-danger", icon: CalendarCheck },
+            { label: "Tests Done", value: loading ? "—" : String(tests.length), color: "text-accent", icon: Trophy },
+            { label: "My Batch", value: loading ? "—" : batch ? "Enrolled" : "None", color: "text-primary", icon: BookOpen },
           ].map((s, i) => (
             <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
               <Card className="p-4 text-center shadow-card border-border/50">
@@ -59,93 +162,83 @@ export default function StudentDashboard() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <Card className="p-5 shadow-card border-border/50">
             <h3 className="font-display font-semibold mb-3">My Batch</h3>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center text-white font-bold text-sm">JE</div>
-              <div>
-                <p className="font-semibold text-sm">JEE Advanced A</p>
-                <p className="text-xs text-muted-foreground">Amit Gupta · 45 students</p>
+            {loading ? (
+              <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+            ) : batch ? (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center text-white font-bold text-sm">
+                    {batch.name.slice(0, 2)}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">{batch.name}</p>
+                    <p className="text-xs text-muted-foreground">{batch.teacher_name || "Teacher TBD"} · {batch.course}</p>
+                  </div>
+                </div>
+                <Link to={`/batch/${batch.id}`}>
+                  <Button className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2">
+                    Open Batch Workspace <ExternalLink className="w-3.5 h-3.5" />
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">You haven't been enrolled in a batch yet. Ask your admin.</p>
+            )}
+          </Card>
+        </motion.div>
+
+        {/* Recent Test Scores */}
+        {tests.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}>
+            <Card className="p-5 shadow-card border-border/50">
+              <div className="flex items-center gap-2 mb-4">
+                <FlaskConical className="w-4 h-4 text-primary" />
+                <h3 className="font-display font-semibold">Recent Test Scores</h3>
               </div>
-            </div>
-            <Link to="/batch/jee-a">
-              <Button className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2">
-                Open Batch Workspace <ExternalLink className="w-3.5 h-3.5" />
-              </Button>
-            </Link>
-          </Card>
-        </motion.div>
-
-        {/* Upcoming Tests */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}>
-          <Card className="p-5 shadow-card border-border/50">
-            <div className="flex items-center gap-2 mb-4">
-              <FlaskConical className="w-4 h-4 text-primary" />
-              <h3 className="font-display font-semibold">Upcoming Tests</h3>
-            </div>
-            <div className="space-y-3">
-              {upcomingTests.map((t, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border/30">
-                  <div>
-                    <p className="text-sm font-semibold">{t.name}</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                      <Clock className="w-3 h-3" />{t.date} · {t.time}
-                    </p>
+              <div className="space-y-3">
+                {tests.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border/30">
+                    <div>
+                      <p className="text-sm font-semibold">{t.test_name}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(t.test_date).toLocaleDateString("en-IN")}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-display font-bold">{t.score}<span className="text-xs text-muted-foreground">/{t.max_marks}</span></p>
+                      <Badge className={`text-xs ${Math.round(t.score / t.max_marks * 100) >= 75 ? "bg-success-light text-success border-success/20" : "bg-accent-light text-accent border-accent/20"}`}>
+                        {Math.round(t.score / t.max_marks * 100)}%
+                      </Badge>
+                    </div>
                   </div>
-                  <Badge className="bg-primary-light text-primary border-primary/20 text-xs">{t.type}</Badge>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
-
-        {/* Homework / DPP */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}>
-          <Card className="p-5 shadow-card border-border/50">
-            <div className="flex items-center gap-2 mb-4">
-              <BookOpen className="w-4 h-4 text-accent" />
-              <h3 className="font-display font-semibold">Homework / DPP</h3>
-            </div>
-            <div className="space-y-3">
-              {homework.map((hw, i) => (
-                <div key={i} className={`flex items-center justify-between p-3 rounded-lg border ${
-                  hw.done ? "bg-success-light/30 border-success/20" : "bg-muted/40 border-border/30"
-                }`}>
-                  <div>
-                    <p className={`text-sm font-semibold ${hw.done ? "line-through text-muted-foreground" : ""}`}>{hw.title}</p>
-                    <p className="text-xs text-muted-foreground">{hw.subject} · Due {hw.due}</p>
-                  </div>
-                  <Badge className={hw.done
-                    ? "bg-success-light text-success border-success/20 text-xs"
-                    : "bg-accent-light text-accent border-accent/20 text-xs"
-                  }>
-                    {hw.done ? "Done" : "Pending"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
+                ))}
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Announcements */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.44 }}>
-          <Card className="p-5 shadow-card border-border/50">
-            <div className="flex items-center gap-2 mb-4">
-              <Megaphone className="w-4 h-4 text-primary" />
-              <h3 className="font-display font-semibold">Recent Announcements</h3>
-            </div>
-            <div className="space-y-3">
-              {announcements.map((a, i) => (
-                <div key={i} className="p-3 rounded-lg bg-muted/40 border border-border/30">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <p className="text-sm font-semibold">{a.title}</p>
-                    <span className="text-[11px] text-muted-foreground">{a.time}</span>
+        {announcements.length > 0 && (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.44 }}>
+            <Card className="p-5 shadow-card border-border/50">
+              <div className="flex items-center gap-2 mb-4">
+                <Megaphone className="w-4 h-4 text-primary" />
+                <h3 className="font-display font-semibold">Recent Announcements</h3>
+              </div>
+              <div className="space-y-3">
+                {announcements.map((a) => (
+                  <div key={a.id} className="p-3 rounded-lg bg-muted/40 border border-border/30">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <p className="text-sm font-semibold">{a.title}</p>
+                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3 h-3" />{timeAgo(a.created_at)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{a.content}</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">{a.desc}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </motion.div>
-
+                ))}
+              </div>
+            </Card>
+          </motion.div>
+        )}
       </div>
     </DashboardLayout>
   );

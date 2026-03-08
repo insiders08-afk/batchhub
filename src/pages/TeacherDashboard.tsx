@@ -1,23 +1,76 @@
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, CalendarCheck, Users, ExternalLink, Megaphone, ClipboardList } from "lucide-react";
+import { BookOpen, CalendarCheck, Users, ExternalLink, Megaphone, ClipboardList, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
-const myBatches = [
-  { id: "jee-a", name: "JEE Advanced A", students: 45, attendance: 88, next: "Today 8:00 AM" },
-  { id: "jee-b", name: "JEE Mains B", students: 38, attendance: 79, next: "Tomorrow 10:00 AM" },
-];
-
-const todayStats = [
-  { label: "Total Students", value: "83", icon: Users, color: "text-primary" },
-  { label: "Classes Today", value: "2", icon: CalendarCheck, color: "text-success" },
-  { label: "Pending Attendance", value: "1", icon: ClipboardList, color: "text-accent" },
-];
+interface Batch {
+  id: string;
+  name: string;
+  course: string;
+  schedule: string | null;
+  studentCount: number;
+}
 
 export default function TeacherDashboard() {
+  const [userName, setUserName] = useState("Teacher");
+  const [instituteName, setInstituteName] = useState("");
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalStudents, setTotalStudents] = useState(0);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { setLoading(false); return; }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name, institute_code")
+        .eq("user_id", user.id)
+        .single();
+
+      if (profile) {
+        setUserName(profile.full_name);
+        if (profile.institute_code) {
+          const { data: inst } = await supabase
+            .from("institutes")
+            .select("institute_name, city")
+            .eq("institute_code", profile.institute_code)
+            .single();
+          if (inst) setInstituteName(`${inst.institute_name}${inst.city ? ", " + inst.city : ""}`);
+        }
+      }
+
+      // Batches assigned to this teacher
+      const { data: batchData } = await supabase
+        .from("batches")
+        .select("id, name, course, schedule")
+        .eq("teacher_id", user.id)
+        .eq("is_active", true);
+
+      if (batchData) {
+        const enriched = await Promise.all(
+          batchData.map(async (b) => {
+            const { count } = await supabase
+              .from("students_batches")
+              .select("id", { count: "exact" })
+              .eq("batch_id", b.id);
+            return { ...b, studentCount: count || 0 };
+          })
+        );
+        setBatches(enriched);
+        setTotalStudents(enriched.reduce((sum, b) => sum + b.studentCount, 0));
+      }
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
+
   return (
     <DashboardLayout title="My Dashboard" role="teacher">
       <div className="space-y-5 max-w-3xl">
@@ -26,14 +79,18 @@ export default function TeacherDashboard() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <div className="gradient-hero rounded-xl p-5 text-white">
             <p className="text-white/70 text-sm">Welcome back,</p>
-            <h2 className="font-display font-bold text-2xl">Amit Gupta</h2>
-            <p className="text-white/70 text-sm mt-0.5">Teacher · Apex Classes, Kota</p>
+            <h2 className="font-display font-bold text-2xl">{loading ? "..." : userName}</h2>
+            <p className="text-white/70 text-sm mt-0.5">Teacher · {instituteName || "..."}</p>
           </div>
         </motion.div>
 
         {/* Today's summary */}
         <div className="grid grid-cols-3 gap-3">
-          {todayStats.map((s, i) => (
+          {[
+            { label: "My Students", value: loading ? "—" : String(totalStudents), icon: Users, color: "text-primary" },
+            { label: "My Batches", value: loading ? "—" : String(batches.length), icon: CalendarCheck, color: "text-success" },
+            { label: "Classes Today", value: batches.length > 0 ? String(batches.length) : "0", icon: ClipboardList, color: "text-accent" },
+          ].map((s, i) => (
             <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
               <Card className="p-4 text-center shadow-card border-border/50">
                 <s.icon className={`w-5 h-5 mx-auto mb-1.5 ${s.color}`} />
@@ -48,18 +105,22 @@ export default function TeacherDashboard() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <Card className="p-5 shadow-card border-border/50">
             <h3 className="font-display font-semibold mb-3">Quick Actions</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <Link to="/batch/jee-a">
-                <Button className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2 h-11">
-                  <CalendarCheck className="w-4 h-4" /> Mark Attendance
-                </Button>
-              </Link>
-              <Link to="/batch/jee-a">
-                <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary-light">
-                  <Megaphone className="w-4 h-4" /> Post Announcement
-                </Button>
-              </Link>
-            </div>
+            {batches.length > 0 ? (
+              <div className="grid grid-cols-2 gap-3">
+                <Link to={`/batch/${batches[0].id}`}>
+                  <Button className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2 h-11">
+                    <CalendarCheck className="w-4 h-4" /> Mark Attendance
+                  </Button>
+                </Link>
+                <Link to={`/batch/${batches[0].id}`}>
+                  <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary-light">
+                    <Megaphone className="w-4 h-4" /> Post Announcement
+                  </Button>
+                </Link>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No batches assigned yet. Ask your admin.</p>
+            )}
           </Card>
         </motion.div>
 
@@ -67,35 +128,42 @@ export default function TeacherDashboard() {
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.32 }}>
           <h3 className="font-display font-semibold">My Batches</h3>
         </motion.div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {myBatches.map((b, i) => (
-            <motion.div key={b.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 + i * 0.08 }}>
-              <Card className="p-5 shadow-card border-border/50 hover:shadow-lg transition-all">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center text-white font-bold text-sm">
-                    {b.name.slice(0, 2)}
-                  </div>
-                  <div>
-                    <p className="font-semibold text-sm">{b.name}</p>
-                    <p className="text-xs text-muted-foreground">{b.next}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">
-                  <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{b.students} students</span>
-                  <span className={`flex items-center gap-1 font-medium ${b.attendance >= 80 ? "text-success" : "text-accent"}`}>
-                    <CalendarCheck className="w-3.5 h-3.5" />{b.attendance}% today
-                  </span>
-                </div>
-                <Link to={`/batch/${b.id}`}>
-                  <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
-                    Open Workspace <ExternalLink className="w-3 h-3" />
-                  </Button>
-                </Link>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
 
+        {loading ? (
+          <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : batches.length === 0 ? (
+          <Card className="p-8 text-center shadow-card border-border/50">
+            <BookOpen className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-40" />
+            <p className="text-sm text-muted-foreground">No batches assigned to you yet.</p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {batches.map((b, i) => (
+              <motion.div key={b.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 + i * 0.08 }}>
+                <Card className="p-5 shadow-card border-border/50 hover:shadow-lg transition-all">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center text-white font-bold text-sm">
+                      {b.name.slice(0, 2)}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">{b.name}</p>
+                      <Badge variant="secondary" className="text-xs mt-0.5">{b.course}</Badge>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">
+                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{b.studentCount} students</span>
+                    {b.schedule && <span className="text-xs">{b.schedule}</span>}
+                  </div>
+                  <Link to={`/batch/${b.id}`}>
+                    <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
+                      Open Workspace <ExternalLink className="w-3 h-3" />
+                    </Button>
+                  </Link>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
