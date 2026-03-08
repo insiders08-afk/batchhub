@@ -183,6 +183,7 @@ export type Database = {
       institutes: {
         Row: {
           attendance_marked_by: string
+          city: string | null
           created_at: string
           email: string
           govt_registration_no: string
@@ -197,6 +198,7 @@ export type Database = {
         }
         Insert: {
           attendance_marked_by?: string
+          city?: string | null
           created_at?: string
           email: string
           govt_registration_no: string
@@ -211,6 +213,7 @@ export type Database = {
         }
         Update: {
           attendance_marked_by?: string
+          city?: string | null
           created_at?: string
           email?: string
           govt_registration_no?: string
@@ -390,18 +393,21 @@ export type Database = {
       }
       user_roles: {
         Row: {
+          city: string | null
           id: string
           institute_code: string | null
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
+          city?: string | null
           id?: string
           institute_code?: string | null
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
+          city?: string | null
           id?: string
           institute_code?: string | null
           role?: Database["public"]["Enums"]["app_role"]
