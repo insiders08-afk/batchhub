@@ -1,41 +1,106 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, GraduationCap, Phone, Mail, BookOpen } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Phone, Mail, BookOpen, Search, GraduationCap, Loader2, Users } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import type { Tables } from "@/integrations/supabase/types";
 
-const students = [
-  { id: 1, name: "Arjun Sharma", roll: "JA-001", batch: "JEE Advanced A", phone: "+91 98765 43210", email: "arjun@example.com", attendance: 92, feeStatus: "paid" },
-  { id: 2, name: "Priya Verma", roll: "JA-002", batch: "JEE Advanced A", phone: "+91 87654 32109", email: "priya@example.com", attendance: 58, feeStatus: "partial" },
-  { id: 3, name: "Rohan Mehta", roll: "NA-001", batch: "NEET A", phone: "+91 76543 21098", email: "rohan@example.com", attendance: 88, feeStatus: "overdue" },
-  { id: 4, name: "Sneha Patel", roll: "NA-002", batch: "NEET A", phone: "+91 65432 10987", email: "sneha@example.com", attendance: 95, feeStatus: "paid" },
-  { id: 5, name: "Aditya Kumar", roll: "JB-001", batch: "JEE Mains B", phone: "+91 54321 09876", email: "aditya@example.com", attendance: 76, feeStatus: "partial" },
-  { id: 6, name: "Kavya Singh", roll: "F9-001", batch: "Foundation 9th", phone: "+91 43210 98765", email: "kavya@example.com", attendance: 99, feeStatus: "paid" },
-  { id: 7, name: "Harsh Gupta", roll: "JA-003", batch: "JEE Advanced A", phone: "+91 32109 87654", email: "harsh@example.com", attendance: 81, feeStatus: "overdue" },
-  { id: 8, name: "Ananya Rao", roll: "NB-001", batch: "NEET B", phone: "+91 21098 76543", email: "ananya@example.com", attendance: 90, feeStatus: "paid" },
-];
+type Profile = Tables<"profiles">;
 
-const feeColors: Record<string, string> = {
-  paid: "bg-success-light text-success border-success/20",
-  partial: "bg-accent-light text-accent border-accent/20",
-  overdue: "bg-danger-light text-danger border-danger/20",
-};
+interface StudentWithBatch extends Profile {
+  batchNames: string[];
+  attendancePct: number | null;
+}
 
 export default function AdminStudents() {
+  const { toast } = useToast();
+  const [students, setStudents] = useState<StudentWithBatch[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedStudent, setSelectedStudent] = useState<StudentWithBatch | null>(null);
+
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  const fetchStudents = async () => {
+    setLoading(true);
+    try {
+      const instituteCode = await supabase.rpc("get_my_institute_code");
+      if (!instituteCode.data) return;
+
+      // Fetch all approved students in this institute
+      const { data: profiles, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("institute_code", instituteCode.data)
+        .eq("role", "student")
+        .order("full_name");
+
+      if (error) throw error;
+
+      // Fetch batch enrollments for all students
+      const studentIds = (profiles || []).map(p => p.user_id);
+      const { data: enrollments } = await supabase
+        .from("students_batches")
+        .select("student_id, batch_id, batches(name)")
+        .in("student_id", studentIds.length > 0 ? studentIds : ["none"]);
+
+      // Fetch attendance summary
+      const { data: attendanceData } = await supabase
+        .from("attendance")
+        .select("student_id, present")
+        .in("student_id", studentIds.length > 0 ? studentIds : ["none"]);
+
+      // Build lookup maps
+      const batchMap: Record<string, string[]> = {};
+      (enrollments || []).forEach(e => {
+        if (!batchMap[e.student_id]) batchMap[e.student_id] = [];
+        const batchName = (e.batches as { name: string } | null)?.name;
+        if (batchName) batchMap[e.student_id].push(batchName);
+      });
+
+      const attendanceMap: Record<string, { total: number; present: number }> = {};
+      (attendanceData || []).forEach(a => {
+        if (!attendanceMap[a.student_id]) attendanceMap[a.student_id] = { total: 0, present: 0 };
+        attendanceMap[a.student_id].total++;
+        if (a.present) attendanceMap[a.student_id].present++;
+      });
+
+      const enriched: StudentWithBatch[] = (profiles || []).map(p => ({
+        ...p,
+        batchNames: batchMap[p.user_id] || [],
+        attendancePct: attendanceMap[p.user_id]
+          ? Math.round((attendanceMap[p.user_id].present / attendanceMap[p.user_id].total) * 100)
+          : null,
+      }));
+
+      setStudents(enriched);
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load students", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filtered = students.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.batch.toLowerCase().includes(search.toLowerCase()) ||
-    s.roll.toLowerCase().includes(search.toLowerCase())
+    s.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    (s.email || "").toLowerCase().includes(search.toLowerCase()) ||
+    s.batchNames.join(" ").toLowerCase().includes(search.toLowerCase())
   );
+
+  const statusColor = (status: string) => {
+    if (status === "approved" || status === "active") return "bg-success-light text-success border-success/20";
+    if (status === "pending") return "bg-accent-light text-accent border-accent/20";
+    return "bg-danger-light text-danger border-danger/20";
+  };
 
   return (
     <DashboardLayout title="Students">
@@ -45,104 +110,141 @@ export default function AdminStudents() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Search students..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2">
-                <Plus className="w-4 h-4" /> Add Student
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="font-display">Add New Student</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Full Name</Label>
-                    <Input placeholder="Student name" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Roll Number</Label>
-                    <Input placeholder="e.g. JA-012" />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Assign Batch</Label>
-                  <Select>
-                    <SelectTrigger><SelectValue placeholder="Select batch" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="jee-a">JEE Advanced A</SelectItem>
-                      <SelectItem value="jee-b">JEE Mains B</SelectItem>
-                      <SelectItem value="neet-a">NEET A</SelectItem>
-                      <SelectItem value="neet-b">NEET B</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Phone</Label>
-                    <Input placeholder="+91 XXXXX XXXXX" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Email</Label>
-                    <Input placeholder="student@example.com" />
-                  </div>
-                </div>
-                <Button className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90" onClick={() => setDialogOpen(false)}>
-                  Add Student
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Users className="w-4 h-4" />
+            <span>{students.length} total students</span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-          {filtered.map((s, i) => (
-            <motion.div key={s.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-              <Card className="p-4 shadow-card border-border/50 hover:shadow-lg transition-all hover:-translate-y-0.5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-full gradient-hero flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                    {s.name.split(" ").map(n => n[0]).join("")}
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <Card className="p-10 text-center shadow-card border-border/50">
+            <GraduationCap className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+            <p className="font-semibold">No students yet</p>
+            <p className="text-muted-foreground text-sm mt-1">Students will appear here once they register and are approved.</p>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+            {filtered.map((s, i) => (
+              <motion.div key={s.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+                <Card
+                  className="p-4 shadow-card border-border/50 hover:shadow-lg transition-all hover:-translate-y-0.5 cursor-pointer"
+                  onClick={() => setSelectedStudent(s)}
+                >
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full gradient-hero flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                      {s.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm truncate">{s.full_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{s.email}</p>
+                    </div>
+                    <Badge className={`text-xs flex-shrink-0 ${statusColor(s.status)}`}>
+                      {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
+                    </Badge>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm truncate">{s.name}</p>
-                    <p className="text-xs text-muted-foreground">{s.roll}</p>
+
+                  <div className="space-y-1.5 mb-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <BookOpen className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate">{s.batchNames.length > 0 ? s.batchNames.join(", ") : "No batch assigned"}</span>
+                    </div>
+                    {s.phone && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Phone className="w-3 h-3 flex-shrink-0" />
+                        <span>{s.phone}</span>
+                      </div>
+                    )}
                   </div>
-                  <Badge className={`text-xs flex-shrink-0 ${feeColors[s.feeStatus]}`}>
-                    {s.feeStatus.charAt(0).toUpperCase() + s.feeStatus.slice(1)}
+
+                  {s.attendancePct !== null && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-muted-foreground">Attendance</span>
+                        <span className={`text-xs font-semibold ${s.attendancePct >= 75 ? "text-success" : "text-danger"}`}>
+                          {s.attendancePct}%
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${s.attendancePct >= 75 ? "bg-success" : "bg-danger"}`}
+                          style={{ width: `${s.attendancePct}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Student detail dialog */}
+      <Dialog open={!!selectedStudent} onOpenChange={() => setSelectedStudent(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Student Profile</DialogTitle>
+          </DialogHeader>
+          {selectedStudent && (
+            <div className="space-y-4 pt-2">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full gradient-hero flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                  {selectedStudent.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                </div>
+                <div>
+                  <p className="font-semibold text-base">{selectedStudent.full_name}</p>
+                  <Badge className={`text-xs mt-1 ${statusColor(selectedStudent.status)}`}>
+                    {selectedStudent.status}
                   </Badge>
                 </div>
-
-                <div className="space-y-1.5 mb-3">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <BookOpen className="w-3 h-3" />
-                    <span>{s.batch}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Phone className="w-3 h-3" />
-                    <span>{s.phone}</span>
-                  </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="p-3 rounded-lg bg-muted/40 space-y-1">
+                  <Label className="text-xs text-muted-foreground">Email</Label>
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 text-muted-foreground" /> {selectedStudent.email}
+                  </p>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-muted-foreground">Attendance</span>
-                      <span className={`text-xs font-semibold ${s.attendance >= 75 ? 'text-success' : 'text-danger'}`}>{s.attendance}%</span>
-                    </div>
-                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${s.attendance >= 75 ? 'bg-success' : 'bg-danger'}`}
-                        style={{ width: `${s.attendance}%` }}
-                      />
+                {selectedStudent.phone && (
+                  <div className="p-3 rounded-lg bg-muted/40 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Phone</Label>
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5 text-muted-foreground" /> {selectedStudent.phone}
+                    </p>
+                  </div>
+                )}
+                <div className="p-3 rounded-lg bg-muted/40 space-y-1">
+                  <Label className="text-xs text-muted-foreground">Enrolled Batches</Label>
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    <BookOpen className="w-3.5 h-3.5 text-muted-foreground" />
+                    {selectedStudent.batchNames.length > 0 ? selectedStudent.batchNames.join(", ") : "None"}
+                  </p>
+                </div>
+                {selectedStudent.attendancePct !== null && (
+                  <div className="p-3 rounded-lg bg-muted/40 space-y-2">
+                    <Label className="text-xs text-muted-foreground">Overall Attendance</Label>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${selectedStudent.attendancePct >= 75 ? "bg-success" : "bg-danger"}`}
+                          style={{ width: `${selectedStudent.attendancePct}%` }}
+                        />
+                      </div>
+                      <span className={`text-sm font-bold ${selectedStudent.attendancePct >= 75 ? "text-success" : "text-danger"}`}>
+                        {selectedStudent.attendancePct}%
+                      </span>
                     </div>
                   </div>
-                </div>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
-      </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

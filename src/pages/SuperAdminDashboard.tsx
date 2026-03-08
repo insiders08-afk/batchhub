@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Zap, Shield, CheckCircle2, XCircle, Clock, Search,
-  Building2, LogOut, Loader2, RefreshCw, MapPin, ArrowLeft, User
+  Building2, LogOut, Loader2, RefreshCw, MapPin, ArrowLeft, Phone, Mail, Hash
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -31,11 +33,11 @@ export default function SuperAdminDashboard() {
   const [checking, setChecking] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [approvalFilter, setApprovalFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [adminCity, setAdminCity] = useState<string | null>(null);
   const [adminName, setAdminName] = useState<string | null>(null);
+  const [selectedInstitute, setSelectedInstitute] = useState<Institute | null>(null);
 
-  // Guard: only super_admin
   useEffect(() => {
     const checkAccess = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -52,7 +54,6 @@ export default function SuperAdminDashboard() {
       const city = (roleData as { role: string; city?: string | null }).city ?? null;
       setAdminCity(city);
 
-      // Fetch admin's profile name
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
@@ -70,22 +71,13 @@ export default function SuperAdminDashboard() {
   const fetchInstitutes = async (city?: string | null) => {
     setLoading(true);
     try {
-      let query = supabase
-        .from("institutes")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      // Filter by city if this super_admin has a city scope
-      if (city) {
-        query = query.eq("city" as never, city as never);
-      }
-
+      let query = supabase.from("institutes").select("*").order("created_at", { ascending: false });
+      if (city) query = query.eq("city" as never, city as never);
       const { data, error } = await query;
       if (error) throw error;
       setInstitutes(data || []);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to load";
-      toast({ title: "Error", description: message, variant: "destructive" });
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -94,42 +86,28 @@ export default function SuperAdminDashboard() {
   const handleAction = async (inst: Institute, action: "approved" | "rejected") => {
     setActionLoading(inst.id);
     try {
-      const { error: instError } = await supabase
-        .from("institutes")
-        .update({ status: action })
-        .eq("id", inst.id);
+      const { error: instError } = await supabase.from("institutes").update({ status: action }).eq("id", inst.id);
       if (instError) throw instError;
 
       if (action === "approved" && inst.owner_user_id) {
-        // Grant admin role
         const { error: roleError } = await supabase.from("user_roles").upsert({
           user_id: inst.owner_user_id,
           role: "admin",
           institute_code: inst.institute_code,
         }, { onConflict: "user_id,role" });
         if (roleError) throw roleError;
-
-        // Update profile status
-        await supabase.from("profiles")
-          .update({ status: "approved" })
-          .eq("user_id", inst.owner_user_id);
-
+        await supabase.from("profiles").update({ status: "approved" }).eq("user_id", inst.owner_user_id);
         toast({ title: "✅ Approved!", description: `${inst.institute_name} is now live on Lamba.` });
       } else {
         if (inst.owner_user_id) {
-          await supabase.from("profiles")
-            .update({ status: "rejected" })
-            .eq("user_id", inst.owner_user_id);
+          await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", inst.owner_user_id);
         }
         toast({ title: "Rejected", description: `${inst.institute_name} registration has been rejected.` });
       }
 
-      setInstitutes((prev) =>
-        prev.map((i) => i.id === inst.id ? { ...i, status: action } : i)
-      );
+      setInstitutes(prev => prev.map(i => i.id === inst.id ? { ...i, status: action } : i));
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Action failed";
-      toast({ title: "Error", description: message, variant: "destructive" });
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Action failed", variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -140,18 +118,23 @@ export default function SuperAdminDashboard() {
     navigate("/");
   };
 
-  const filtered = institutes.filter((inst) => {
-    const matchesFilter = filter === "all" || inst.status === filter;
+  const pendingCount = institutes.filter(i => i.status === "pending").length;
+  const approvedCount = institutes.filter(i => i.status === "approved").length;
+  const approvedInstitutes = institutes.filter(i => i.status === "approved");
+
+  const filteredApprovals = institutes.filter(i => {
+    const matchesFilter = approvalFilter === "all" || i.status === approvalFilter;
     const matchesSearch =
-      inst.institute_name.toLowerCase().includes(search.toLowerCase()) ||
-      inst.institute_code.toLowerCase().includes(search.toLowerCase()) ||
-      inst.owner_name.toLowerCase().includes(search.toLowerCase()) ||
-      inst.email.toLowerCase().includes(search.toLowerCase());
+      i.institute_name.toLowerCase().includes(search.toLowerCase()) ||
+      i.institute_code.toLowerCase().includes(search.toLowerCase()) ||
+      i.owner_name.toLowerCase().includes(search.toLowerCase());
     return matchesFilter && matchesSearch;
   });
 
-  const pendingCount = institutes.filter((i) => i.status === "pending").length;
-  const approvedCount = institutes.filter((i) => i.status === "approved").length;
+  const filteredInstitutes = approvedInstitutes.filter(i =>
+    i.institute_name.toLowerCase().includes(search.toLowerCase()) ||
+    i.owner_name.toLowerCase().includes(search.toLowerCase())
+  );
 
   if (checking) {
     return (
@@ -179,41 +162,29 @@ export default function SuperAdminDashboard() {
                 <MapPin className="w-2.5 h-2.5" />{adminCity}
               </Badge>
             )}
-            {adminName && (
-              <span className="text-sm text-muted-foreground hidden sm:inline">· {adminName}</span>
-            )}
+            {adminName && <span className="text-sm text-muted-foreground hidden sm:inline">· {adminName}</span>}
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/">
-              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
-                <ArrowLeft className="w-4 h-4" /> Home
-              </Button>
-            </Link>
-            <Button variant="ghost" size="sm" onClick={() => fetchInstitutes(adminCity)} className="gap-2">
-              <RefreshCw className="w-4 h-4" /> Refresh
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2 text-muted-foreground">
-              <LogOut className="w-4 h-4" /> Sign Out
-            </Button>
+            <Link to="/"><Button variant="ghost" size="sm" className="gap-2 text-muted-foreground"><ArrowLeft className="w-4 h-4" /> Home</Button></Link>
+            <Button variant="ghost" size="sm" onClick={() => fetchInstitutes(adminCity)} className="gap-2"><RefreshCw className="w-4 h-4" /> Refresh</Button>
+            <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2 text-muted-foreground"><LogOut className="w-4 h-4" /> Sign Out</Button>
           </div>
         </div>
       </nav>
 
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         {/* Header */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center shadow-lg">
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
               <h1 className="text-2xl font-display font-bold">
-                Institute Control Panel{adminCity ? ` — ${adminCity}` : ""}
+                City Partner Panel{adminCity ? ` — ${adminCity}` : ""}
               </h1>
               <p className="text-muted-foreground text-sm">
-                {adminCity
-                  ? `Managing institutes in ${adminCity}`
-                  : "Manage and approve all institutes on the Lamba marketplace"}
+                {adminCity ? `Managing institutes in ${adminCity}` : "Manage and approve all institutes"}
               </p>
             </div>
           </div>
@@ -225,7 +196,7 @@ export default function SuperAdminDashboard() {
             { label: "Total Institutes", value: institutes.length, color: "text-foreground" },
             { label: "Pending Approval", value: pendingCount, color: "text-accent" },
             { label: "Live on Lamba", value: approvedCount, color: "text-success" },
-          ].map((s) => (
+          ].map(s => (
             <Card key={s.label} className="p-4 shadow-card border-border/50 text-center">
               <p className={`text-2xl font-display font-bold ${s.color}`}>{s.value}</p>
               <p className="text-xs text-muted-foreground mt-1">{s.label}</p>
@@ -233,123 +204,182 @@ export default function SuperAdminDashboard() {
           ))}
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3 mb-5">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by institute name, code, owner..."
-              className="pl-9"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="flex gap-2">
-            {(["pending", "approved", "rejected", "all"] as const).map((f) => (
-              <Button
-                key={f}
-                variant={filter === f ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFilter(f)}
-                className={filter === f ? "gradient-hero text-white border-0" : ""}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-                <span className="ml-1.5 text-xs opacity-70">
-                  ({institutes.filter((i) => f === "all" || i.status === f).length})
+        {/* Search */}
+        <div className="relative mb-5">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Search by institute name, code, owner..." className="pl-9" value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+
+        {/* Tabs */}
+        <Tabs defaultValue="approvals">
+          <TabsList className="mb-5 w-full sm:w-auto">
+            <TabsTrigger value="approvals" className="flex-1 sm:flex-none">
+              Approvals
+              {pendingCount > 0 && (
+                <span className="ml-2 text-xs font-bold bg-danger text-white rounded-full w-5 h-5 inline-flex items-center justify-center">
+                  {pendingCount}
                 </span>
-              </Button>
-            ))}
-          </div>
-        </div>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="institutes" className="flex-1 sm:flex-none">
+              Institutes ({approvedCount})
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Institute list */}
-        <div className="space-y-3">
-          {loading ? (
-            <Card className="p-10 text-center shadow-card border-border/50">
-              <Loader2 className="w-8 h-8 text-primary mx-auto mb-3 animate-spin" />
-              <p className="text-muted-foreground text-sm">Loading institutes...</p>
-            </Card>
-          ) : filtered.length === 0 ? (
-            <Card className="p-10 text-center shadow-card border-border/50">
-              <Building2 className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="font-semibold">No institutes found</p>
-              <p className="text-muted-foreground text-sm">No {filter === "all" ? "" : filter} institute registrations yet.</p>
-            </Card>
-          ) : (
-            filtered.map((inst, i) => (
-              <motion.div
-                key={inst.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.04 }}
-              >
-                <Card className="p-5 shadow-card border-border/50 hover:border-primary/20 transition-colors">
-                  <div className="flex items-start gap-4">
-                    <div className="w-11 h-11 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0 shadow">
-                      <Building2 className="w-5 h-5 text-white" />
-                    </div>
+          {/* Approvals Tab */}
+          <TabsContent value="approvals">
+            <div className="flex gap-2 mb-4 flex-wrap">
+              {(["pending", "approved", "rejected", "all"] as const).map(f => (
+                <Button
+                  key={f}
+                  variant={approvalFilter === f ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setApprovalFilter(f)}
+                  className={approvalFilter === f ? "gradient-hero text-white border-0" : ""}
+                >
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                  <span className="ml-1.5 text-xs opacity-70">
+                    ({institutes.filter(i => f === "all" || i.status === f).length})
+                  </span>
+                </Button>
+              ))}
+            </div>
 
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-semibold">{inst.institute_name}</span>
-                        <Badge className="text-xs bg-muted text-muted-foreground border-0 font-mono">{inst.institute_code}</Badge>
+            {loading ? (
+              <Card className="p-10 text-center"><Loader2 className="w-8 h-8 text-primary mx-auto mb-3 animate-spin" /></Card>
+            ) : filteredApprovals.length === 0 ? (
+              <Card className="p-10 text-center shadow-card border-border/50">
+                <Building2 className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="font-semibold">No institutes found</p>
+                <p className="text-muted-foreground text-sm">No {approvalFilter === "all" ? "" : approvalFilter} institute registrations yet.</p>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {filteredApprovals.map((inst, i) => (
+                  <motion.div key={inst.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+                    <Card className="p-5 shadow-card border-border/50 hover:border-primary/20 transition-colors">
+                      <div className="flex items-start gap-4">
+                        <div className="w-11 h-11 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0 shadow">
+                          <Building2 className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="font-semibold">{inst.institute_name}</span>
+                            <Badge className="text-xs bg-muted text-muted-foreground border-0 font-mono">{inst.institute_code}</Badge>
+                            {inst.status === "pending" && <Badge className="text-xs bg-accent-light text-accent border-0 flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> Pending</Badge>}
+                            {inst.status === "approved" && <Badge className="text-xs bg-success-light text-success border-0 flex items-center gap-1"><CheckCircle2 className="w-2.5 h-2.5" /> Live</Badge>}
+                            {inst.status === "rejected" && <Badge className="text-xs bg-danger-light text-danger border-0 flex items-center gap-1"><XCircle className="w-2.5 h-2.5" /> Rejected</Badge>}
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                            <span>Owner: <strong className="text-foreground">{inst.owner_name}</strong></span>
+                            <span>Govt Reg: <strong className="text-foreground">{inst.govt_registration_no}</strong></span>
+                            <span>Email: <strong className="text-foreground">{inst.email}</strong></span>
+                            <span>Phone: <strong className="text-foreground">{inst.phone}</strong></span>
+                            <span className="text-muted-foreground/60">Submitted {timeAgo(inst.created_at)}</span>
+                          </div>
+                        </div>
                         {inst.status === "pending" && (
-                          <Badge className="text-xs bg-accent-light text-accent border-0 flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5" /> Pending
-                          </Badge>
-                        )}
-                        {inst.status === "approved" && (
-                          <Badge className="text-xs bg-success-light text-success border-0 flex items-center gap-1">
-                            <CheckCircle2 className="w-2.5 h-2.5" /> Live
-                          </Badge>
-                        )}
-                        {inst.status === "rejected" && (
-                          <Badge className="text-xs bg-danger-light text-danger border-0 flex items-center gap-1">
-                            <XCircle className="w-2.5 h-2.5" /> Rejected
-                          </Badge>
+                          <div className="flex gap-2 flex-shrink-0">
+                            <Button size="sm" disabled={actionLoading === inst.id} className="bg-success-light text-success hover:bg-success hover:text-white border border-success/20 h-8 text-xs gap-1 transition-colors" onClick={() => handleAction(inst, "approved")}>
+                              {actionLoading === inst.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Approve
+                            </Button>
+                            <Button size="sm" variant="outline" disabled={actionLoading === inst.id} className="text-danger border-danger/30 hover:bg-danger-light h-8 text-xs gap-1" onClick={() => handleAction(inst, "rejected")}>
+                              <XCircle className="w-3.5 h-3.5" /> Reject
+                            </Button>
+                          </div>
                         )}
                       </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span>Owner: <strong className="text-foreground">{inst.owner_name}</strong></span>
-                        <span>Govt Reg: <strong className="text-foreground">{inst.govt_registration_no}</strong></span>
-                        <span>Email: <strong className="text-foreground">{inst.email}</strong></span>
-                        <span>Phone: <strong className="text-foreground">{inst.phone}</strong></span>
-                        <span className="text-muted-foreground/60">Submitted {timeAgo(inst.created_at)}</span>
+          {/* Institutes Tab */}
+          <TabsContent value="institutes">
+            {loading ? (
+              <Card className="p-10 text-center"><Loader2 className="w-8 h-8 text-primary mx-auto mb-3 animate-spin" /></Card>
+            ) : filteredInstitutes.length === 0 ? (
+              <Card className="p-10 text-center shadow-card border-border/50">
+                <Building2 className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="font-semibold">No approved institutes yet</p>
+                <p className="text-muted-foreground text-sm">Approved institutes will appear here.</p>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredInstitutes.map((inst, i) => (
+                  <motion.div key={inst.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+                    <Card
+                      className="p-4 shadow-card border-border/50 hover:shadow-lg hover:border-primary/20 transition-all cursor-pointer"
+                      onClick={() => setSelectedInstitute(inst)}
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0">
+                          <Building2 className="w-5 h-5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm truncate">{inst.institute_name}</p>
+                          <Badge className="text-xs bg-success-light text-success border-0 mt-0.5">Live</Badge>
+                        </div>
                       </div>
-                    </div>
-
-                    {inst.status === "pending" && (
-                      <div className="flex gap-2 flex-shrink-0">
-                        <Button
-                          size="sm"
-                          disabled={actionLoading === inst.id}
-                          className="bg-success-light text-success hover:bg-success hover:text-white border border-success/20 h-8 text-xs gap-1 transition-colors"
-                          onClick={() => handleAction(inst, "approved")}
-                        >
-                          {actionLoading === inst.id
-                            ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            : <CheckCircle2 className="w-3.5 h-3.5" />}
-                          Approve
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={actionLoading === inst.id}
-                          className="text-danger border-danger/30 hover:bg-danger-light h-8 text-xs gap-1"
-                          onClick={() => handleAction(inst, "rejected")}
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Reject
-                        </Button>
+                      <div className="space-y-1.5 text-sm">
+                        <p className="text-muted-foreground flex items-center gap-1.5">
+                          <span className="font-medium text-foreground">{inst.owner_name}</span>
+                        </p>
+                        <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                          <Phone className="w-3 h-3" /> {inst.phone}
+                        </p>
                       </div>
-                    )}
-                  </div>
-                </Card>
-              </motion.div>
-            ))
-          )}
-        </div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
+
+      {/* Institute Detail Dialog */}
+      <Dialog open={!!selectedInstitute} onOpenChange={() => setSelectedInstitute(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Institute Details</DialogTitle>
+          </DialogHeader>
+          {selectedInstitute && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-xl gradient-hero flex items-center justify-center shadow-lg flex-shrink-0">
+                  <Building2 className="w-7 h-7 text-white" />
+                </div>
+                <div>
+                  <p className="font-bold text-lg">{selectedInstitute.institute_name}</p>
+                  <Badge className="text-xs bg-success-light text-success border-0 mt-1">Live on Lamba</Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                {[
+                  { icon: Hash, label: "Institute Code", value: selectedInstitute.institute_code },
+                  { icon: Building2, label: "Owner", value: selectedInstitute.owner_name },
+                  { icon: Phone, label: "Phone", value: selectedInstitute.phone },
+                  { icon: Mail, label: "Email", value: selectedInstitute.email },
+                  { icon: MapPin, label: "City", value: selectedInstitute.city || "—" },
+                  { icon: Hash, label: "Govt. Reg No", value: selectedInstitute.govt_registration_no },
+                ].map(item => (
+                  <div key={item.label} className="flex items-center gap-3 p-3 rounded-lg bg-muted/40">
+                    <item.icon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-muted-foreground">{item.label}</p>
+                      <p className="text-sm font-medium truncate">{item.value}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground text-center">Registered {timeAgo(selectedInstitute.created_at)}</p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
