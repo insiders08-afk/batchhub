@@ -187,8 +187,14 @@ export default function SuperAdminDashboard() {
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-display font-bold">Institute Control Panel</h1>
-              <p className="text-muted-foreground text-sm">Manage and approve all institutes on the Lamba marketplace</p>
+              <h1 className="text-2xl font-display font-bold">
+                Institute Control Panel{adminCity ? ` — ${adminCity}` : ""}
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                {adminCity
+                  ? `Managing institutes in ${adminCity}`
+                  : "Manage and approve all institutes on the Lamba marketplace"}
+              </p>
             </div>
           </div>
         </motion.div>
