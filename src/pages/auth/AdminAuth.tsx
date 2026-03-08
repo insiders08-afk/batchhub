@@ -156,9 +156,9 @@ export default function AdminAuth() {
               <Clock className="w-8 h-8 text-white" />
             </div>
           </div>
-          <h2 className="text-2xl font-display font-bold mb-2">Pending Platform Approval</h2>
+          <h2 className="text-2xl font-display font-bold mb-2">Pending City Partner Approval</h2>
           <p className="text-muted-foreground mb-4">
-            <span className="font-semibold text-foreground">{pendingInstituteName}</span> has been submitted and is pending verification by the Lamba platform team.
+            <span className="font-semibold text-foreground">{pendingInstituteName}</span> has been submitted and is pending review by your city's Lamba partner (Super Admin).
           </p>
           <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-6 shadow-card">
             <div className="flex items-center gap-3">
@@ -169,14 +169,14 @@ export default function AdminAuth() {
               <div className="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center">
                 <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
               </div>
-              <p className="text-sm text-muted-foreground">Platform team reviewing govt. registration...</p>
+              <p className="text-sm text-muted-foreground">Your city's Lamba partner is reviewing your govt. registration...</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
               <p className="text-sm text-muted-foreground">Access to admin dashboard granted</p>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground mb-4">You'll be notified via email once approved. Usually within 24 hours.</p>
+          <p className="text-xs text-muted-foreground mb-4">The Lamba partner for your city will review and approve within 24 hours.</p>
           <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
         </motion.div>
       </div>
