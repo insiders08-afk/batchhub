@@ -96,11 +96,9 @@ export default function BatchWorkspace() {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border/50 bg-card flex items-center gap-3 px-4 h-14 flex-shrink-0">
-        <Link to="/admin/batches">
-          <Button variant="ghost" size="icon" className="w-8 h-8">
-            <ArrowLeft className="w-4 h-4" />
-          </Button>
-        </Link>
+        <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate(-1)}>
+          <ArrowLeft className="w-4 h-4" />
+        </Button>
         <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center text-white text-xs font-bold">
           {batch.name.slice(0, 2)}
         </div>
