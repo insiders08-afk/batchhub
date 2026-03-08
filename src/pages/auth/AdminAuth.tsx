@@ -5,40 +5,196 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, Shield, Upload, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+type Screen = "register" | "login" | "pending" | "rejected";
 
 export default function AdminAuth() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<"register" | "login">("register");
-  const [form, setForm] = useState({
+  const { toast } = useToast();
+  const [step, setStep] = useState<Screen>("register");
+  const [loading, setLoading] = useState(false);
+  const [pendingInstituteName, setPendingInstituteName] = useState("");
+
+  const [regForm, setRegForm] = useState({
     ownerName: "",
     instituteName: "",
     instituteId: "",
     govtRegistrationNo: "",
-    ownershipProof: "",
     email: "",
     phone: "",
     password: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+
+  const handleRegChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setRegForm({ ...regForm, [e.target.name]: e.target.value });
+
+  const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+    setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      // 1. Create auth account
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: regForm.email,
+        password: regForm.password,
+        options: { emailRedirectTo: `${window.location.origin}/auth/admin` },
+      });
+      if (authError) throw authError;
+      const userId = authData.user?.id;
+      if (!userId) throw new Error("No user ID returned");
+
+      // 2. Insert institute record (status: pending)
+      const { error: instError } = await supabase.from("institutes").insert({
+        owner_user_id: userId,
+        owner_name: regForm.ownerName,
+        institute_name: regForm.instituteName,
+        institute_code: regForm.instituteId.toUpperCase(),
+        govt_registration_no: regForm.govtRegistrationNo,
+        email: regForm.email,
+        phone: regForm.phone,
+        status: "pending",
+      });
+      if (instError) throw instError;
+
+      // 3. Insert profile (status: pending)
+      const { error: profError } = await supabase.from("profiles").insert({
+        user_id: userId,
+        full_name: regForm.ownerName,
+        email: regForm.email,
+        phone: regForm.phone,
+        role: "admin",
+        institute_code: regForm.instituteId.toUpperCase(),
+        status: "pending",
+      });
+      if (profError) throw profError;
+
+      setPendingInstituteName(regForm.instituteName);
+      setStep("pending");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Registration failed";
+      toast({ title: "Registration failed", description: message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Store in localStorage as demo
-    const registrations = JSON.parse(localStorage.getItem("lamba_admins") || "[]");
-    registrations.push({ ...form, status: "approved", role: "admin", createdAt: new Date().toISOString() });
-    localStorage.setItem("lamba_admins", JSON.stringify(registrations));
-    localStorage.setItem("lamba_current_user", JSON.stringify({ ...form, role: "admin", status: "approved" }));
-    navigate("/admin");
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginForm.email,
+        password: loginForm.password,
+      });
+      if (error) throw error;
+
+      const userId = data.user?.id;
+
+      // Check if super_admin
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "super_admin")
+        .maybeSingle();
+
+      if (roleData) {
+        navigate("/superadmin");
+        return;
+      }
+
+      // Look up institute
+      const { data: institute, error: instErr } = await supabase
+        .from("institutes")
+        .select("status, institute_name")
+        .eq("owner_user_id", userId)
+        .maybeSingle();
+
+      if (instErr) throw instErr;
+
+      if (!institute) {
+        toast({ title: "No institute found", description: "No institute is linked to this account.", variant: "destructive" });
+        return;
+      }
+
+      if (institute.status === "approved") {
+        navigate("/admin");
+      } else if (institute.status === "pending") {
+        setPendingInstituteName(institute.institute_name);
+        setStep("pending");
+      } else {
+        setPendingInstituteName(institute.institute_name);
+        setStep("rejected");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      toast({ title: "Login failed", description: message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    navigate("/admin");
-  };
+  if (step === "pending") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
+          <div className="relative w-20 h-20 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-accent to-orange-400 opacity-20 animate-ping" />
+            <div className="relative w-20 h-20 rounded-full gradient-hero flex items-center justify-center shadow-lg">
+              <Clock className="w-8 h-8 text-white" />
+            </div>
+          </div>
+          <h2 className="text-2xl font-display font-bold mb-2">Pending Platform Approval</h2>
+          <p className="text-muted-foreground mb-4">
+            <span className="font-semibold text-foreground">{pendingInstituteName}</span> has been submitted and is pending verification by the Lamba platform team.
+          </p>
+          <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-6 shadow-card">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-success-light flex items-center justify-center text-success text-xs font-bold">1</div>
+              <p className="text-sm">Institute registered ✓</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center">
+                <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+              </div>
+              <p className="text-sm text-muted-foreground">Platform team reviewing govt. registration...</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
+              <p className="text-sm text-muted-foreground">Access to admin dashboard granted</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">You'll be notified via email once approved. Usually within 24 hours.</p>
+          <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (step === "rejected") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
+          <div className="w-20 h-20 rounded-full bg-danger-light flex items-center justify-center mx-auto mb-6">
+            <XCircle className="w-10 h-10 text-danger" />
+          </div>
+          <h2 className="text-2xl font-display font-bold mb-2">Application Rejected</h2>
+          <p className="text-muted-foreground mb-6">
+            Unfortunately, <span className="font-semibold text-foreground">{pendingInstituteName}</span>'s registration was not approved. This may be due to invalid government registration details.
+          </p>
+          <p className="text-xs text-muted-foreground mb-4">Please contact support at <strong>support@lamba.app</strong> for more information.</p>
+          <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -91,35 +247,35 @@ export default function AdminAuth() {
                   <div className="p-3 bg-primary-light border border-primary/20 rounded-lg mb-2">
                     <p className="text-xs text-primary font-medium flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      Verification required — your institute will be verified before going live.
+                      Verification required — your institute will be verified by the Lamba team before going live.
                     </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="ownerName">Owner's Full Name *</Label>
-                      <Input id="ownerName" name="ownerName" placeholder="Rajesh Kumar" required onChange={handleChange} value={form.ownerName} />
+                      <Input id="ownerName" name="ownerName" placeholder="Rajesh Kumar" required onChange={handleRegChange} value={regForm.ownerName} />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="instituteName">Institute Name *</Label>
-                      <Input id="instituteName" name="instituteName" placeholder="Apex Classes" required onChange={handleChange} value={form.instituteName} />
+                      <Input id="instituteName" name="instituteName" placeholder="Apex Classes" required onChange={handleRegChange} value={regForm.instituteName} />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="instituteId">Institute ID / Code *</Label>
-                    <Input id="instituteId" name="instituteId" placeholder="e.g. APEX-KOTA-001" required onChange={handleChange} value={form.instituteId} />
+                    <Input id="instituteId" name="instituteId" placeholder="e.g. APEX-KOTA-001" required onChange={handleRegChange} value={regForm.instituteId} />
                     <p className="text-xs text-muted-foreground">This will be the unique identifier for your institute on Lamba.</p>
                   </div>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="govtRegistrationNo">Government Registration / Trust No. *</Label>
-                    <Input id="govtRegistrationNo" name="govtRegistrationNo" placeholder="e.g. MH/2015/0012345" required onChange={handleChange} value={form.govtRegistrationNo} />
+                    <Input id="govtRegistrationNo" name="govtRegistrationNo" placeholder="e.g. MH/2015/0012345" required onChange={handleRegChange} value={regForm.govtRegistrationNo} />
                     <p className="text-xs text-muted-foreground">Your government-issued institute registration number for real-world verification.</p>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="ownershipProof">Ownership Proof Document</Label>
+                    <Label>Ownership Proof Document</Label>
                     <div className="flex items-center gap-3 p-3 border border-dashed border-border/60 rounded-lg bg-muted/40 cursor-pointer hover:bg-muted/60 transition-colors">
                       <Upload className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm text-muted-foreground">Upload ownership certificate, PAN, or GST certificate</span>
@@ -130,39 +286,35 @@ export default function AdminAuth() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="email">Email *</Label>
-                      <Input id="email" name="email" type="email" placeholder="owner@apex.com" required onChange={handleChange} value={form.email} />
+                      <Input id="email" name="email" type="email" placeholder="owner@apex.com" required onChange={handleRegChange} value={regForm.email} />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="phone">Mobile Number *</Label>
-                      <Input id="phone" name="phone" type="tel" placeholder="9876543210" required onChange={handleChange} value={form.phone} />
+                      <Input id="phone" name="phone" type="tel" placeholder="9876543210" required onChange={handleRegChange} value={regForm.phone} />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="password">Set Password *</Label>
-                    <Input id="password" name="password" type="password" placeholder="Min. 8 characters" required minLength={8} onChange={handleChange} value={form.password} />
+                    <Input id="password" name="password" type="password" placeholder="Min. 8 characters" required minLength={8} onChange={handleRegChange} value={regForm.password} />
                   </div>
 
-                  <Button type="submit" className="w-full gradient-hero text-white border-0 hover:opacity-90 h-11 font-semibold">
-                    Register My Institute
+                  <Button type="submit" disabled={loading} className="w-full gradient-hero text-white border-0 hover:opacity-90 h-11 font-semibold">
+                    {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Registering...</> : "Register My Institute"}
                   </Button>
                 </form>
               ) : (
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="loginInstituteId">Institute ID *</Label>
-                    <Input id="loginInstituteId" placeholder="e.g. APEX-KOTA-001" required />
-                  </div>
-                  <div className="space-y-1.5">
                     <Label htmlFor="loginEmail">Email *</Label>
-                    <Input id="loginEmail" type="email" placeholder="owner@apex.com" required />
+                    <Input id="loginEmail" name="email" type="email" placeholder="owner@apex.com" required onChange={handleLoginChange} value={loginForm.email} />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="loginPassword">Password *</Label>
-                    <Input id="loginPassword" type="password" placeholder="Your password" required />
+                    <Input id="loginPassword" name="password" type="password" placeholder="Your password" required onChange={handleLoginChange} value={loginForm.password} />
                   </div>
-                  <Button type="submit" className="w-full gradient-hero text-white border-0 hover:opacity-90 h-11 font-semibold">
-                    Sign In to Dashboard
+                  <Button type="submit" disabled={loading} className="w-full gradient-hero text-white border-0 hover:opacity-90 h-11 font-semibold">
+                    {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in...</> : "Sign In to Dashboard"}
                   </Button>
                 </form>
               )}
