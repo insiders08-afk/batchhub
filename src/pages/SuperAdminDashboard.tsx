@@ -162,6 +162,11 @@ export default function SuperAdminDashboard() {
             </div>
             <span className="text-lg font-display font-bold text-gradient">Lamba</span>
             <Badge className="bg-primary-light text-primary border-0 text-xs ml-1">Super Admin</Badge>
+            {adminCity && (
+              <Badge className="bg-muted text-muted-foreground border-0 text-xs flex items-center gap-1">
+                <MapPin className="w-2.5 h-2.5" />{adminCity}
+              </Badge>
+            )}
           </Link>
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={() => fetchInstitutes(adminCity)} className="gap-2">
