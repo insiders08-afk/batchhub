@@ -55,6 +55,18 @@ export default function StudentAuth() {
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            {/* Demo Banner */}
+            <div className="mb-6 flex items-center justify-between p-3 rounded-xl bg-primary-light border border-primary/20">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-primary flex-shrink-0" />
+                <span className="text-sm text-primary font-medium">Want to preview the student dashboard first?</span>
+              </div>
+              <Link to="/student">
+                <Button size="sm" variant="outline" className="text-primary border-primary/30 hover:bg-primary-light h-8 text-xs gap-1 flex-shrink-0">
+                  View Demo <Eye className="w-3 h-3" />
+                </Button>
+              </Link>
+            </div>
             <div className="text-center mb-8">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-orange-400 flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <GraduationCap className="w-7 h-7 text-white" />
