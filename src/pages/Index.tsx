@@ -482,10 +482,6 @@ export default function Index() {
             <Link to="/apply/city-partner" className="hover:text-foreground transition-colors opacity-60 hover:opacity-100">
               Become a City Partner
             </Link>
-            {/* Hidden owner access — bookmark this URL */}
-            <Link to="/auth/owner" className="hover:text-foreground transition-colors opacity-20 hover:opacity-60 text-xs">
-              ·
-            </Link>
           </div>
         </div>
       </footer>
