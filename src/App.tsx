@@ -18,6 +18,7 @@ import AdminApprovals from "./pages/AdminApprovals";
 import BatchWorkspace from "./pages/BatchWorkspace";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
+import ParentDashboard from "./pages/ParentDashboard";
 import AdminAuth from "./pages/auth/AdminAuth";
 import TeacherAuth from "./pages/auth/TeacherAuth";
 import StudentAuth from "./pages/auth/StudentAuth";
@@ -50,6 +51,7 @@ const App = () => (
           <Route path="/batch/:id" element={<BatchWorkspace />} />
           <Route path="/teacher" element={<TeacherDashboard />} />
           <Route path="/student" element={<StudentDashboard />} />
+          <Route path="/parent" element={<ParentDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

@@ -147,11 +147,23 @@ export default function Index() {
                   <ArrowRight className="ml-2 w-4 h-4" />
                 </Button>
               </Link>
-              <Link to="/admin">
-                <Button size="lg" variant="outline" className="px-8 h-12 text-base font-semibold border-border/60">
-                  View Demo Dashboard
-                </Button>
-              </Link>
+            </div>
+
+            {/* Role demo links */}
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+              <span className="text-sm text-muted-foreground mr-1">Try a demo:</span>
+              {[
+                { label: "Admin Demo", to: "/admin", color: "bg-primary-light text-primary border-primary/20 hover:bg-primary/10" },
+                { label: "Teacher Demo", to: "/teacher", color: "bg-success-light text-success border-success/20 hover:bg-success/10" },
+                { label: "Student Demo", to: "/student", color: "bg-accent-light text-accent border-accent/20 hover:bg-accent/10" },
+                { label: "Parent Demo", to: "/parent", color: "bg-muted text-foreground border-border/40 hover:bg-muted/70" },
+              ].map((d) => (
+                <Link key={d.to} to={d.to}>
+                  <Button size="sm" variant="outline" className={`h-8 text-xs font-medium border ${d.color}`}>
+                    {d.label} →
+                  </Button>
+                </Link>
+              ))}
             </div>
 
             <p className="mt-4 text-sm text-muted-foreground">Free 14-day trial · No credit card · Setup in 5 minutes</p>
