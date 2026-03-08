@@ -15,6 +15,7 @@ import AdminAnnouncements from "./pages/AdminAnnouncements";
 import AdminTests from "./pages/AdminTests";
 import AdminSettings from "./pages/AdminSettings";
 import AdminApprovals from "./pages/AdminApprovals";
+import AdminTeam from "./pages/AdminTeam";
 import BatchWorkspace from "./pages/BatchWorkspace";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";
@@ -49,6 +50,7 @@ const App = () => (
           <Route path="/admin/tests" element={<AdminTests />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/approvals" element={<AdminApprovals />} />
+          <Route path="/admin/team" element={<AdminTeam />} />
           <Route path="/auth/admin" element={<AdminAuth />} />
           <Route path="/auth/superadmin" element={<SuperAdminAuth />} />
           <Route path="/superadmin" element={<SuperAdminDashboard />} />

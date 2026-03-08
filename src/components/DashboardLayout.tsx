@@ -21,6 +21,7 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: FlaskConical, label: "Tests", path: "/admin/tests" },
     { icon: IndianRupee, label: "Fees", path: "/admin/fees" },
     { icon: GraduationCap, label: "Students", path: "/admin/students" },
+    { icon: ClipboardList, label: "Team", path: "/admin/team" },
     { icon: ShieldCheck, label: "Approvals", path: "/admin/approvals" },
     { icon: Settings, label: "Settings", path: "/admin/settings" },
   ],

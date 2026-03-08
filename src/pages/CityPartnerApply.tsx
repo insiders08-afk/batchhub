@@ -5,18 +5,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Zap, MapPin, Loader2, Camera, CheckCircle, User, Upload } from "lucide-react";
+import { Zap, MapPin, Loader2, Camera, CheckCircle, Upload, AlertCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-const INDIA_CITIES = [
-  "Delhi", "Mumbai", "Bangalore", "Hyderabad", "Chennai", "Kolkata",
-  "Pune", "Ahmedabad", "Jaipur", "Lucknow", "Kanpur", "Nagpur",
-  "Patna", "Indore", "Bhopal", "Bareilly", "Agra", "Varanasi",
-  "Meerut", "Allahabad", "Dehradun", "Noida", "Gurgaon", "Ghaziabad",
-  "Aligarh", "Moradabad", "Gorakhpur", "Surat", "Vadodara", "Rajkot",
-  "Coimbatore", "Visakhapatnam", "Bhubaneswar", "Kochi", "Chandigarh",
-  "Jodhpur", "Udaipur", "Ranchi", "Raipur", "Amritsar",
+export const INDIA_CITIES = [
+  "Agra", "Ahmedabad", "Aligarh", "Allahabad", "Amritsar",
+  "Bareilly", "Bangalore", "Bhopal", "Bhubaneswar",
+  "Chandigarh", "Chennai", "Coimbatore",
+  "Dehradun", "Delhi",
+  "Ghaziabad", "Gorakhpur", "Gurgaon",
+  "Hyderabad", "Indore",
+  "Jaipur", "Jodhpur",
+  "Kanpur", "Kochi", "Kolkata",
+  "Lucknow",
+  "Meerut", "Moradabad", "Mumbai",
+  "Nagpur", "Noida",
+  "Patna", "Pune",
+  "Raipur", "Rajkot", "Ranchi",
+  "Surat",
+  "Udaipur",
+  "Vadodara", "Varanasi", "Visakhapatnam",
 ];
 
 export default function CityPartnerApply() {
@@ -24,6 +33,8 @@ export default function CityPartnerApply() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
+  const [checkingCity, setCheckingCity] = useState(false);
+  const [cityTaken, setCityTaken] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -37,6 +48,31 @@ export default function CityPartnerApply() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleCityChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const city = e.target.value;
+    setForm({ ...form, city });
+    setCityTaken(false);
+
+    if (!city) return;
+
+    setCheckingCity(true);
+    try {
+      // Check if this city already has an approved super_admin
+      const { data } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("role", "super_admin")
+        .eq("city", city)
+        .maybeSingle();
+
+      if (data) setCityTaken(true);
+    } catch {
+      // silently ignore check errors
+    } finally {
+      setCheckingCity(false);
+    }
+  };
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -57,20 +93,36 @@ export default function CityPartnerApply() {
       toast({ title: "City required", description: "Please select your city.", variant: "destructive" });
       return;
     }
+    if (cityTaken) {
+      toast({ title: "City not available", description: `${form.city} already has a City Partner.`, variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
     try {
-      let facial_image_url: string | null = null;
+      // Double-check city availability before submit
+      const { data: existing } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("role", "super_admin")
+        .eq("city", form.city)
+        .maybeSingle();
 
-      // Upload photo if provided
+      if (existing) {
+        setCityTaken(true);
+        toast({ title: "City not available", description: `${form.city} already has a City Partner. Please choose another city.`, variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      let facial_image_url: string | null = null;
       if (photoFile) {
         const ext = photoFile.name.split(".").pop();
         const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("applicant-photos")
           .upload(fileName, photoFile, { cacheControl: "3600", upsert: false });
-
         if (uploadError) throw uploadError;
-
         const { data: urlData } = supabase.storage.from("applicant-photos").getPublicUrl(uploadData.path);
         facial_image_url = urlData.publicUrl;
       }
@@ -85,7 +137,6 @@ export default function CityPartnerApply() {
       });
 
       if (error) throw error;
-
       setSubmitted(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Submission failed";
@@ -99,12 +150,12 @@ export default function CityPartnerApply() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
-          <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-green-500" />
+          <div className="w-16 h-16 rounded-full bg-success-light flex items-center justify-center mx-auto mb-4">
+            <CheckCircle className="w-8 h-8 text-success" />
           </div>
           <h1 className="text-2xl font-display font-bold mb-2">Application Submitted!</h1>
           <p className="text-muted-foreground text-sm mb-6">
-            Your application to become a City Partner for <strong>{form.city}</strong> has been received.
+            Your application to become the City Partner for <strong>{form.city}</strong> has been received.
             Our team will review it and get back to you at <strong>{form.email}</strong>.
           </p>
           <Link to="/">
@@ -158,20 +209,8 @@ export default function CityPartnerApply() {
                       </div>
                     )}
                   </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handlePhotoChange}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 text-xs h-8"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
+                  <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                  <Button type="button" variant="outline" size="sm" className="gap-2 text-xs h-8" onClick={() => fileInputRef.current?.click()}>
                     <Upload className="w-3.5 h-3.5" />
                     {photoPreview ? "Change Photo" : "Upload Face Photo"}
                   </Button>
@@ -180,82 +219,64 @@ export default function CityPartnerApply() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="full_name">Full Name *</Label>
-                  <Input
-                    id="full_name"
-                    name="full_name"
-                    placeholder="Your full name"
-                    required
-                    value={form.full_name}
-                    onChange={handleChange}
-                  />
+                  <Input id="full_name" name="full_name" placeholder="Your full name" required value={form.full_name} onChange={handleChange} />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email Address *</Label>
-                  <Input
-                    id="email"
-                    name="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    required
-                    value={form.email}
-                    onChange={handleChange}
-                  />
+                  <Input id="email" name="email" type="email" placeholder="your@email.com" required value={form.email} onChange={handleChange} />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="phone">Phone Number *</Label>
-                  <Input
-                    id="phone"
-                    name="phone"
-                    type="tel"
-                    placeholder="+91 98765 43210"
-                    required
-                    value={form.phone}
-                    onChange={handleChange}
-                  />
+                  <Input id="phone" name="phone" type="tel" placeholder="+91 98765 43210" required value={form.phone} onChange={handleChange} />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="position">Your Position / Role *</Label>
-                  <Input
-                    id="position"
-                    name="position"
-                    placeholder="e.g. Business Development Manager, Entrepreneur"
-                    required
-                    value={form.position}
-                    onChange={handleChange}
-                  />
+                  <Input id="position" name="position" placeholder="e.g. Business Development Manager, Entrepreneur" required value={form.position} onChange={handleChange} />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="city">City *</Label>
-                  <select
-                    id="city"
-                    name="city"
-                    value={form.city}
-                    onChange={handleChange}
-                    required
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Select your city</option>
-                    {INDIA_CITIES.sort().map(city => (
-                      <option key={city} value={city}>{city}</option>
-                    ))}
-                    <option value="Other">Other</option>
-                  </select>
+                  <div className="relative">
+                    <select
+                      id="city"
+                      name="city"
+                      value={form.city}
+                      onChange={handleCityChange}
+                      required
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <option value="">Select your city</option>
+                      {INDIA_CITIES.map(city => (
+                        <option key={city} value={city}>{city}</option>
+                      ))}
+                      <option value="Other">Other</option>
+                    </select>
+                    {checkingCity && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+
+                  {cityTaken && form.city && (
+                    <div className="flex items-center gap-2 p-2.5 rounded-lg bg-danger-light border border-danger/20">
+                      <AlertCircle className="w-4 h-4 text-danger flex-shrink-0" />
+                      <p className="text-xs text-danger font-medium">
+                        <strong>{form.city}</strong> already has a City Partner. This city is not available.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <Button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || cityTaken || checkingCity}
                   className="w-full gradient-hero text-white border-0 hover:opacity-90 h-11 font-semibold mt-2"
                 >
-                  {loading ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</>
-                  ) : (
-                    "Submit Application"
-                  )}
+                  {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</> : "Submit Application"}
                 </Button>
               </form>
             </Card>
