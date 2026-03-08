@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, CalendarCheck, Megaphone,
   FlaskConical, IndianRupee, GraduationCap, Settings,
-  LogOut, Zap, ChevronLeft, Menu, X
+  LogOut, Zap, ChevronLeft, Menu, X, ShieldCheck
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
@@ -16,6 +16,7 @@ const menuItems = [
   { icon: FlaskConical, label: "Tests", path: "/admin/tests" },
   { icon: IndianRupee, label: "Fees", path: "/admin/fees" },
   { icon: GraduationCap, label: "Students", path: "/admin/students" },
+  { icon: ShieldCheck, label: "Approvals", path: "/admin/approvals" },
   { icon: Settings, label: "Settings", path: "/admin/settings" },
 ];
 
