@@ -252,7 +252,7 @@ export default function AdminAuth() {
                   <div className="p-3 bg-primary-light border border-primary/20 rounded-lg mb-2">
                     <p className="text-xs text-primary font-medium flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      Verification required — your institute will be verified by the Lamba team before going live.
+                      Your institute will be reviewed by your city's Lamba partner before going live.
                     </p>
                   </div>
 
