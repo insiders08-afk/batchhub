@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink, Loader2 } from "lucide-react";
+import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink, Loader2, UserPlus, X, CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +33,196 @@ interface Teacher {
   full_name: string;
 }
 
+interface Student {
+  user_id: string;
+  full_name: string;
+  email: string;
+  enrolled?: boolean;
+}
+
+// ---- Enroll Students Dialog ----
+function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; instituteCode: string; onDone: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [enrolling, setEnrolling] = useState<string | null>(null);
+
+  const loadStudents = async () => {
+    setLoading(true);
+    // Get all approved students in this institute
+    const { data: allStudents } = await supabase
+      .from("profiles")
+      .select("user_id, full_name, email")
+      .eq("institute_code", instituteCode)
+      .eq("role", "student")
+      .in("status", ["approved", "active"]);
+
+    // Get already enrolled students in this batch
+    const { data: enrolled } = await supabase
+      .from("students_batches")
+      .select("student_id")
+      .eq("batch_id", batch.id);
+
+    const enrolledIds = new Set((enrolled || []).map(e => e.student_id));
+
+    setStudents(
+      (allStudents || []).map(s => ({ ...s, enrolled: enrolledIds.has(s.user_id) }))
+    );
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (open) loadStudents();
+  }, [open]);
+
+  const handleEnroll = async (student: Student) => {
+    setEnrolling(student.user_id);
+    const { error } = await supabase.from("students_batches").insert({
+      batch_id: batch.id,
+      student_id: student.user_id,
+      institute_code: instituteCode,
+    });
+    if (error) {
+      toast({ title: "Error enrolling student", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `${student.full_name} enrolled in ${batch.name}!` });
+      setStudents(prev => prev.map(s => s.user_id === student.user_id ? { ...s, enrolled: true } : s));
+      onDone();
+    }
+    setEnrolling(null);
+  };
+
+  const handleUnenroll = async (student: Student) => {
+    setEnrolling(student.user_id);
+    const { error } = await supabase
+      .from("students_batches")
+      .delete()
+      .eq("batch_id", batch.id)
+      .eq("student_id", student.user_id);
+    if (error) {
+      toast({ title: "Error removing student", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `${student.full_name} removed from ${batch.name}` });
+      setStudents(prev => prev.map(s => s.user_id === student.user_id ? { ...s, enrolled: false } : s));
+      onDone();
+    }
+    setEnrolling(null);
+  };
+
+  const filtered = students.filter(s =>
+    s.full_name.toLowerCase().includes(search.toLowerCase()) ||
+    s.email.toLowerCase().includes(search.toLowerCase())
+  );
+  const enrolled = students.filter(s => s.enrolled);
+  const notEnrolled = filtered.filter(s => !s.enrolled);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="w-full h-8 text-xs gap-1.5 border-border/50 hover:border-primary/30 hover:text-primary">
+          <UserPlus className="w-3 h-3" /> Enroll Students
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="font-display">Enroll Students — {batch.name}</DialogTitle>
+        </DialogHeader>
+
+        {/* Enrolled count */}
+        <div className="flex items-center gap-2 px-1">
+          <CheckCircle2 className="w-4 h-4 text-success" />
+          <span className="text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{enrolled.length}</span> student{enrolled.length !== 1 ? "s" : ""} enrolled
+          </span>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search students by name or email..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9 h-9"
+          />
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          </div>
+        ) : students.length === 0 ? (
+          <div className="text-center py-10 text-muted-foreground">
+            <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+            <p className="text-sm font-medium">No approved students yet</p>
+            <p className="text-xs mt-1">Approve students from the Approvals page first</p>
+          </div>
+        ) : (
+          <div className="overflow-y-auto flex-1 space-y-1 pr-1">
+            {/* Already enrolled section */}
+            {enrolled.length > 0 && (
+              <div className="mb-2">
+                <p className="text-xs font-semibold text-success uppercase tracking-wide mb-1 px-1">Enrolled</p>
+                {enrolled.filter(s =>
+                  s.full_name.toLowerCase().includes(search.toLowerCase()) ||
+                  s.email.toLowerCase().includes(search.toLowerCase())
+                ).map(s => (
+                  <div key={s.user_id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-success/5 border border-success/15 mb-1">
+                    <div>
+                      <p className="text-sm font-medium">{s.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{s.email}</p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="w-7 h-7 text-muted-foreground hover:text-danger"
+                      disabled={enrolling === s.user_id}
+                      onClick={() => handleUnenroll(s)}
+                    >
+                      {enrolling === s.user_id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Not enrolled */}
+            {notEnrolled.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 px-1">Not Enrolled</p>
+                {notEnrolled.map(s => (
+                  <div key={s.user_id} className="flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-muted/50 border border-transparent hover:border-border/50 transition-all mb-1">
+                    <div>
+                      <p className="text-sm font-medium">{s.full_name}</p>
+                      <p className="text-xs text-muted-foreground">{s.email}</p>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs gap-1 gradient-hero text-white border-0 hover:opacity-90"
+                      disabled={enrolling === s.user_id}
+                      onClick={() => handleEnroll(s)}
+                    >
+                      {enrolling === s.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
+                      Enroll
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {filtered.length === 0 && search && (
+              <p className="text-center text-sm text-muted-foreground py-6">No students match "{search}"</p>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- Main Page ----
 export default function AdminBatches() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -43,7 +233,6 @@ export default function AdminBatches() {
   const [saving, setSaving] = useState(false);
   const [instituteCode, setInstituteCode] = useState("");
 
-  // Form state
   const [newBatch, setNewBatch] = useState({ name: "", course: "", teacherId: "", teacherName: "", schedule: "" });
 
   const fetchBatches = async (code: string) => {
@@ -55,7 +244,6 @@ export default function AdminBatches() {
 
     if (!data) return;
 
-    // Enrich with student counts
     const enriched = await Promise.all(
       data.map(async (b) => {
         const { count } = await supabase
@@ -74,12 +262,12 @@ export default function AdminBatches() {
       if (!code) { setLoading(false); return; }
       setInstituteCode(code);
 
-      // Fetch teachers
       const { data: teacherData } = await supabase
         .from("profiles")
         .select("user_id, full_name")
         .eq("institute_code", code)
-        .eq("role", "teacher");
+        .eq("role", "teacher")
+        .in("status", ["approved", "active"]);
       setTeachers(teacherData || []);
 
       await fetchBatches(code);
@@ -227,7 +415,7 @@ export default function AdminBatches() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.06 }}
               >
-                <Card className="p-5 shadow-card border-border/50 hover:shadow-lg transition-all hover:-translate-y-0.5 h-full">
+                <Card className="p-5 shadow-card border-border/50 hover:shadow-lg transition-all hover:-translate-y-0.5 h-full flex flex-col">
                   <div className="flex items-start justify-between mb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
@@ -243,7 +431,7 @@ export default function AdminBatches() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="w-7 h-7 text-danger hover:text-danger"
+                        className="w-7 h-7 text-destructive hover:text-destructive"
                         onClick={() => handleDelete(batch.id)}
                       >
                         <Trash2 className="w-3 h-3" />
@@ -251,7 +439,7 @@ export default function AdminBatches() {
                     </div>
                   </div>
 
-                  <div className="space-y-2 mb-4">
+                  <div className="space-y-2 mb-4 flex-1">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
                       <span className="truncate">{batch.teacher_name || "No teacher assigned"}</span>
@@ -264,15 +452,22 @@ export default function AdminBatches() {
                     )}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Users className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span>{batch.studentCount} students enrolled</span>
+                      <span>{batch.studentCount} student{batch.studentCount !== 1 ? "s" : ""} enrolled</span>
                     </div>
                   </div>
 
-                  <Link to={`/batch/${batch.id}`}>
-                    <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
-                      Open Batch Workspace <ExternalLink className="w-3 h-3" />
-                    </Button>
-                  </Link>
+                  <div className="space-y-2">
+                    <EnrollStudentsDialog
+                      batch={batch}
+                      instituteCode={instituteCode}
+                      onDone={() => fetchBatches(instituteCode)}
+                    />
+                    <Link to={`/batch/${batch.id}`}>
+                      <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
+                        Open Batch Workspace <ExternalLink className="w-3 h-3" />
+                      </Button>
+                    </Link>
+                  </div>
                 </Card>
               </motion.div>
             ))}
