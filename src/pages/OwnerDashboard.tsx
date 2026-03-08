@@ -143,6 +143,24 @@ export default function OwnerDashboard() {
   const approveApplication = async (app: Application) => {
     setActionLoading(app.id);
     try {
+      // Check if a super admin already exists for this city
+      const { data: existingAdmin } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("role", "super_admin")
+        .eq("city", app.city)
+        .maybeSingle();
+
+      if (existingAdmin) {
+        toast({
+          title: "City already has a Super Admin",
+          description: `${app.city} already has an approved city partner. Only one super admin is allowed per city.`,
+          variant: "destructive",
+        });
+        setActionLoading(null);
+        return;
+      }
+
       const tempPassword = `Lamba@${Math.random().toString(36).slice(2, 10)}`;
       await supabase.functions.invoke("fix-superadmin", {
         body: { action: "create_super_admin", email: app.email, password: tempPassword, city: app.city, fullName: app.full_name }
