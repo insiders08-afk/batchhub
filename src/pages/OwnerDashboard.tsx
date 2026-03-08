@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Crown, LogOut, Users, Building2, MapPin, CheckCircle, XCircle, Clock,
-  Globe, Loader2, User, Phone, Mail, Briefcase
+  Globe, Loader2, Phone, Mail, Briefcase, ArrowLeft, X
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +33,8 @@ type Stats = {
   totalCities: number;
 };
 
+type DrilldownItem = { label: string; sublabel?: string };
+
 export default function OwnerDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -41,6 +43,10 @@ export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [ownerName, setOwnerName] = useState<string>("Krishna");
+  const [drilldown, setDrilldown] = useState<{ title: string; items: DrilldownItem[] } | null>(null);
+  const [allInstitutes, setAllInstitutes] = useState<{ id: string; institute_name: string; owner_name: string; city: string | null; status: string }[]>([]);
+  const [allSuperAdmins, setAllSuperAdmins] = useState<{ city: string | null }[]>([]);
 
   useEffect(() => {
     checkOwnerAccess();
@@ -59,6 +65,14 @@ export default function OwnerDashboard() {
 
     if (!role) { navigate("/auth/owner"); return; }
 
+    // Fetch owner name
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (profile?.full_name) setOwnerName(profile.full_name);
+
     fetchAll();
   };
 
@@ -67,15 +81,18 @@ export default function OwnerDashboard() {
     try {
       const [appsRes, institutesRes, rolesRes] = await Promise.all([
         supabase.from("super_admin_applications").select("*").order("created_at", { ascending: false }),
-        supabase.from("institutes").select("id, status, city"),
+        supabase.from("institutes").select("id, institute_name, owner_name, city, status"),
         supabase.from("user_roles").select("role, city").eq("role", "super_admin"),
       ]);
 
       if (appsRes.data) setApplications(appsRes.data);
 
-      const institutes = institutesRes.data || [];
+      const institutes = (institutesRes.data || []) as { id: string; institute_name: string; owner_name: string; city: string | null; status: string }[];
       const superAdmins = rolesRes.data || [];
       const cities = new Set(superAdmins.map(r => r.city).filter(Boolean));
+
+      setAllInstitutes(institutes);
+      setAllSuperAdmins(superAdmins);
 
       setStats({
         totalInstitutes: institutes.length,
@@ -89,16 +106,48 @@ export default function OwnerDashboard() {
     }
   };
 
+  const handleStatClick = (type: string) => {
+    let title = "";
+    let items: DrilldownItem[] = [];
+
+    switch (type) {
+      case "totalInstitutes":
+        title = "All Institutes";
+        items = allInstitutes.map(i => ({ label: i.institute_name, sublabel: `Owner: ${i.owner_name} · City: ${i.city || "—"} · ${i.status}` }));
+        break;
+      case "pendingInstitutes":
+        title = "Pending Institutes";
+        items = allInstitutes.filter(i => i.status === "pending").map(i => ({ label: i.institute_name, sublabel: `Owner: ${i.owner_name} · City: ${i.city || "—"}` }));
+        break;
+      case "approvedInstitutes":
+        title = "Approved Institutes";
+        items = allInstitutes.filter(i => i.status === "approved").map(i => ({ label: i.institute_name, sublabel: `Owner: ${i.owner_name} · City: ${i.city || "—"}` }));
+        break;
+      case "totalSuperAdmins":
+        title = "City Super Admins";
+        items = allSuperAdmins.map(sa => ({ label: `City: ${sa.city || "—"}`, sublabel: "Super Admin" }));
+        break;
+      case "totalCities": {
+        const cities = [...new Set(allSuperAdmins.map(sa => sa.city).filter(Boolean))] as string[];
+        title = "Active Cities";
+        items = cities.map(city => ({
+          label: city,
+          sublabel: `${allInstitutes.filter(i => i.city === city).length} institute(s)`
+        }));
+        break;
+      }
+    }
+    setDrilldown({ title, items });
+  };
+
   const approveApplication = async (app: Application) => {
     setActionLoading(app.id);
     try {
-      // 1. Create auth user for the applicant
       const tempPassword = `Lamba@${Math.random().toString(36).slice(2, 10)}`;
-      const { data: newUser, error: createError } = await supabase.functions.invoke("fix-superadmin", {
+      await supabase.functions.invoke("fix-superadmin", {
         body: { action: "create_super_admin", email: app.email, password: tempPassword, city: app.city, fullName: app.full_name }
       });
 
-      // If edge fn not available, just update status and note the manual step
       const { error: updateError } = await supabase
         .from("super_admin_applications")
         .update({ status: "approved", notes: `Approved. Temp password: ${tempPassword}` })
@@ -142,9 +191,9 @@ export default function OwnerDashboard() {
   const filteredApps = applications.filter(a => filter === "all" ? true : a.status === filter);
 
   const statusBadge = (status: string) => {
-    if (status === "approved") return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Approved</Badge>;
+    if (status === "approved") return <Badge className="bg-success/10 text-success border-success/20">Approved</Badge>;
     if (status === "rejected") return <Badge className="bg-destructive/10 text-destructive border-destructive/20">Rejected</Badge>;
-    return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20">Pending</Badge>;
+    return <Badge className="bg-accent/10 text-accent border-accent/20">Pending</Badge>;
   };
 
   return (
@@ -153,14 +202,24 @@ export default function OwnerDashboard() {
       <header className="border-b border-border/50 bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
               <Crown className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="font-display font-bold text-gradient">Lamba Owner Portal</span>
+            <div>
+              <span className="font-display font-bold text-gradient">Lamba Owner Portal</span>
+              <span className="text-muted-foreground text-sm ml-2 hidden sm:inline">· {ownerName}</span>
+            </div>
           </div>
-          <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground hover:text-foreground">
-            <LogOut className="w-4 h-4" /> Logout
-          </Button>
+          <div className="flex items-center gap-2">
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+                <ArrowLeft className="w-4 h-4" /> Home
+              </Button>
+            </Link>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground hover:text-foreground">
+              <LogOut className="w-4 h-4" /> Logout
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -171,16 +230,20 @@ export default function OwnerDashboard() {
           </div>
         ) : (
           <>
-            {/* Stats */}
+            {/* Stats — clickable */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
               {[
-                { label: "Total Institutes", value: stats.totalInstitutes, icon: Building2, color: "text-primary" },
-                { label: "Pending Review", value: stats.pendingInstitutes, icon: Clock, color: "text-amber-500" },
-                { label: "Approved", value: stats.approvedInstitutes, icon: CheckCircle, color: "text-green-500" },
-                { label: "Super Admins", value: stats.totalSuperAdmins, icon: Users, color: "text-blue-500" },
-                { label: "Cities Active", value: stats.totalCities, icon: Globe, color: "text-purple-500" },
+                { label: "Total Institutes", value: stats.totalInstitutes, icon: Building2, color: "text-primary", key: "totalInstitutes" },
+                { label: "Pending Review", value: stats.pendingInstitutes, icon: Clock, color: "text-accent", key: "pendingInstitutes" },
+                { label: "Approved", value: stats.approvedInstitutes, icon: CheckCircle, color: "text-success", key: "approvedInstitutes" },
+                { label: "Super Admins", value: stats.totalSuperAdmins, icon: Users, color: "text-primary", key: "totalSuperAdmins" },
+                { label: "Cities Active", value: stats.totalCities, icon: Globe, color: "text-purple-500", key: "totalCities" },
               ].map((stat) => (
-                <Card key={stat.label} className="border-border/50">
+                <Card
+                  key={stat.label}
+                  className="border-border/50 cursor-pointer hover:border-primary/40 hover:shadow-md transition-all"
+                  onClick={() => handleStatClick(stat.key)}
+                >
                   <CardContent className="p-4 flex flex-col gap-1">
                     <stat.icon className={`w-5 h-5 ${stat.color} mb-1`} />
                     <p className="text-2xl font-bold font-display">{stat.value}</p>
@@ -189,6 +252,41 @@ export default function OwnerDashboard() {
                 </Card>
               ))}
             </motion.div>
+
+            {/* Drilldown panel */}
+            <AnimatePresence>
+              {drilldown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="mb-6"
+                >
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                      <CardTitle className="text-base font-display">{drilldown.title} ({drilldown.items.length})</CardTitle>
+                      <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => setDrilldown(null)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      {drilldown.items.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">No items found.</p>
+                      ) : (
+                        <div className="space-y-1 max-h-60 overflow-y-auto">
+                          {drilldown.items.map((item, i) => (
+                            <div key={i} className="flex flex-col py-1.5 px-2 rounded-lg hover:bg-muted/50">
+                              <span className="text-sm font-medium">{item.label}</span>
+                              {item.sublabel && <span className="text-xs text-muted-foreground">{item.sublabel}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* City Super Admin Applications */}
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
@@ -248,7 +346,7 @@ export default function OwnerDashboard() {
                           <div className="flex gap-2 mt-4 pt-4 border-t border-border/50">
                             <Button
                               size="sm"
-                              className="flex-1 bg-green-500 hover:bg-green-600 text-white border-0 gap-1.5"
+                              className="flex-1 bg-success hover:bg-success/90 text-white border-0 gap-1.5"
                               disabled={actionLoading === app.id}
                               onClick={() => approveApplication(app)}
                             >

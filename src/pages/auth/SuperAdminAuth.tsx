@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Zap, ShieldCheck, Loader2, MapPin, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Zap, ShieldCheck, Loader2, MapPin, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -63,12 +63,17 @@ export default function SuperAdminAuth() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <nav className="border-b border-border/50 bg-card">
-        <div className="container mx-auto flex items-center h-14 px-4">
+        <div className="container mx-auto flex items-center justify-between h-14 px-4">
           <Link to="/" className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
               <Zap className="w-3.5 h-3.5 text-white" />
             </div>
             <span className="text-lg font-display font-bold text-gradient">Lamba</span>
+          </Link>
+          <Link to="/">
+            <Button variant="ghost" size="sm" className="gap-2">
+              <ArrowLeft className="w-4 h-4" /> Back to Home
+            </Button>
           </Link>
         </div>
       </nav>
