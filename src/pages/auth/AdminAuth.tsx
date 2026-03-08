@@ -23,6 +23,7 @@ export default function AdminAuth() {
     instituteName: "",
     instituteId: "",
     govtRegistrationNo: "",
+    city: "",
     email: "",
     phone: "",
     password: "",
