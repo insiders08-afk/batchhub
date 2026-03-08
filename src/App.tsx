@@ -42,6 +42,11 @@ const App = () => (
           <Route path="/admin/announcements" element={<AdminAnnouncements />} />
           <Route path="/admin/tests" element={<AdminTests />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
+          <Route path="/admin/approvals" element={<AdminApprovals />} />
+          <Route path="/auth/admin" element={<AdminAuth />} />
+          <Route path="/auth/teacher" element={<TeacherAuth />} />
+          <Route path="/auth/student" element={<StudentAuth />} />
+          <Route path="/auth/parent" element={<ParentAuth />} />
           <Route path="/batch/:id" element={<BatchWorkspace />} />
           <Route path="/teacher" element={<TeacherDashboard />} />
           <Route path="/student" element={<StudentDashboard />} />
