@@ -9,10 +9,10 @@ const roles = [
     id: "admin",
     icon: Users,
     title: "Admin",
-    description: "Full institute control. Manage batches, teachers, students, fees, and view analytics.",
-    path: "/admin",
-    badge: "Most Control",
-    color: "primary",
+    description: "Full institute control. Manage batches, teachers, students, fees and view analytics.",
+    tagline: "Continue as Admin if you are the institute owner and want to register your institute on Lamba.",
+    path: "/auth/admin",
+    badge: "Institute Owner",
     gradient: "from-primary to-primary-glow",
   },
   {
@@ -20,9 +20,9 @@ const roles = [
     icon: BookOpen,
     title: "Teacher",
     description: "Manage your batches, mark attendance, post announcements, create tests, and upload homework.",
-    path: "/teacher",
+    tagline: "Continue as Teacher and get connected with your institute.",
+    path: "/auth/teacher",
     badge: null,
-    color: "success",
     gradient: "from-success to-emerald-400",
   },
   {
@@ -30,9 +30,9 @@ const roles = [
     icon: GraduationCap,
     title: "Student",
     description: "Access batch chat, homework, announcements, tests, and see your performance and rankings.",
-    path: "/student",
+    tagline: "Continue as Student and get connected with your institute.",
+    path: "/auth/student",
     badge: null,
-    color: "accent",
     gradient: "from-accent to-orange-400",
   },
   {
@@ -40,9 +40,9 @@ const roles = [
     icon: UserCircle,
     title: "Parent",
     description: "Monitor your child's attendance, performance, fees, and batch announcements.",
-    path: "/student",
+    tagline: "Continue as Parent and see your student's activity in their institute.",
+    path: "/auth/parent",
     badge: null,
-    color: "primary",
     gradient: "from-violet-500 to-purple-600",
   },
 ];
@@ -68,7 +68,7 @@ export default function RoleSelection() {
       </nav>
 
       <div className="flex-1 flex items-center justify-center px-4 py-16">
-        <div className="w-full max-w-4xl">
+        <div className="w-full max-w-5xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -91,10 +91,10 @@ export default function RoleSelection() {
                 transition={{ delay: i * 0.08 }}
               >
                 <Link to={role.path}>
-                  <div className="group relative bg-card border border-border/60 rounded-xl p-6 text-center hover:border-primary/40 hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer h-full">
+                  <div className="group relative bg-card border border-border/60 rounded-xl p-6 text-center hover:border-primary/40 hover:shadow-lg transition-all duration-200 hover:-translate-y-1 cursor-pointer h-full flex flex-col">
                     {role.badge && (
                       <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
-                        <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-0.5 rounded-full shadow-primary">
+                        <span className="bg-primary text-primary-foreground text-xs font-semibold px-3 py-0.5 rounded-full">
                           {role.badge}
                         </span>
                       </div>
@@ -105,10 +105,14 @@ export default function RoleSelection() {
                     </div>
 
                     <h2 className="font-display font-bold text-xl mb-2">{role.title}</h2>
-                    <p className="text-muted-foreground text-sm leading-relaxed mb-6">{role.description}</p>
+                    <p className="text-muted-foreground text-sm leading-relaxed mb-3">{role.description}</p>
+
+                    <p className="text-xs text-muted-foreground/70 italic leading-relaxed mb-5 flex-1">
+                      {role.tagline}
+                    </p>
 
                     <Button
-                      className={`w-full font-medium group-hover:gap-3 transition-all bg-gradient-to-r ${role.gradient} text-white border-0 hover:opacity-90 shadow-sm`}
+                      className={`w-full font-medium transition-all bg-gradient-to-r ${role.gradient} text-white border-0 hover:opacity-90 shadow-sm`}
                       size="sm"
                     >
                       Continue as {role.title}
@@ -127,7 +131,7 @@ export default function RoleSelection() {
             className="text-center text-sm text-muted-foreground mt-8"
           >
             Already have an account?{" "}
-            <Link to="/admin" className="text-primary font-medium hover:underline">
+            <Link to="/auth/admin" className="text-primary font-medium hover:underline">
               Sign in here
             </Link>
           </motion.p>

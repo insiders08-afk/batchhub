@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, CalendarCheck, Megaphone,
   FlaskConical, IndianRupee, GraduationCap, Settings,
-  LogOut, Zap, ChevronLeft, Menu, X
+  LogOut, Zap, ChevronLeft, Menu, X, ShieldCheck
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
@@ -16,6 +16,7 @@ const menuItems = [
   { icon: FlaskConical, label: "Tests", path: "/admin/tests" },
   { icon: IndianRupee, label: "Fees", path: "/admin/fees" },
   { icon: GraduationCap, label: "Students", path: "/admin/students" },
+  { icon: ShieldCheck, label: "Approvals", path: "/admin/approvals" },
   { icon: Settings, label: "Settings", path: "/admin/settings" },
 ];
 
@@ -28,6 +29,14 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem("lamba_pending_requests") || "[]");
+    const pending = stored.filter((r: { status: string }) => r.status === "pending").length;
+    // Add 4 from demo requests
+    setPendingCount(pending + 4);
+  }, []);
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -75,7 +84,12 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
               title={collapsed ? item.label : undefined}
             >
               <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-white" : "")} />
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span className="flex-1">{item.label}</span>}
+              {!collapsed && item.path === "/admin/approvals" && pendingCount > 0 && (
+                <span className="text-xs font-bold bg-danger text-white rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           );
         })}
