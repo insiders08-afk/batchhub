@@ -29,6 +29,14 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem("lamba_pending_requests") || "[]");
+    const pending = stored.filter((r: { status: string }) => r.status === "pending").length;
+    // Add 4 from demo requests
+    setPendingCount(pending + 4);
+  }, []);
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
