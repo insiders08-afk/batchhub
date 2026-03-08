@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, UserCircle } from "lucide-react";
+import { ArrowLeft, Zap, UserCircle, Eye } from "lucide-react";
 
 export default function ParentAuth() {
   const [submitted, setSubmitted] = useState(false);

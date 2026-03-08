@@ -51,6 +51,7 @@ const App = () => (
           <Route path="/batch/:id" element={<BatchWorkspace />} />
           <Route path="/teacher" element={<TeacherDashboard />} />
           <Route path="/student" element={<StudentDashboard />} />
+          <Route path="/parent" element={<ParentDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

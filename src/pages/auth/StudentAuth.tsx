@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, GraduationCap } from "lucide-react";
+import { ArrowLeft, Zap, GraduationCap, Eye } from "lucide-react";
 
 export default function StudentAuth() {
   const [submitted, setSubmitted] = useState(false);
