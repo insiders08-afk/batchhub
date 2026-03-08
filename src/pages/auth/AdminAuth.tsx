@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2, Eye, EyeOff, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { INDIA_CITIES } from "./CityPartnerApply";
+import { INDIA_CITIES } from "../CityPartnerApply";
 
 type Screen = "register" | "login" | "pending" | "rejected";
 

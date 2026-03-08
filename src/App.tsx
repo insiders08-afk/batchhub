@@ -50,6 +50,7 @@ const App = () => (
           <Route path="/admin/tests" element={<AdminTests />} />
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/approvals" element={<AdminApprovals />} />
+          <Route path="/admin/team" element={<AdminTeam />} />
           <Route path="/auth/admin" element={<AdminAuth />} />
           <Route path="/auth/superadmin" element={<SuperAdminAuth />} />
           <Route path="/superadmin" element={<SuperAdminDashboard />} />
