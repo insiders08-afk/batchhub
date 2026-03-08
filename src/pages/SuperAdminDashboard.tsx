@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Zap, Shield, CheckCircle2, XCircle, Clock, Search,
-  Building2, LogOut, Loader2, RefreshCw
+  Building2, LogOut, Loader2, RefreshCw, MapPin
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
