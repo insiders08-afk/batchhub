@@ -15,7 +15,6 @@ import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Announcement = Tables<"announcements">;
-type Batch = Tables<"batches">;
 
 const typeColors: Record<string, string> = {
   test: "bg-primary-light text-primary border-primary/20",
