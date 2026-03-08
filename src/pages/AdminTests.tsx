@@ -109,14 +109,19 @@ export default function AdminTests() {
     if (!form.batchId) { setScoreEntries([]); return; }
     const load = async () => {
       setLoadingScoreStudents(true);
-      const { data } = await supabase
+      const { data: enrollments } = await supabase
         .from("students_batches")
-        .select("student_id, profiles!inner(user_id, full_name)")
+        .select("student_id")
         .eq("batch_id", form.batchId);
-      const entries = (data || []).map(e => {
-        const p = e.profiles as { user_id: string; full_name: string };
-        return { studentId: p.user_id, studentName: p.full_name, score: "" };
-      });
+      const ids = (enrollments || []).map(e => e.student_id);
+      let entries: { studentId: string; studentName: string; score: string }[] = [];
+      if (ids.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", ids);
+        entries = (profiles || []).map(p => ({ studentId: p.user_id, studentName: p.full_name, score: "" }));
+      }
       setScoreEntries(entries);
       setLoadingScoreStudents(false);
     };
