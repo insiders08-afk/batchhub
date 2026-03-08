@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
@@ -10,25 +10,124 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink } from "lucide-react";
+import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
-
-const batchesData = [
-  { id: "jee-a", name: "JEE Advanced A", course: "JEE", teacher: "Amit Gupta", schedule: "Mon, Wed, Fri — 8:00 AM", students: 45, status: "active", color: "bg-primary gradient-hero" },
-  { id: "jee-b", name: "JEE Mains B", course: "JEE", teacher: "Rahul Verma", schedule: "Tue, Thu, Sat — 10:00 AM", students: 38, status: "active", color: "bg-success" },
-  { id: "neet-a", name: "NEET A Batch", course: "NEET", teacher: "Dr. Sunita Rao", schedule: "Daily — 7:00 AM", students: 62, status: "active", color: "bg-accent" },
-  { id: "neet-b", name: "NEET B Batch", course: "NEET", teacher: "Dr. Priya Mehta", schedule: "Mon–Sat — 2:00 PM", students: 41, status: "active", color: "bg-violet-500" },
-  { id: "found-9", name: "Foundation 9th", course: "Foundation", teacher: "Suresh Kumar", schedule: "Mon, Wed, Fri — 4:00 PM", students: 55, status: "active", color: "bg-teal-500" },
-  { id: "found-10", name: "Foundation 10th", course: "Foundation", teacher: "Nita Sharma", schedule: "Tue, Thu — 5:00 PM", students: 48, status: "active", color: "bg-pink-500" },
-];
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const courses = ["JEE", "NEET", "Foundation", "CUET", "Other"];
 
+interface Batch {
+  id: string;
+  name: string;
+  course: string;
+  teacher_name: string | null;
+  schedule: string | null;
+  is_active: boolean;
+  institute_code: string;
+  studentCount: number;
+}
+
+interface Teacher {
+  user_id: string;
+  full_name: string;
+}
+
 export default function AdminBatches() {
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [batches, setBatches] = useState<Batch[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [instituteCode, setInstituteCode] = useState("");
 
-  const filtered = batchesData.filter(b =>
+  // Form state
+  const [newBatch, setNewBatch] = useState({ name: "", course: "", teacherId: "", teacherName: "", schedule: "" });
+
+  const fetchBatches = async (code: string) => {
+    const { data } = await supabase
+      .from("batches")
+      .select("*")
+      .eq("institute_code", code)
+      .order("created_at", { ascending: false });
+
+    if (!data) return;
+
+    // Enrich with student counts
+    const enriched = await Promise.all(
+      data.map(async (b) => {
+        const { count } = await supabase
+          .from("students_batches")
+          .select("id", { count: "exact" })
+          .eq("batch_id", b.id);
+        return { ...b, studentCount: count || 0 };
+      })
+    );
+    setBatches(enriched);
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      const { data: code } = await supabase.rpc("get_my_institute_code");
+      if (!code) { setLoading(false); return; }
+      setInstituteCode(code);
+
+      // Fetch teachers
+      const { data: teacherData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .eq("institute_code", code)
+        .eq("role", "teacher");
+      setTeachers(teacherData || []);
+
+      await fetchBatches(code);
+      setLoading(false);
+    };
+    init();
+  }, []);
+
+  const handleCreate = async () => {
+    if (!newBatch.name || !newBatch.course) {
+      toast({ title: "Please fill in batch name and course", variant: "destructive" });
+      return;
+    }
+    setSaving(true);
+
+    const { error } = await supabase.from("batches").insert({
+      name: newBatch.name,
+      course: newBatch.course,
+      schedule: newBatch.schedule || null,
+      teacher_id: newBatch.teacherId || null,
+      teacher_name: newBatch.teacherName || null,
+      institute_code: instituteCode,
+      is_active: true,
+    });
+
+    if (error) {
+      toast({ title: "Error creating batch", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Batch created successfully!" });
+      setDialogOpen(false);
+      setNewBatch({ name: "", course: "", teacherId: "", teacherName: "", schedule: "" });
+      await fetchBatches(instituteCode);
+    }
+    setSaving(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this batch? This cannot be undone.")) return;
+    const { error } = await supabase.from("batches").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Error deleting batch", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Batch deleted" });
+      setBatches(prev => prev.filter(b => b.id !== id));
+    }
+  };
+
+  const filtered = batches.filter(b =>
     b.name.toLowerCase().includes(search.toLowerCase()) ||
     b.course.toLowerCase().includes(search.toLowerCase())
   );
@@ -59,11 +158,15 @@ export default function AdminBatches() {
               <div className="space-y-4 pt-2">
                 <div className="space-y-1.5">
                   <Label>Batch Name</Label>
-                  <Input placeholder="e.g. JEE Advanced 2025 – A" />
+                  <Input
+                    placeholder="e.g. JEE Advanced 2025 – A"
+                    value={newBatch.name}
+                    onChange={e => setNewBatch(p => ({ ...p, name: e.target.value }))}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Course</Label>
-                  <Select>
+                  <Select onValueChange={v => setNewBatch(p => ({ ...p, course: v }))}>
                     <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
                     <SelectContent>
                       {courses.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -72,76 +175,109 @@ export default function AdminBatches() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Assigned Teacher</Label>
-                  <Select>
-                    <SelectTrigger><SelectValue placeholder="Select teacher" /></SelectTrigger>
+                  <Select onValueChange={v => {
+                    const t = teachers.find(t => t.user_id === v);
+                    setNewBatch(p => ({ ...p, teacherId: v, teacherName: t?.full_name || "" }));
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Select teacher (optional)" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="amit">Amit Gupta</SelectItem>
-                      <SelectItem value="sunita">Dr. Sunita Rao</SelectItem>
-                      <SelectItem value="rahul">Rahul Verma</SelectItem>
+                      {teachers.length === 0
+                        ? <SelectItem value="none" disabled>No approved teachers yet</SelectItem>
+                        : teachers.map(t => <SelectItem key={t.user_id} value={t.user_id}>{t.full_name}</SelectItem>)
+                      }
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Schedule</Label>
-                  <Input placeholder="e.g. Mon, Wed, Fri — 8:00 AM" />
+                  <Input
+                    placeholder="e.g. Mon, Wed, Fri — 8:00 AM"
+                    value={newBatch.schedule}
+                    onChange={e => setNewBatch(p => ({ ...p, schedule: e.target.value }))}
+                  />
                 </div>
-                <Button className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90" onClick={() => setDialogOpen(false)}>
-                  Create Batch
+                <Button
+                  className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90"
+                  onClick={handleCreate}
+                  disabled={saving}
+                >
+                  {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Creating...</> : "Create Batch"}
                 </Button>
               </div>
             </DialogContent>
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((batch, i) => (
-            <motion.div
-              key={batch.id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.06 }}
-            >
-              <Card className="p-5 shadow-card border-border/50 hover:shadow-lg transition-all hover:-translate-y-0.5 h-full">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl gradient-hero flex items-center justify-center text-white text-sm font-bold flex-shrink-0`}>
-                      {batch.name.slice(0, 2)}
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <Users className="w-10 h-10 mx-auto mb-3 opacity-30" />
+            <p className="font-medium">{batches.length === 0 ? "No batches yet" : "No batches match your search"}</p>
+            {batches.length === 0 && <p className="text-sm mt-1">Create your first batch to get started</p>}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filtered.map((batch, i) => (
+              <motion.div
+                key={batch.id}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.06 }}
+              >
+                <Card className="p-5 shadow-card border-border/50 hover:shadow-lg transition-all hover:-translate-y-0.5 h-full">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+                        {batch.name.slice(0, 2)}
+                      </div>
+                      <div>
+                        <h3 className="font-display font-semibold text-sm leading-tight">{batch.name}</h3>
+                        <Badge variant="secondary" className="text-xs mt-0.5">{batch.course}</Badge>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-display font-semibold text-sm leading-tight">{batch.name}</h3>
-                      <Badge variant="secondary" className="text-xs mt-0.5">{batch.course}</Badge>
+                    <div className="flex gap-1">
+                      <Button variant="ghost" size="icon" className="w-7 h-7"><Pencil className="w-3 h-3" /></Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="w-7 h-7 text-danger hover:text-danger"
+                        onClick={() => handleDelete(batch.id)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="w-7 h-7"><Pencil className="w-3 h-3" /></Button>
-                    <Button variant="ghost" size="icon" className="w-7 h-7 text-danger hover:text-danger"><Trash2 className="w-3 h-3" /></Button>
-                  </div>
-                </div>
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="truncate">{batch.teacher}</span>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">{batch.teacher_name || "No teacher assigned"}</span>
+                    </div>
+                    {batch.schedule && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                        <span className="truncate">{batch.schedule}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Users className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span>{batch.studentCount} students enrolled</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span className="truncate">{batch.schedule}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Users className="w-3.5 h-3.5 flex-shrink-0" />
-                    <span>{batch.students} students enrolled</span>
-                  </div>
-                </div>
 
-                <Link to={`/batch/${batch.id}`}>
-                  <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
-                    Open Batch Workspace <ExternalLink className="w-3 h-3" />
-                  </Button>
-                </Link>
-              </Card>
-            </motion.div>
-          ))}
-        </div>
+                  <Link to={`/batch/${batch.id}`}>
+                    <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
+                      Open Batch Workspace <ExternalLink className="w-3 h-3" />
+                    </Button>
+                  </Link>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
