@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -17,6 +17,8 @@ export default function AdminAuth() {
   const [step, setStep] = useState<Screen>("register");
   const [loading, setLoading] = useState(false);
   const [pendingInstituteName, setPendingInstituteName] = useState("");
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   const [regForm, setRegForm] = useState({
     ownerName: "",
@@ -51,25 +53,19 @@ export default function AdminAuth() {
       const userId = authData.user?.id;
       if (!userId) throw new Error("No user ID returned");
 
-      // 2. Insert institute record (status: pending)
+      // 2. Insert institute record (status: pending) with city
       const institutePayload = {
         owner_user_id: userId,
         owner_name: regForm.ownerName,
         institute_name: regForm.instituteName,
         institute_code: regForm.instituteId.toUpperCase(),
         govt_registration_no: regForm.govtRegistrationNo,
+        city: regForm.city,
         email: regForm.email,
         phone: regForm.phone,
         status: "pending" as const,
       };
-      const { error: instError } = await supabase.from("institutes").insert(institutePayload);
-      // Update city separately since types may not reflect new column yet
-      if (!instError) {
-        await supabase.from("institutes")
-          .update({ city: regForm.city } as never)
-          .eq("institute_code", regForm.instituteId.toUpperCase())
-          .eq("owner_user_id", userId);
-      }
+      const { error: instError } = await supabase.from("institutes").insert(institutePayload as never);
       if (instError) throw instError;
 
       // 3. Insert profile (status: pending)
@@ -311,7 +307,26 @@ export default function AdminAuth() {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="password">Set Password *</Label>
-                    <Input id="password" name="password" type="password" placeholder="Min. 8 characters" required minLength={8} onChange={handleRegChange} value={regForm.password} />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        name="password"
+                        type={showRegPassword ? "text" : "password"}
+                        placeholder="Min. 8 characters"
+                        required
+                        minLength={8}
+                        onChange={handleRegChange}
+                        value={regForm.password}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowRegPassword(!showRegPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showRegPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
 
                   <Button type="submit" disabled={loading} className="w-full gradient-hero text-white border-0 hover:opacity-90 h-11 font-semibold">
@@ -326,7 +341,25 @@ export default function AdminAuth() {
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="loginPassword">Password *</Label>
-                    <Input id="loginPassword" name="password" type="password" placeholder="Your password" required onChange={handleLoginChange} value={loginForm.password} />
+                    <div className="relative">
+                      <Input
+                        id="loginPassword"
+                        name="password"
+                        type={showLoginPassword ? "text" : "password"}
+                        placeholder="Your password"
+                        required
+                        onChange={handleLoginChange}
+                        value={loginForm.password}
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" disabled={loading} className="w-full gradient-hero text-white border-0 hover:opacity-90 h-11 font-semibold">
                     {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in...</> : "Sign In to Dashboard"}
