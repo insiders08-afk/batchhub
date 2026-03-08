@@ -271,11 +271,17 @@ export default function AdminAuth() {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="instituteId">Institute ID / Code *</Label>
-                    <Input id="instituteId" name="instituteId" placeholder="e.g. APEX-KOTA-001" required onChange={handleRegChange} value={regForm.instituteId} />
-                    <p className="text-xs text-muted-foreground">This will be the unique identifier for your institute on Lamba.</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="instituteId">Institute ID / Code *</Label>
+                      <Input id="instituteId" name="instituteId" placeholder="e.g. APEX-KOTA-001" required onChange={handleRegChange} value={regForm.instituteId} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="city">City *</Label>
+                      <Input id="city" name="city" placeholder="e.g. Bareilly" required onChange={handleRegChange} value={regForm.city} />
+                    </div>
                   </div>
+                  <p className="text-xs text-muted-foreground -mt-2">Institute ID will be the unique identifier on Lamba.</p>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="govtRegistrationNo">Government Registration / Trust No. *</Label>

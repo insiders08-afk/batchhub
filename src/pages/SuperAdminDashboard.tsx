@@ -32,25 +32,29 @@ export default function SuperAdminDashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [adminCity, setAdminCity] = useState<string | null>(null);
 
   // Guard: only super_admin
   useEffect(() => {
     const checkAccess = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate("/auth/admin"); return; }
+      if (!user) { navigate("/auth/superadmin"); return; }
 
       const { data: roleData } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("role, city")
         .eq("user_id", user.id)
         .eq("role", "super_admin")
         .maybeSingle();
 
       if (!roleData) { navigate("/"); return; }
+      const city = (roleData as { role: string; city?: string | null }).city ?? null;
+      setAdminCity(city);
       setChecking(false);
-      fetchInstitutes();
+      fetchInstitutes(city);
     };
     checkAccess();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   const fetchInstitutes = async () => {

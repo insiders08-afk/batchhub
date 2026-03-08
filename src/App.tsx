@@ -24,6 +24,7 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import TeacherAuth from "./pages/auth/TeacherAuth";
 import StudentAuth from "./pages/auth/StudentAuth";
 import ParentAuth from "./pages/auth/ParentAuth";
+import SuperAdminAuth from "./pages/auth/SuperAdminAuth";
 
 const queryClient = new QueryClient();
 
