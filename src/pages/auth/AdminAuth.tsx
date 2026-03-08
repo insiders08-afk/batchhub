@@ -23,6 +23,7 @@ export default function AdminAuth() {
     instituteName: "",
     instituteId: "",
     govtRegistrationNo: "",
+    city: "",
     email: "",
     phone: "",
     password: "",
@@ -51,7 +52,7 @@ export default function AdminAuth() {
       if (!userId) throw new Error("No user ID returned");
 
       // 2. Insert institute record (status: pending)
-      const { error: instError } = await supabase.from("institutes").insert({
+      const institutePayload = {
         owner_user_id: userId,
         owner_name: regForm.ownerName,
         institute_name: regForm.instituteName,
@@ -59,8 +60,16 @@ export default function AdminAuth() {
         govt_registration_no: regForm.govtRegistrationNo,
         email: regForm.email,
         phone: regForm.phone,
-        status: "pending",
-      });
+        status: "pending" as const,
+      };
+      const { error: instError } = await supabase.from("institutes").insert(institutePayload);
+      // Update city separately since types may not reflect new column yet
+      if (!instError) {
+        await supabase.from("institutes")
+          .update({ city: regForm.city } as never)
+          .eq("institute_code", regForm.instituteId.toUpperCase())
+          .eq("owner_user_id", userId);
+      }
       if (instError) throw instError;
 
       // 3. Insert profile (status: pending)
@@ -262,11 +271,17 @@ export default function AdminAuth() {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="instituteId">Institute ID / Code *</Label>
-                    <Input id="instituteId" name="instituteId" placeholder="e.g. APEX-KOTA-001" required onChange={handleRegChange} value={regForm.instituteId} />
-                    <p className="text-xs text-muted-foreground">This will be the unique identifier for your institute on Lamba.</p>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="instituteId">Institute ID / Code *</Label>
+                      <Input id="instituteId" name="instituteId" placeholder="e.g. APEX-KOTA-001" required onChange={handleRegChange} value={regForm.instituteId} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="city">City *</Label>
+                      <Input id="city" name="city" placeholder="e.g. Bareilly" required onChange={handleRegChange} value={regForm.city} />
+                    </div>
                   </div>
+                  <p className="text-xs text-muted-foreground -mt-2">Institute ID will be the unique identifier on Lamba.</p>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="govtRegistrationNo">Government Registration / Trust No. *</Label>

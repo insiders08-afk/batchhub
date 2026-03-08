@@ -24,6 +24,7 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import TeacherAuth from "./pages/auth/TeacherAuth";
 import StudentAuth from "./pages/auth/StudentAuth";
 import ParentAuth from "./pages/auth/ParentAuth";
+import SuperAdminAuth from "./pages/auth/SuperAdminAuth";
 
 const queryClient = new QueryClient();
 
@@ -46,6 +47,7 @@ const App = () => (
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/approvals" element={<AdminApprovals />} />
           <Route path="/auth/admin" element={<AdminAuth />} />
+          <Route path="/auth/superadmin" element={<SuperAdminAuth />} />
           <Route path="/superadmin" element={<SuperAdminDashboard />} />
           <Route path="/auth/teacher" element={<TeacherAuth />} />
           <Route path="/auth/student" element={<StudentAuth />} />

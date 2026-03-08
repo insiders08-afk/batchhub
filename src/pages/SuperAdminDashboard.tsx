@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Zap, Shield, CheckCircle2, XCircle, Clock, Search,
-  Building2, LogOut, Loader2, RefreshCw
+  Building2, LogOut, Loader2, RefreshCw, MapPin
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -32,34 +32,45 @@ export default function SuperAdminDashboard() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
+  const [adminCity, setAdminCity] = useState<string | null>(null);
 
   // Guard: only super_admin
   useEffect(() => {
     const checkAccess = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate("/auth/admin"); return; }
+      if (!user) { navigate("/auth/superadmin"); return; }
 
       const { data: roleData } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("role, city")
         .eq("user_id", user.id)
         .eq("role", "super_admin")
         .maybeSingle();
 
       if (!roleData) { navigate("/"); return; }
+      const city = (roleData as { role: string; city?: string | null }).city ?? null;
+      setAdminCity(city);
       setChecking(false);
-      fetchInstitutes();
+      fetchInstitutes(city);
     };
     checkAccess();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
-  const fetchInstitutes = async () => {
+  const fetchInstitutes = async (city?: string | null) => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("institutes")
         .select("*")
         .order("created_at", { ascending: false });
+
+      // Filter by city if this super_admin has a city scope
+      if (city) {
+        query = query.eq("city" as never, city as never);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       setInstitutes(data || []);
     } catch (err: unknown) {
@@ -151,9 +162,14 @@ export default function SuperAdminDashboard() {
             </div>
             <span className="text-lg font-display font-bold text-gradient">Lamba</span>
             <Badge className="bg-primary-light text-primary border-0 text-xs ml-1">Super Admin</Badge>
+            {adminCity && (
+              <Badge className="bg-muted text-muted-foreground border-0 text-xs flex items-center gap-1">
+                <MapPin className="w-2.5 h-2.5" />{adminCity}
+              </Badge>
+            )}
           </Link>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={fetchInstitutes} className="gap-2">
+            <Button variant="ghost" size="sm" onClick={() => fetchInstitutes(adminCity)} className="gap-2">
               <RefreshCw className="w-4 h-4" /> Refresh
             </Button>
             <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2 text-muted-foreground">
@@ -171,8 +187,14 @@ export default function SuperAdminDashboard() {
               <Shield className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-display font-bold">Institute Control Panel</h1>
-              <p className="text-muted-foreground text-sm">Manage and approve all institutes on the Lamba marketplace</p>
+              <h1 className="text-2xl font-display font-bold">
+                Institute Control Panel{adminCity ? ` — ${adminCity}` : ""}
+              </h1>
+              <p className="text-muted-foreground text-sm">
+                {adminCity
+                  ? `Managing institutes in ${adminCity}`
+                  : "Manage and approve all institutes on the Lamba marketplace"}
+              </p>
             </div>
           </div>
         </motion.div>
