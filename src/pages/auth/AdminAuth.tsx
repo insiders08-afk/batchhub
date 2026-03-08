@@ -58,10 +58,11 @@ export default function AdminAuth() {
         institute_name: regForm.instituteName,
         institute_code: regForm.instituteId.toUpperCase(),
         govt_registration_no: regForm.govtRegistrationNo,
+        city: regForm.city,
         email: regForm.email,
         phone: regForm.phone,
         status: "pending",
-      });
+      } as Parameters<typeof supabase.from<"institutes">>[0] extends string ? never : never & object);
       if (instError) throw instError;
 
       // 3. Insert profile (status: pending)
