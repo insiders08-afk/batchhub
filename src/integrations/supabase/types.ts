@@ -182,6 +182,7 @@ export type Database = {
       }
       institutes: {
         Row: {
+          attendance_marked_by: string
           created_at: string
           email: string
           govt_registration_no: string
@@ -195,6 +196,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attendance_marked_by?: string
           created_at?: string
           email: string
           govt_registration_no: string
@@ -208,6 +210,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attendance_marked_by?: string
           created_at?: string
           email?: string
           govt_registration_no?: string

@@ -1,0 +1,2 @@
+ALTER TABLE public.institutes ADD COLUMN IF NOT EXISTS attendance_marked_by text NOT NULL DEFAULT 'both';
+COMMENT ON COLUMN public.institutes.attendance_marked_by IS 'Who can mark attendance: admin, teacher, or both';
