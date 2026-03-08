@@ -56,15 +56,24 @@ export default function AdminAttendance() {
     if (!batchId) return;
     setLoadingStudents(true);
     try {
-      // Get enrolled students
+      // Get enrolled student IDs
       const { data: enrollments, error: enrollErr } = await supabase
         .from("students_batches")
-        .select("student_id, profiles!inner(id, user_id, full_name, email, phone, role, status, institute_code, avatar_url, created_at, updated_at)")
+        .select("student_id")
         .eq("batch_id", batchId);
 
       if (enrollErr) throw enrollErr;
 
-      const profiles: Profile[] = (enrollments || []).map(e => e.profiles as Profile);
+      const enrolledIds = (enrollments || []).map(e => e.student_id);
+      let profiles: Profile[] = [];
+      if (enrolledIds.length > 0) {
+        const { data: profileData, error: profErr } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("user_id", enrolledIds);
+        if (profErr) throw profErr;
+        profiles = profileData || [];
+      }
       setStudents(profiles);
 
       // Load today's existing attendance
