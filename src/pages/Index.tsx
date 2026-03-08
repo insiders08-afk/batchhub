@@ -261,7 +261,7 @@ export default function Index() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}
             >
-              <Badge className="mb-4 bg-primary-light text-primary border-primary/20">Why Lamba</Badge>
+              <Link to="/auth/owner"><Badge className="mb-4 bg-primary-light text-primary border-primary/20 cursor-pointer">Why Lamba</Badge></Link>
               <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">
                 Designed for the real chaos of running a coaching institute
               </h2>
