@@ -479,6 +479,9 @@ export default function Index() {
             <Link to="/auth/superadmin" className="hover:text-foreground transition-colors opacity-60 hover:opacity-100">
               City Partner Login
             </Link>
+            <Link to="/apply/city-partner" className="hover:text-foreground transition-colors opacity-60 hover:opacity-100">
+              Become a City Partner
+            </Link>
           </div>
         </div>
       </footer>

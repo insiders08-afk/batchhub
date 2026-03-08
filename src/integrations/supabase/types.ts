@@ -347,6 +347,48 @@ export type Database = {
           },
         ]
       }
+      super_admin_applications: {
+        Row: {
+          city: string
+          created_at: string
+          email: string
+          facial_image_url: string | null
+          full_name: string
+          id: string
+          notes: string | null
+          phone: string
+          position: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          city: string
+          created_at?: string
+          email: string
+          facial_image_url?: string | null
+          full_name: string
+          id?: string
+          notes?: string | null
+          phone: string
+          position: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          email?: string
+          facial_image_url?: string | null
+          full_name?: string
+          id?: string
+          notes?: string | null
+          phone?: string
+          position?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       test_scores: {
         Row: {
           batch_id: string
@@ -430,7 +472,13 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "super_admin" | "admin" | "teacher" | "student" | "parent"
+      app_role:
+        | "super_admin"
+        | "admin"
+        | "teacher"
+        | "student"
+        | "parent"
+        | "app_owner"
       institute_status: "pending" | "approved" | "rejected"
       user_status: "pending" | "approved" | "rejected" | "active"
     }
@@ -560,7 +608,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["super_admin", "admin", "teacher", "student", "parent"],
+      app_role: [
+        "super_admin",
+        "admin",
+        "teacher",
+        "student",
+        "parent",
+        "app_owner",
+      ],
       institute_status: ["pending", "approved", "rejected"],
       user_status: ["pending", "approved", "rejected", "active"],
     },

@@ -25,6 +25,9 @@ import TeacherAuth from "./pages/auth/TeacherAuth";
 import StudentAuth from "./pages/auth/StudentAuth";
 import ParentAuth from "./pages/auth/ParentAuth";
 import SuperAdminAuth from "./pages/auth/SuperAdminAuth";
+import OwnerAuth from "./pages/auth/OwnerAuth";
+import OwnerDashboard from "./pages/OwnerDashboard";
+import CityPartnerApply from "./pages/CityPartnerApply";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +55,9 @@ const App = () => (
           <Route path="/auth/teacher" element={<TeacherAuth />} />
           <Route path="/auth/student" element={<StudentAuth />} />
           <Route path="/auth/parent" element={<ParentAuth />} />
+          <Route path="/auth/owner" element={<OwnerAuth />} />
+          <Route path="/owner" element={<OwnerDashboard />} />
+          <Route path="/apply/city-partner" element={<CityPartnerApply />} />
           <Route path="/batch/:id" element={<BatchWorkspace />} />
           <Route path="/teacher" element={<TeacherDashboard />} />
           <Route path="/student" element={<StudentDashboard />} />
