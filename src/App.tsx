@@ -15,6 +15,7 @@ import AdminAnnouncements from "./pages/AdminAnnouncements";
 import AdminTests from "./pages/AdminTests";
 import AdminSettings from "./pages/AdminSettings";
 import AdminApprovals from "./pages/AdminApprovals";
+import AdminTeam from "./pages/AdminTeam";
 import BatchWorkspace from "./pages/BatchWorkspace";
 import TeacherDashboard from "./pages/TeacherDashboard";
 import StudentDashboard from "./pages/StudentDashboard";

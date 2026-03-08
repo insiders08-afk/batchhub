@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2, Eye, EyeOff, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { INDIA_CITIES } from "./CityPartnerApply";
 
 type Screen = "register" | "login" | "pending" | "rejected";
 
@@ -17,6 +18,8 @@ export default function AdminAuth() {
   const [step, setStep] = useState<Screen>("register");
   const [loading, setLoading] = useState(false);
   const [pendingInstituteName, setPendingInstituteName] = useState("");
+  const [pendingCity, setPendingCity] = useState("");
+  const [superAdminPhone, setSuperAdminPhone] = useState<string | null>(null);
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
@@ -33,17 +36,36 @@ export default function AdminAuth() {
 
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
 
-  const handleRegChange = (e: React.ChangeEvent<HTMLInputElement>) =>
+  const handleRegChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setRegForm({ ...regForm, [e.target.name]: e.target.value });
 
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
 
+  // When we go to pending/rejected, fetch the super admin's phone for that city
+  const fetchSuperAdminPhone = async (city: string) => {
+    if (!city) return;
+    try {
+      const { data } = await supabase
+        .from("super_admin_applications")
+        .select("phone, full_name")
+        .eq("city", city)
+        .eq("status", "approved")
+        .maybeSingle();
+      if (data?.phone) setSuperAdminPhone(data.phone);
+    } catch {
+      // silently ignore
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!regForm.city) {
+      toast({ title: "City required", description: "Please select your city.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
-      // 1. Create auth account
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: regForm.email,
         password: regForm.password,
@@ -53,7 +75,6 @@ export default function AdminAuth() {
       const userId = authData.user?.id;
       if (!userId) throw new Error("No user ID returned");
 
-      // 2. Insert institute record (status: pending) with city
       const institutePayload = {
         owner_user_id: userId,
         owner_name: regForm.ownerName,
@@ -68,7 +89,6 @@ export default function AdminAuth() {
       const { error: instError } = await supabase.from("institutes").insert(institutePayload as never);
       if (instError) throw instError;
 
-      // 3. Insert profile (status: pending)
       const { error: profError } = await supabase.from("profiles").insert({
         user_id: userId,
         full_name: regForm.ownerName,
@@ -81,6 +101,8 @@ export default function AdminAuth() {
       if (profError) throw profError;
 
       setPendingInstituteName(regForm.instituteName);
+      setPendingCity(regForm.city);
+      fetchSuperAdminPhone(regForm.city);
       setStep("pending");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
@@ -102,7 +124,6 @@ export default function AdminAuth() {
 
       const userId = data.user?.id;
 
-      // Check if super_admin
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("role")
@@ -110,15 +131,11 @@ export default function AdminAuth() {
         .eq("role", "super_admin")
         .maybeSingle();
 
-      if (roleData) {
-        navigate("/superadmin");
-        return;
-      }
+      if (roleData) { navigate("/superadmin"); return; }
 
-      // Look up institute
       const { data: institute, error: instErr } = await supabase
         .from("institutes")
-        .select("status, institute_name")
+        .select("status, institute_name, city")
         .eq("owner_user_id", userId)
         .maybeSingle();
 
@@ -129,13 +146,15 @@ export default function AdminAuth() {
         return;
       }
 
+      setPendingInstituteName(institute.institute_name);
+      setPendingCity(institute.city || "");
+      if (institute.city) fetchSuperAdminPhone(institute.city);
+
       if (institute.status === "approved") {
         navigate("/admin");
       } else if (institute.status === "pending") {
-        setPendingInstituteName(institute.institute_name);
         setStep("pending");
       } else {
-        setPendingInstituteName(institute.institute_name);
         setStep("rejected");
       }
     } catch (err: unknown) {
@@ -158,7 +177,7 @@ export default function AdminAuth() {
           </div>
           <h2 className="text-2xl font-display font-bold mb-2">Pending City Partner Approval</h2>
           <p className="text-muted-foreground mb-4">
-            <span className="font-semibold text-foreground">{pendingInstituteName}</span> has been submitted and is pending review by your city's Lamba partner (Super Admin).
+            <span className="font-semibold text-foreground">{pendingInstituteName}</span> has been submitted and is pending review by {pendingCity ? `the ${pendingCity} City Partner` : "your city's Lamba partner"}.
           </p>
           <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-6 shadow-card">
             <div className="flex items-center gap-3">
@@ -169,14 +188,20 @@ export default function AdminAuth() {
               <div className="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center">
                 <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
               </div>
-              <p className="text-sm text-muted-foreground">Your city's Lamba partner is reviewing your govt. registration...</p>
+              <p className="text-sm text-muted-foreground">City Partner is reviewing your govt. registration...</p>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
               <p className="text-sm text-muted-foreground">Access to admin dashboard granted</p>
             </div>
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">4</div>
+              <p className="text-sm text-muted-foreground">
+                Once approved, try <strong>signing in again</strong> to access your dashboard. If rejected, you'll see the reason on the login screen.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground mb-4">The Lamba partner for your city will review and approve within 24 hours.</p>
+          <p className="text-xs text-muted-foreground mb-4">The City Partner for {pendingCity || "your city"} will review and approve within 24 hours.</p>
           <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
         </motion.div>
       </div>
@@ -191,10 +216,20 @@ export default function AdminAuth() {
             <XCircle className="w-10 h-10 text-danger" />
           </div>
           <h2 className="text-2xl font-display font-bold mb-2">Application Rejected</h2>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-muted-foreground mb-4">
             Unfortunately, <span className="font-semibold text-foreground">{pendingInstituteName}</span>'s registration was not approved. This may be due to invalid government registration details.
           </p>
-          <p className="text-xs text-muted-foreground mb-4">Please contact support at <strong>support@lamba.app</strong> for more information.</p>
+          {superAdminPhone ? (
+            <div className="bg-card border border-border/50 rounded-xl p-4 text-left mb-4 shadow-card">
+              <p className="text-sm font-semibold mb-1.5">Contact your City Partner</p>
+              <p className="text-xs text-muted-foreground mb-2">Reach out to your {pendingCity} City Partner for more information:</p>
+              <a href={`tel:${superAdminPhone}`} className="flex items-center gap-2 text-primary hover:underline text-sm font-medium">
+                <Phone className="w-4 h-4" /> {superAdminPhone}
+              </a>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground mb-4">Please contact your city's Lamba partner for more information.</p>
+          )}
           <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
         </motion.div>
       </div>
@@ -274,7 +309,18 @@ export default function AdminAuth() {
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="city">City *</Label>
-                      <Input id="city" name="city" placeholder="e.g. Bareilly" required onChange={handleRegChange} value={regForm.city} />
+                      <select
+                        id="city"
+                        name="city"
+                        value={regForm.city}
+                        onChange={handleRegChange}
+                        required
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <option value="">Select city</option>
+                        {INDIA_CITIES.map(city => <option key={city} value={city}>{city}</option>)}
+                        <option value="Other">Other</option>
+                      </select>
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground -mt-2">Institute ID will be the unique identifier on Lamba.</p>
