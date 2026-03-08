@@ -37,7 +37,7 @@ function timeAgo(iso: string) {
 export default function AdminAnnouncements() {
   const { toast } = useToast();
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [batches, setBatches] = useState<Batch[]>([]);
+  const [batches, setBatches] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
