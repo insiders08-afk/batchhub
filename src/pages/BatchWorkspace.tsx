@@ -68,6 +68,7 @@ const rankings = [
 
 export default function BatchWorkspace() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const batch = batchInfo[id || "jee-a"] || batchInfo["jee-a"];
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState(chatMessages);
