@@ -5,17 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, BookOpen, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, Zap, BookOpen, Eye, EyeOff, Loader2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-type Screen = "register" | "login" | "pending";
+type Screen = "register" | "login";
+type PendingStatus = "pending" | "rejected";
 
 export default function TeacherAuth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [screen, setScreen] = useState<Screen>("register");
-  const [submitted, setSubmitted] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<PendingStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [submittedName, setSubmittedName] = useState("");
   const [submittedInstitute, setSubmittedInstitute] = useState("");
@@ -37,16 +38,55 @@ export default function TeacherAuth() {
     e.preventDefault();
     setLoading(true);
     try {
+      const instituteCode = form.instituteId.toUpperCase();
+
+      // Try to sign up
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: { emailRedirectTo: `${window.location.origin}/auth/teacher` },
       });
-      if (authError) throw authError;
-      const userId = authData.user?.id;
-      if (!userId) throw new Error("No user ID returned");
 
-      const instituteCode = form.instituteId.toUpperCase();
+      let userId: string;
+
+      if (authError) {
+        // If user already exists, sign them in and re-submit the request
+        if (authError.message?.includes("already registered") || authError.status === 422) {
+          const { data: loginData, error: loginErr } = await supabase.auth.signInWithPassword({
+            email: form.email,
+            password: form.password,
+          });
+          if (loginErr) throw new Error("Email already registered. Please use Sign In tab or check your password.");
+          userId = loginData.user.id;
+
+          // Update existing profile back to pending
+          await supabase.from("profiles")
+            .update({ status: "pending", full_name: form.name, phone: form.phone, institute_code: instituteCode })
+            .eq("user_id", userId);
+
+          // Upsert pending request back to pending
+          const { error: reqError } = await supabase.from("pending_requests").upsert({
+            user_id: userId,
+            full_name: form.name,
+            email: form.email,
+            role: "teacher",
+            institute_code: instituteCode,
+            extra_data: { teacherId: form.teacherId, subject: form.subject, phone: form.phone },
+            status: "pending",
+          }, { onConflict: "user_id,role" });
+          if (reqError) throw reqError;
+
+          setSubmittedName(form.name);
+          setSubmittedInstitute(instituteCode);
+          setPendingStatus("pending");
+          await supabase.auth.signOut();
+          return;
+        }
+        throw authError;
+      }
+
+      userId = authData.user?.id!;
+      if (!userId) throw new Error("No user ID returned");
 
       const { error: profError } = await supabase.from("profiles").insert({
         user_id: userId,
@@ -72,7 +112,8 @@ export default function TeacherAuth() {
 
       setSubmittedName(form.name);
       setSubmittedInstitute(instituteCode);
-      setSubmitted(true);
+      setPendingStatus("pending");
+      await supabase.auth.signOut();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
       toast({ title: "Registration failed", description: message, variant: "destructive" });
@@ -99,6 +140,7 @@ export default function TeacherAuth() {
 
       if (!profile) {
         toast({ title: "Account not found", description: "No teacher account linked to this email.", variant: "destructive" });
+        await supabase.auth.signOut();
         return;
       }
 
@@ -107,7 +149,8 @@ export default function TeacherAuth() {
       } else {
         setSubmittedName(profile.full_name);
         setSubmittedInstitute(profile.institute_code || "");
-        setSubmitted(true);
+        setPendingStatus(profile.status === "rejected" ? "rejected" : "pending");
+        await supabase.auth.signOut();
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
@@ -117,8 +160,16 @@ export default function TeacherAuth() {
     }
   };
 
-  if (submitted) {
-    return <PendingApprovalScreen role="teacher" name={submittedName} instituteId={submittedInstitute} />;
+  if (pendingStatus) {
+    return (
+      <PendingApprovalScreen
+        role="teacher"
+        name={submittedName}
+        instituteId={submittedInstitute}
+        status={pendingStatus}
+        onRetry={() => { setPendingStatus(null); setScreen("register"); }}
+      />
+    );
   }
 
   return (
@@ -142,7 +193,6 @@ export default function TeacherAuth() {
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-
             <div className="text-center mb-6">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-success to-emerald-400 flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <BookOpen className="w-7 h-7 text-white" />
@@ -247,41 +297,76 @@ export default function TeacherAuth() {
   );
 }
 
-function PendingApprovalScreen({ role, name, instituteId }: { role: string; name: string; instituteId: string }) {
+function PendingApprovalScreen({
+  role, name, instituteId, status, onRetry
+}: {
+  role: string; name: string; instituteId: string;
+  status: "pending" | "rejected"; onRetry: () => void;
+}) {
+  const isRejected = status === "rejected";
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
         <div className="relative w-20 h-20 mx-auto mb-6">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-success to-emerald-400 opacity-20 animate-ping" />
-          <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-success to-emerald-400 flex items-center justify-center shadow-lg">
-            <BookOpen className="w-8 h-8 text-white" />
-          </div>
-        </div>
-        <h2 className="text-2xl font-display font-bold mb-2">Request Submitted!</h2>
-        <p className="text-muted-foreground mb-4">
-          Hi <span className="font-semibold text-foreground">{name}</span>, your request to join as a{" "}
-          <span className="font-semibold text-success capitalize">{role}</span> at{" "}
-          <span className="font-semibold text-foreground">{instituteId}</span> has been sent to the admin.
-        </p>
-        <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-6 shadow-card">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-success-light flex items-center justify-center text-success text-xs font-bold">1</div>
-            <p className="text-sm text-foreground">Your details have been submitted ✓</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+          {isRejected ? (
+            <div className="relative w-20 h-20 rounded-full bg-danger-light flex items-center justify-center shadow-lg">
+              <XCircle className="w-8 h-8 text-danger" />
             </div>
-            <p className="text-sm text-muted-foreground">Waiting for admin to verify and approve...</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
-            <p className="text-sm text-muted-foreground">You'll get access to your dashboard</p>
-          </div>
+          ) : (
+            <>
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-success to-emerald-400 opacity-20 animate-ping" />
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-success to-emerald-400 flex items-center justify-center shadow-lg">
+                <BookOpen className="w-8 h-8 text-white" />
+              </div>
+            </>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground mb-4">
-          Your admin will review and approve within 24 hours. You'll be notified on your registered email.
-        </p>
+
+        {isRejected ? (
+          <>
+            <h2 className="text-2xl font-display font-bold mb-2 text-danger">Request Rejected</h2>
+            <p className="text-muted-foreground mb-4">
+              Hi <span className="font-semibold text-foreground">{name}</span>, your request to join{" "}
+              <span className="font-semibold text-foreground">{instituteId}</span> as a {role} was rejected by the admin.
+            </p>
+            <div className="bg-danger-light border border-danger/20 rounded-xl p-4 text-left mb-4">
+              <p className="text-sm text-danger font-medium mb-1">What can you do?</p>
+              <p className="text-xs text-muted-foreground">Contact your institute admin to ask why and whether you can re-apply. Once they clear it, you can re-submit your request using the Register tab.</p>
+            </div>
+            <Button onClick={onRetry} className="w-full mb-2 bg-gradient-to-r from-success to-emerald-400 text-white border-0">
+              Re-submit Request
+            </Button>
+          </>
+        ) : (
+          <>
+            <h2 className="text-2xl font-display font-bold mb-2">Request Submitted!</h2>
+            <p className="text-muted-foreground mb-4">
+              Hi <span className="font-semibold text-foreground">{name}</span>, your request to join as a{" "}
+              <span className="font-semibold text-success capitalize">{role}</span> at{" "}
+              <span className="font-semibold text-foreground">{instituteId}</span> has been sent to the admin.
+            </p>
+            <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-4 shadow-card">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-success-light flex items-center justify-center text-success text-xs font-bold">1</div>
+                <p className="text-sm text-foreground">Your details have been submitted ✓</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center">
+                  <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                </div>
+                <p className="text-sm text-muted-foreground">Waiting for admin to verify and approve...</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
+                <p className="text-sm text-muted-foreground">You'll get access to your dashboard</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Once approved, come back and use the <strong>Sign In</strong> tab to access your dashboard.
+            </p>
+          </>
+        )}
         <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
       </motion.div>
     </div>
