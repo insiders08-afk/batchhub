@@ -202,7 +202,7 @@ export default function OwnerDashboard() {
       <header className="border-b border-border/50 bg-card sticky top-0 z-10">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center">
               <Crown className="w-3.5 h-3.5 text-white" />
             </div>
             <div>
