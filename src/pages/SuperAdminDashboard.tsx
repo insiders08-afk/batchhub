@@ -164,7 +164,7 @@ export default function SuperAdminDashboard() {
             <Badge className="bg-primary-light text-primary border-0 text-xs ml-1">Super Admin</Badge>
           </Link>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={fetchInstitutes} className="gap-2">
+            <Button variant="ghost" size="sm" onClick={() => fetchInstitutes(adminCity)} className="gap-2">
               <RefreshCw className="w-4 h-4" /> Refresh
             </Button>
             <Button variant="ghost" size="sm" onClick={handleSignOut} className="gap-2 text-muted-foreground">
