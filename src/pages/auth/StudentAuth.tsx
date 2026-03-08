@@ -5,17 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, GraduationCap, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, Zap, GraduationCap, Eye, EyeOff, Loader2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 type Screen = "register" | "login";
+type PendingStatus = "pending" | "rejected";
 
 export default function StudentAuth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [screen, setScreen] = useState<Screen>("register");
-  const [submitted, setSubmitted] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<PendingStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [submittedName, setSubmittedName] = useState("");
   const [submittedInstitute, setSubmittedInstitute] = useState("");
@@ -37,16 +38,51 @@ export default function StudentAuth() {
     e.preventDefault();
     setLoading(true);
     try {
+      const instituteCode = form.instituteId.toUpperCase();
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: { emailRedirectTo: `${window.location.origin}/auth/student` },
       });
-      if (authError) throw authError;
-      const userId = authData.user?.id;
-      if (!userId) throw new Error("No user ID returned");
 
-      const instituteCode = form.instituteId.toUpperCase();
+      let userId: string;
+
+      if (authError) {
+        if (authError.message?.includes("already registered") || authError.status === 422) {
+          const { data: loginData, error: loginErr } = await supabase.auth.signInWithPassword({
+            email: form.email,
+            password: form.password,
+          });
+          if (loginErr) throw new Error("Email already registered. Please use Sign In tab or check your password.");
+          userId = loginData.user.id;
+
+          await supabase.from("profiles")
+            .update({ status: "pending", full_name: form.name, phone: form.phone, institute_code: instituteCode })
+            .eq("user_id", userId);
+
+          const { error: reqError } = await supabase.from("pending_requests").upsert({
+            user_id: userId,
+            full_name: form.name,
+            email: form.email,
+            role: "student",
+            institute_code: instituteCode,
+            extra_data: { studentId: form.studentId, batchName: form.batchName, phone: form.phone },
+            status: "pending",
+          }, { onConflict: "user_id,role" });
+          if (reqError) throw reqError;
+
+          setSubmittedName(form.name);
+          setSubmittedInstitute(instituteCode);
+          setPendingStatus("pending");
+          await supabase.auth.signOut();
+          return;
+        }
+        throw authError;
+      }
+
+      userId = authData.user?.id!;
+      if (!userId) throw new Error("No user ID returned");
 
       const { error: profError } = await supabase.from("profiles").insert({
         user_id: userId,
@@ -72,7 +108,8 @@ export default function StudentAuth() {
 
       setSubmittedName(form.name);
       setSubmittedInstitute(instituteCode);
-      setSubmitted(true);
+      setPendingStatus("pending");
+      await supabase.auth.signOut();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
       toast({ title: "Registration failed", description: message, variant: "destructive" });
@@ -99,6 +136,7 @@ export default function StudentAuth() {
 
       if (!profile) {
         toast({ title: "Account not found", description: "No student account linked to this email.", variant: "destructive" });
+        await supabase.auth.signOut();
         return;
       }
 
@@ -107,7 +145,8 @@ export default function StudentAuth() {
       } else {
         setSubmittedName(profile.full_name);
         setSubmittedInstitute(profile.institute_code || "");
-        setSubmitted(true);
+        setPendingStatus(profile.status === "rejected" ? "rejected" : "pending");
+        await supabase.auth.signOut();
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
@@ -117,8 +156,15 @@ export default function StudentAuth() {
     }
   };
 
-  if (submitted) {
-    return <PendingApprovalScreen name={submittedName} instituteId={submittedInstitute} />;
+  if (pendingStatus) {
+    return (
+      <PendingApprovalScreen
+        name={submittedName}
+        instituteId={submittedInstitute}
+        status={pendingStatus}
+        onRetry={() => { setPendingStatus(null); setScreen("register"); }}
+      />
+    );
   }
 
   return (
@@ -142,7 +188,6 @@ export default function StudentAuth() {
       <div className="flex-1 flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-
             <div className="text-center mb-6">
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-orange-400 flex items-center justify-center mx-auto mb-4 shadow-lg">
                 <GraduationCap className="w-7 h-7 text-white" />
@@ -247,38 +292,70 @@ export default function StudentAuth() {
   );
 }
 
-function PendingApprovalScreen({ name, instituteId }: { name: string; instituteId: string }) {
+function PendingApprovalScreen({
+  name, instituteId, status, onRetry
+}: {
+  name: string; instituteId: string;
+  status: "pending" | "rejected"; onRetry: () => void;
+}) {
+  const isRejected = status === "rejected";
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
         <div className="relative w-20 h-20 mx-auto mb-6">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-accent to-orange-400 opacity-20 animate-ping" />
-          <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-accent to-orange-400 flex items-center justify-center shadow-lg">
-            <GraduationCap className="w-8 h-8 text-white" />
-          </div>
-        </div>
-        <h2 className="text-2xl font-display font-bold mb-2">Request Submitted!</h2>
-        <p className="text-muted-foreground mb-4">
-          Hi <span className="font-semibold text-foreground">{name}</span>, your student access request for{" "}
-          <span className="font-semibold text-foreground">{instituteId}</span> has been sent for approval.
-        </p>
-        <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-6 shadow-card">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-success-light flex items-center justify-center text-success text-xs font-bold">1</div>
-            <p className="text-sm text-foreground">Your details have been submitted ✓</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+          {isRejected ? (
+            <div className="relative w-20 h-20 rounded-full bg-danger-light flex items-center justify-center shadow-lg">
+              <XCircle className="w-8 h-8 text-danger" />
             </div>
-            <p className="text-sm text-muted-foreground">Waiting for teacher or admin to approve...</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
-            <p className="text-sm text-muted-foreground">Access to your batch dashboard will be granted</p>
-          </div>
+          ) : (
+            <>
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-accent to-orange-400 opacity-20 animate-ping" />
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-accent to-orange-400 flex items-center justify-center shadow-lg">
+                <GraduationCap className="w-8 h-8 text-white" />
+              </div>
+            </>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground mb-4">Your teacher or admin will verify and approve your request.</p>
+        {isRejected ? (
+          <>
+            <h2 className="text-2xl font-display font-bold mb-2 text-danger">Request Rejected</h2>
+            <p className="text-muted-foreground mb-4">
+              Hi <span className="font-semibold text-foreground">{name}</span>, your request for{" "}
+              <span className="font-semibold text-foreground">{instituteId}</span> was rejected.
+            </p>
+            <div className="bg-danger-light border border-danger/20 rounded-xl p-4 text-left mb-4">
+              <p className="text-xs text-muted-foreground">Contact your institute admin for the reason. Once cleared, you can re-submit using the Register tab.</p>
+            </div>
+            <Button onClick={onRetry} className="w-full mb-2 bg-gradient-to-r from-accent to-orange-400 text-white border-0">
+              Re-submit Request
+            </Button>
+          </>
+        ) : (
+          <>
+            <h2 className="text-2xl font-display font-bold mb-2">Request Submitted!</h2>
+            <p className="text-muted-foreground mb-4">
+              Hi <span className="font-semibold text-foreground">{name}</span>, your student access request for{" "}
+              <span className="font-semibold text-foreground">{instituteId}</span> has been sent for approval.
+            </p>
+            <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-4 shadow-card">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-success-light flex items-center justify-center text-success text-xs font-bold">1</div>
+                <p className="text-sm text-foreground">Your details have been submitted ✓</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-accent-light flex items-center justify-center">
+                  <div className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+                </div>
+                <p className="text-sm text-muted-foreground">Waiting for admin to approve...</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
+                <p className="text-sm text-muted-foreground">Access to your batch dashboard will be granted</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">Once approved, come back and use the <strong>Sign In</strong> tab.</p>
+          </>
+        )}
         <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
       </motion.div>
     </div>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   CheckCircle2, XCircle, Clock, BookOpen, GraduationCap,
-  UserCircle, Search, Loader2
+  UserCircle, Search, Loader2, RotateCcw
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -62,22 +62,24 @@ export default function AdminApprovals() {
   const handleAction = async (req: PendingRequest, action: "approved" | "rejected") => {
     setActionLoading(req.id);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+
       // 1. Update pending_request status
       const { error: reqError } = await supabase
         .from("pending_requests")
-        .update({ status: action, reviewed_by: (await supabase.auth.getUser()).data.user?.id })
+        .update({ status: action, reviewed_by: user?.id })
         .eq("id", req.id);
       if (reqError) throw reqError;
 
       if (action === "approved") {
-        // 2. Update profile status
+        // 2. Update profile status to approved
         const { error: profError } = await supabase
           .from("profiles")
           .update({ status: "approved" })
           .eq("user_id", req.user_id);
         if (profError) throw profError;
 
-        // 3. Insert into user_roles
+        // 3. Upsert into user_roles (safe to call even on re-approval)
         const { error: roleError } = await supabase
           .from("user_roles")
           .upsert({
@@ -91,10 +93,12 @@ export default function AdminApprovals() {
       } else {
         // Update profile to rejected
         await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", req.user_id);
+        // Remove from user_roles if previously approved
+        await supabase.from("user_roles").delete()
+          .eq("user_id", req.user_id).eq("role", req.role);
         toast({ title: "Rejected", description: `${req.full_name}'s request has been rejected.` });
       }
 
-      // Refresh list
       setRequests((prev) =>
         prev.map((r) => r.id === req.id ? { ...r, status: action } : r)
       );
@@ -200,6 +204,9 @@ export default function AdminApprovals() {
               const role = req.role as keyof typeof roleConfig;
               const cfg = roleConfig[role] || roleConfig.teacher;
               const extra = (req.extra_data as Record<string, string>) || {};
+              const isPending = req.status === "pending";
+              const isRejected = req.status === "rejected";
+
               return (
                 <motion.div
                   key={req.id}
@@ -217,7 +224,7 @@ export default function AdminApprovals() {
                         <div className="flex items-center gap-2 flex-wrap mb-1">
                           <span className="font-semibold text-sm">{req.full_name}</span>
                           <Badge className={`text-xs ${cfg.bg} ${cfg.text} border-0`}>{cfg.label}</Badge>
-                          {req.status === "pending" && (
+                          {isPending && (
                             <Badge className="text-xs bg-accent-light text-accent border-0 flex items-center gap-1">
                               <Clock className="w-2.5 h-2.5" /> Pending
                             </Badge>
@@ -227,7 +234,7 @@ export default function AdminApprovals() {
                               <CheckCircle2 className="w-2.5 h-2.5" /> Approved
                             </Badge>
                           )}
-                          {req.status === "rejected" && (
+                          {isRejected && (
                             <Badge className="text-xs bg-danger-light text-danger border-0 flex items-center gap-1">
                               <XCircle className="w-2.5 h-2.5" /> Rejected
                             </Badge>
@@ -247,7 +254,8 @@ export default function AdminApprovals() {
                         </div>
                       </div>
 
-                      {req.status === "pending" && (
+                      {/* Show Approve/Reject for pending, or Re-approve for rejected */}
+                      {(isPending || isRejected) && (
                         <div className="flex gap-2 flex-shrink-0">
                           <Button
                             size="sm"
@@ -255,18 +263,26 @@ export default function AdminApprovals() {
                             className="bg-success-light text-success hover:bg-success hover:text-white border border-success/20 h-8 text-xs gap-1 transition-colors"
                             onClick={() => handleAction(req, "approved")}
                           >
-                            {actionLoading === req.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                            Approve
+                            {actionLoading === req.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : isRejected ? (
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            ) : (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            )}
+                            {isRejected ? "Re-approve" : "Approve"}
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={actionLoading === req.id}
-                            className="text-danger border-danger/30 hover:bg-danger-light h-8 text-xs gap-1"
-                            onClick={() => handleAction(req, "rejected")}
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> Reject
-                          </Button>
+                          {isPending && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              disabled={actionLoading === req.id}
+                              className="text-danger border-danger/30 hover:bg-danger-light h-8 text-xs gap-1"
+                              onClick={() => handleAction(req, "rejected")}
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Reject
+                            </Button>
+                          )}
                         </div>
                       )}
                     </div>
