@@ -84,7 +84,12 @@ export default function DashboardLayout({ children, title }: DashboardLayoutProp
               title={collapsed ? item.label : undefined}
             >
               <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-white" : "")} />
-              {!collapsed && <span>{item.label}</span>}
+              {!collapsed && <span className="flex-1">{item.label}</span>}
+              {!collapsed && item.path === "/admin/approvals" && pendingCount > 0 && (
+                <span className="text-xs font-bold bg-danger text-white rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                  {pendingCount}
+                </span>
+              )}
             </Link>
           );
         })}
