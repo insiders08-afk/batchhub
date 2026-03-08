@@ -236,7 +236,7 @@ export default function OwnerDashboard() {
                 { label: "Total Institutes", value: stats.totalInstitutes, icon: Building2, color: "text-primary", key: "totalInstitutes" },
                 { label: "Pending Review", value: stats.pendingInstitutes, icon: Clock, color: "text-accent", key: "pendingInstitutes" },
                 { label: "Approved", value: stats.approvedInstitutes, icon: CheckCircle, color: "text-success", key: "approvedInstitutes" },
-                { label: "Super Admins", value: stats.totalSuperAdmins, icon: Users, color: "text-blue-500", key: "totalSuperAdmins" },
+                { label: "Super Admins", value: stats.totalSuperAdmins, icon: Users, color: "text-primary", key: "totalSuperAdmins" },
                 { label: "Cities Active", value: stats.totalCities, icon: Globe, color: "text-purple-500", key: "totalCities" },
               ].map((stat) => (
                 <Card
