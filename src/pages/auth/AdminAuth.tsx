@@ -52,7 +52,8 @@ export default function AdminAuth() {
       if (!userId) throw new Error("No user ID returned");
 
       // 2. Insert institute record (status: pending)
-      const { error: instError } = await supabase.from("institutes").insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: instError } = await (supabase.from("institutes") as any).insert({
         owner_user_id: userId,
         owner_name: regForm.ownerName,
         institute_name: regForm.instituteName,
@@ -62,7 +63,7 @@ export default function AdminAuth() {
         email: regForm.email,
         phone: regForm.phone,
         status: "pending",
-      } as Parameters<typeof supabase.from<"institutes">>[0] extends string ? never : never & object);
+      });
       if (instError) throw instError;
 
       // 3. Insert profile (status: pending)
