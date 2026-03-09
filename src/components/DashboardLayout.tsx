@@ -187,7 +187,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
             >
               <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-white" : "")} />
               {!collapsed && <span className="flex-1">{item.label}</span>}
-              {!collapsed && isAdmin && item.path === "/admin/approvals" && pendingCount > 0 && (
+              {!collapsed && pendingCount > 0 && (item.path === "/admin/approvals" || item.path === "/admin/batch-applications") && (
                 <span className="text-xs font-bold bg-danger text-white rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
                   {pendingCount}
                 </span>
