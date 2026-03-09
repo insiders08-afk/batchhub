@@ -9,12 +9,21 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Search, Megaphone, Clock, Users, Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Search, Megaphone, Clock, Users, Loader2, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { Tables } from "@/integrations/supabase/types";
 
-type Announcement = Tables<"announcements">;
+interface Announcement {
+  id: string;
+  title: string;
+  content: string;
+  type: string | null;
+  batch_id: string | null;
+  posted_by_name: string | null;
+  created_at: string;
+  notify_push: boolean;
+}
 
 const typeColors: Record<string, string> = {
   test: "bg-primary-light text-primary border-primary/20",
@@ -42,10 +51,35 @@ export default function AdminAnnouncements() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [posting, setPosting] = useState(false);
 
-  const [form, setForm] = useState({ title: "", content: "", batchId: "all", type: "general" });
+  const [form, setForm] = useState({ title: "", content: "", batchId: "all", type: "general", notifyPush: false });
 
   useEffect(() => {
     fetchData();
+  }, []);
+
+  // Realtime subscription for new announcements
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-announcements-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "announcements" },
+        (payload) => {
+          setAnnouncements(prev => {
+            if (prev.some(a => a.id === (payload.new as Announcement).id)) return prev;
+            return [payload.new as Announcement, ...prev];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "announcements" },
+        (payload) => {
+          setAnnouncements(prev => prev.filter(a => a.id !== (payload.old as { id: string }).id));
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const fetchData = async () => {
@@ -57,7 +91,7 @@ export default function AdminAnnouncements() {
       ]);
       if (annRes.error) throw annRes.error;
       if (batchRes.error) throw batchRes.error;
-      setAnnouncements(annRes.data || []);
+      setAnnouncements((annRes.data || []) as Announcement[]);
       setBatches(batchRes.data || []);
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load", variant: "destructive" });
@@ -77,6 +111,7 @@ export default function AdminAnnouncements() {
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user!.id).maybeSingle();
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await supabase.from("announcements").insert({
         title: form.title.trim(),
         content: form.content.trim(),
@@ -85,14 +120,14 @@ export default function AdminAnnouncements() {
         institute_code: instituteCode.data!,
         posted_by: user!.id,
         posted_by_name: profile?.full_name || "Admin",
-      });
+        notify_push: form.notifyPush,
+      } as any);
 
       if (error) throw error;
 
-      toast({ title: "✅ Announcement posted!" });
-      setForm({ title: "", content: "", batchId: "all", type: "general" });
+      toast({ title: form.notifyPush ? "✅ Announcement posted with phone alert!" : "✅ Announcement posted!" });
+      setForm({ title: "", content: "", batchId: "all", type: "general", notifyPush: false });
       setDialogOpen(false);
-      fetchData();
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to post", variant: "destructive" });
     } finally {
@@ -161,6 +196,20 @@ export default function AdminAnnouncements() {
                   <Label>Content</Label>
                   <Textarea placeholder="Write your announcement..." rows={4} value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} />
                 </div>
+                {/* Notify Push toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                  <div className="flex items-center gap-2.5">
+                    <Bell className="w-4 h-4 text-accent" />
+                    <div>
+                      <p className="text-sm font-medium">Alert students on phone</p>
+                      <p className="text-xs text-muted-foreground">Send a mobile notification for this announcement</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={form.notifyPush}
+                    onCheckedChange={v => setForm({ ...form, notifyPush: v })}
+                  />
+                </div>
                 <Button className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90" onClick={handlePost} disabled={posting}>
                   {posting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Posting...</> : "Post Announcement"}
                 </Button>
@@ -199,6 +248,11 @@ export default function AdminAnnouncements() {
                         {ann.type && (
                           <Badge className={`text-xs ${typeColors[ann.type] || typeColors.general}`}>
                             {typeLabels[ann.type] || ann.type}
+                          </Badge>
+                        )}
+                        {ann.notify_push && (
+                          <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
+                            <Bell className="w-2.5 h-2.5" /> Alerted
                           </Badge>
                         )}
                       </div>

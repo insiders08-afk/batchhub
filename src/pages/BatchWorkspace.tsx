@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import {
   MessageSquare, Megaphone, CalendarCheck, FlaskConical,
   BookOpen, Trophy, ArrowLeft, Send, Plus, CheckCircle2,
-  XCircle, Clock, Users, Loader2, Star
+  XCircle, Clock, Users, Loader2, Star, Bell
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,6 +51,7 @@ interface Announcement {
   posted_by_name: string | null;
   created_at: string;
   type: string | null;
+  notify_push?: boolean;
 }
 
 interface TestScore {
@@ -87,7 +89,7 @@ export default function BatchWorkspace() {
   // Announcements
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [annDialog, setAnnDialog] = useState(false);
-  const [newAnn, setNewAnn] = useState({ title: "", content: "", type: "general" });
+  const [newAnn, setNewAnn] = useState({ title: "", content: "", type: "general", notifyPush: false });
   const [savingAnn, setSavingAnn] = useState(false);
 
   // Tests
@@ -199,6 +201,26 @@ export default function BatchWorkspace() {
     return () => { supabase.removeChannel(channel); };
   }, [batchId, currentUserId]);
 
+  // Realtime announcements subscription
+  useEffect(() => {
+    if (!batchId) return;
+    const channel = supabase
+      .channel(`batch-announcements-${batchId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "announcements", filter: `batch_id=eq.${batchId}` },
+        (payload) => {
+          const ann = payload.new as Announcement;
+          setAnnouncements(prev => {
+            if (prev.some(a => a.id === ann.id)) return prev;
+            return [ann, ...prev];
+          });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [batchId]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -248,6 +270,7 @@ export default function BatchWorkspace() {
   const postAnnouncement = async () => {
     if (!newAnn.title || !newAnn.content || !batch) return;
     setSavingAnn(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.from("announcements").insert({
       batch_id: batchId!,
       institute_code: batch.institute_code,
@@ -256,15 +279,14 @@ export default function BatchWorkspace() {
       title: newAnn.title,
       content: newAnn.content,
       type: newAnn.type,
-    });
+      notify_push: newAnn.notifyPush,
+    } as any);
     if (error) {
       toast({ title: "Error posting announcement", variant: "destructive" });
     } else {
-      toast({ title: "Announcement posted!" });
+      toast({ title: newAnn.notifyPush ? "Announcement posted with phone alert!" : "Announcement posted!" });
       setAnnDialog(false);
-      setNewAnn({ title: "", content: "", type: "general" });
-      const { data } = await supabase.from("announcements").select("*").eq("batch_id", batchId!).order("created_at", { ascending: false });
-      setAnnouncements(data || []);
+      setNewAnn({ title: "", content: "", type: "general", notifyPush: false });
     }
     setSavingAnn(false);
   };
@@ -461,6 +483,20 @@ export default function BatchWorkspace() {
                         <Label>Message</Label>
                         <Textarea placeholder="Write your announcement..." value={newAnn.content} onChange={e => setNewAnn(p => ({ ...p, content: e.target.value }))} rows={3} />
                       </div>
+                      {/* Notify Push toggle */}
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                        <div className="flex items-center gap-2.5">
+                          <Bell className="w-4 h-4 text-accent" />
+                          <div>
+                            <p className="text-sm font-medium">Alert students on phone</p>
+                            <p className="text-xs text-muted-foreground">Send a mobile notification for this announcement</p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={newAnn.notifyPush}
+                          onCheckedChange={v => setNewAnn(p => ({ ...p, notifyPush: v }))}
+                        />
+                      </div>
                       <Button className="w-full gradient-hero text-white border-0 hover:opacity-90" onClick={postAnnouncement} disabled={savingAnn}>
                         {savingAnn ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Post
                       </Button>
@@ -478,11 +514,16 @@ export default function BatchWorkspace() {
                         <div className="w-9 h-9 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0">
                           <Megaphone className="w-4 h-4 text-white" />
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-sm">{ann.title}</span>
-                            {ann.type && <Badge variant="secondary" className="text-xs">{ann.type}</Badge>}
-                          </div>
+                         <div className="flex-1">
+                           <div className="flex items-center gap-2 mb-1">
+                             <span className="font-semibold text-sm">{ann.title}</span>
+                             {ann.type && <Badge variant="secondary" className="text-xs">{ann.type}</Badge>}
+                             {ann.notify_push && (
+                               <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
+                                 <Bell className="w-2.5 h-2.5" /> Important
+                               </Badge>
+                             )}
+                           </div>
                           <p className="text-sm text-muted-foreground leading-relaxed mb-2">{ann.content}</p>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground">
                             <span>{ann.posted_by_name}</span>

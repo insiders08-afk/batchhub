@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Megaphone, Clock, Search, MessageCircle, Send, Loader2 } from "lucide-react";
+import { Megaphone, Clock, Search, MessageCircle, Send, Loader2, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,6 +20,7 @@ interface Announcement {
   batch_id: string | null;
   posted_by_name: string | null;
   created_at: string;
+  notify_push: boolean;
 }
 
 const typeColors: Record<string, string> = {
@@ -73,6 +74,29 @@ export default function StudentAnnouncements() {
     };
     init();
   }, []);
+
+  // Realtime subscription for new announcements
+  useEffect(() => {
+    const channel = supabase
+      .channel("student-announcements-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "announcements" },
+        (payload) => {
+          const newAnn = payload.new as Announcement;
+          setAnnouncements(prev => {
+            if (prev.some(a => a.id === newAnn.id)) return prev;
+            // Show toast if it's a phone-alert announcement
+            if (newAnn.notify_push) {
+              toast({ title: "🔔 New Announcement", description: newAnn.title });
+            }
+            return [newAnn, ...prev];
+          });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [toast]);
 
   const handleAskDoubt = async () => {
     if (!doubtText.trim() || !doubtAnn || !batchId) return;
@@ -135,6 +159,11 @@ export default function StudentAnnouncements() {
                         {ann.type && (
                           <Badge className={`text-xs ${typeColors[ann.type] || typeColors.general}`}>
                             {ann.type.charAt(0).toUpperCase() + ann.type.slice(1)}
+                          </Badge>
+                        )}
+                        {ann.notify_push && (
+                          <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
+                            <Bell className="w-2.5 h-2.5" /> Important
                           </Badge>
                         )}
                       </div>
