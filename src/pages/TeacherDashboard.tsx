@@ -122,6 +122,46 @@ export default function TeacherDashboard() {
           </div>
         </motion.div>
 
+        {/* Pending batch assignment requests */}
+        {batchRequests.length > 0 && (
+          <Card className="p-5 shadow-card border-accent/30 bg-accent/5">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell className="w-4 h-4 text-accent" />
+              <h3 className="font-display font-semibold text-accent">Batch Assignment Requests</h3>
+              <Badge className="bg-accent/10 text-accent border-accent/20 text-xs">{batchRequests.length}</Badge>
+            </div>
+            <div className="space-y-2">
+              {batchRequests.map(req => (
+                <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-background border border-border/50">
+                  <div>
+                    <p className="text-sm font-semibold">{req.batch_name || "Unnamed Batch"}</p>
+                    <p className="text-xs text-muted-foreground">{req.course} · Admin wants you to teach this batch</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs gap-1 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20"
+                      disabled={respondingId === req.id}
+                      onClick={() => handleRequest(req, true)}
+                    >
+                      {respondingId === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />} Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
+                      disabled={respondingId === req.id}
+                      onClick={() => handleRequest(req, false)}
+                    >
+                      <X className="w-3 h-3" /> Decline
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         {/* Summary stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
@@ -151,23 +191,23 @@ export default function TeacherDashboard() {
                   </Button>
                 </Link>
                 <Link to="/teacher/announcements">
-                  <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary-light">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary/10">
                     <Megaphone className="w-4 h-4" /> Post Announcement
                   </Button>
                 </Link>
                 <Link to="/teacher/tests">
-                  <Button variant="outline" className="w-full gap-2 h-11 border-accent/30 text-accent hover:bg-accent-light">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-accent/30 text-accent hover:bg-accent/10">
                     <Trophy className="w-4 h-4" /> Enter Test Scores
                   </Button>
                 </Link>
                 <Link to="/teacher/homework">
-                  <Button variant="outline" className="w-full gap-2 h-11 border-success/30 text-success hover:bg-success-light">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-success/30 text-success hover:bg-success/10">
                     <BookOpen className="w-4 h-4" /> Post Homework / DPP
                   </Button>
                 </Link>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No batches assigned yet. Ask your admin.</p>
+              <p className="text-sm text-muted-foreground">No batches assigned yet. Ask your admin to assign you a batch.</p>
             )}
           </Card>
         </motion.div>
