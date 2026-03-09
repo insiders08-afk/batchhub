@@ -213,6 +213,62 @@ export type Database = {
         }
         Relationships: []
       }
+      homeworks: {
+        Row: {
+          batch_id: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          file_name: string | null
+          file_url: string | null
+          id: string
+          institute_code: string
+          teacher_id: string
+          teacher_name: string | null
+          title: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          institute_code: string
+          teacher_id: string
+          teacher_name?: string | null
+          title: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          file_name?: string | null
+          file_url?: string | null
+          id?: string
+          institute_code?: string
+          teacher_id?: string
+          teacher_name?: string | null
+          title?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "homeworks_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       institutes: {
         Row: {
           attendance_marked_by: string

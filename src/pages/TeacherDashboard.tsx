@@ -5,7 +5,7 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, CalendarCheck, Users, ExternalLink, Megaphone, ClipboardList, Loader2 } from "lucide-react";
+import { BookOpen, CalendarCheck, Users, ExternalLink, Megaphone, ClipboardList, Loader2, Trophy, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Batch {
@@ -46,7 +46,6 @@ export default function TeacherDashboard() {
         }
       }
 
-      // Batches assigned to this teacher
       const { data: batchData } = await supabase
         .from("batches")
         .select("id, name, course, schedule")
@@ -84,12 +83,12 @@ export default function TeacherDashboard() {
           </div>
         </motion.div>
 
-        {/* Today's summary */}
+        {/* Summary stats */}
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: "My Students", value: loading ? "—" : String(totalStudents), icon: Users, color: "text-primary" },
             { label: "My Batches", value: loading ? "—" : String(batches.length), icon: CalendarCheck, color: "text-success" },
-            { label: "Classes Today", value: batches.length > 0 ? String(batches.length) : "0", icon: ClipboardList, color: "text-accent" },
+            { label: "Classes Today", value: loading ? "—" : String(batches.length), icon: ClipboardList, color: "text-accent" },
           ].map((s, i) => (
             <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
               <Card className="p-4 text-center shadow-card border-border/50">
@@ -107,14 +106,24 @@ export default function TeacherDashboard() {
             <h3 className="font-display font-semibold mb-3">Quick Actions</h3>
             {batches.length > 0 ? (
               <div className="grid grid-cols-2 gap-3">
-                <Link to={`/batch/${batches[0].id}`}>
+                <Link to="/teacher/attendance">
                   <Button className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2 h-11">
                     <CalendarCheck className="w-4 h-4" /> Mark Attendance
                   </Button>
                 </Link>
-                <Link to={`/batch/${batches[0].id}`}>
+                <Link to="/teacher/announcements">
                   <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary-light">
                     <Megaphone className="w-4 h-4" /> Post Announcement
+                  </Button>
+                </Link>
+                <Link to="/teacher/tests">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-accent/30 text-accent hover:bg-accent-light">
+                    <Trophy className="w-4 h-4" /> Enter Test Scores
+                  </Button>
+                </Link>
+                <Link to="/teacher/homework">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-success/30 text-success hover:bg-success-light">
+                    <BookOpen className="w-4 h-4" /> Post Homework / DPP
                   </Button>
                 </Link>
               </div>
@@ -141,7 +150,7 @@ export default function TeacherDashboard() {
             {batches.map((b, i) => (
               <motion.div key={b.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 + i * 0.08 }}>
                 <Card className="p-5 shadow-card border-border/50 hover:shadow-lg transition-all">
-                  <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center text-white font-bold text-sm">
                       {b.name.slice(0, 2)}
                     </div>
@@ -154,7 +163,19 @@ export default function TeacherDashboard() {
                     <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{b.studentCount} students</span>
                     {b.schedule && <span className="text-xs">{b.schedule}</span>}
                   </div>
-                  <Link to={`/batch/${b.id}`}>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link to={`/batch/${b.id}`}>
+                      <Button className="w-full h-8 text-xs gap-1.5 gradient-hero text-white border-0 hover:opacity-90">
+                        <MessageSquare className="w-3 h-3" /> Chat & More
+                      </Button>
+                    </Link>
+                    <Link to={`/teacher/tests`}>
+                      <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-accent border-accent/30 hover:bg-accent-light">
+                        <Trophy className="w-3 h-3" /> Rankings
+                      </Button>
+                    </Link>
+                  </div>
+                  <Link to={`/batch/${b.id}`} className="mt-2 block">
                     <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
                       Open Workspace <ExternalLink className="w-3 h-3" />
                     </Button>
