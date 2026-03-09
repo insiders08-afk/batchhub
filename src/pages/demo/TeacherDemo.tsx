@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, CalendarCheck, ClipboardList, Zap, BookOpen, Trophy, Megaphone } from "lucide-react";
+import { Users, CalendarCheck, ClipboardList, Zap, BookOpen, Trophy, Megaphone, Home } from "lucide-react";
 
 const fakeBatches = [
   { id: "b1", name: "JEE Advanced 2025-A", students: 28, course: "JEE", schedule: "Mon–Fri 9:00 AM" },
@@ -29,16 +29,32 @@ const fakeStudents: Record<string, { name: string; pct: number }[]> = {
   ],
 };
 
+const fakeTestScores: Record<string, { name: string; score: number }[]> = {
+  b1: [
+    { name: "Kavya Nair", score: 94 },
+    { name: "Arjun Verma", score: 87 },
+    { name: "Sneha Patel", score: 81 },
+    { name: "Rohit Singh", score: 74 },
+    { name: "Manish Jha", score: 63 },
+  ],
+  b2: [
+    { name: "Deepa Iyer", score: 92 },
+    { name: "Priya Sharma", score: 85 },
+    { name: "Ajay Yadav", score: 71 },
+  ],
+};
+
 export default function TeacherDemo() {
   const [tab, setTab] = useState<"dashboard" | "attendance" | "tests">("dashboard");
   const [selectedBatch, setSelectedBatch] = useState("b1");
 
   const students = fakeStudents[selectedBatch] || [];
+  const scores = fakeTestScores[selectedBatch] || [];
 
   return (
     <div className="min-h-screen bg-background">
       <div className="bg-success text-white text-center text-xs py-2 font-medium">
-        🎭 Demo Mode — Fake teacher view. <Link to="/" className="underline ml-1">← Back to homepage</Link>
+        🎭 Demo Mode — This is entirely fake data. No real institute.
       </div>
 
       <div className="flex h-[calc(100vh-32px)]">
@@ -59,14 +75,19 @@ export default function TeacherDemo() {
               key={item.key}
               onClick={() => setTab(item.key as typeof tab)}
               className={`text-sm text-left px-3 py-2 rounded-lg transition-colors ${
-                tab === item.key ? "bg-primary-light text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
+                tab === item.key ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
               }`}
             >
               {item.label}
             </button>
           ))}
 
-          <div className="mt-auto">
+          <div className="mt-auto space-y-2">
+            <Link to="/">
+              <Button variant="outline" className="w-full gap-2 h-9 text-xs border-primary/30 text-primary hover:bg-primary/10">
+                <Home className="w-3.5 h-3.5" /> Back to Homepage
+              </Button>
+            </Link>
             <div className="p-3 rounded-lg bg-muted/50 border border-border/40">
               <p className="text-xs font-semibold">Rahul Sharma</p>
               <p className="text-xs text-muted-foreground">Teacher · Demo Institute</p>
@@ -80,7 +101,7 @@ export default function TeacherDemo() {
               <div className="gradient-hero rounded-xl p-5 text-white">
                 <p className="text-white/70 text-sm">Welcome back,</p>
                 <h2 className="font-display font-bold text-2xl">Rahul Sharma</h2>
-                <p className="text-white/70 text-sm mt-0.5">Teacher · Demo Institute</p>
+                <p className="text-white/70 text-sm mt-0.5">Teacher · Demo Institute, Kota</p>
               </div>
 
               <div className="grid grid-cols-3 gap-3">
@@ -105,13 +126,13 @@ export default function TeacherDemo() {
                   <Button onClick={() => setTab("attendance")} className="w-full gradient-hero text-white border-0 gap-2 h-11">
                     <CalendarCheck className="w-4 h-4" /> Mark Attendance
                   </Button>
-                  <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary-light">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary/10">
                     <Megaphone className="w-4 h-4" /> Post Announcement
                   </Button>
-                  <Button onClick={() => setTab("tests")} variant="outline" className="w-full gap-2 h-11 border-accent/30 text-accent hover:bg-accent-light">
+                  <Button onClick={() => setTab("tests")} variant="outline" className="w-full gap-2 h-11 border-accent/30 text-accent hover:bg-accent/10">
                     <Trophy className="w-4 h-4" /> Enter Test Scores
                   </Button>
-                  <Button variant="outline" className="w-full gap-2 h-11 border-success/30 text-success hover:bg-success-light">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-success/30 text-success hover:bg-success/10">
                     <BookOpen className="w-4 h-4" /> Post Homework
                   </Button>
                 </div>
@@ -166,8 +187,8 @@ export default function TeacherDemo() {
                         <p className="text-xs text-muted-foreground">{s.pct}% overall attendance</p>
                       </div>
                       <div className="flex gap-2">
-                        <Button size="sm" className="h-7 text-xs bg-success-light text-success hover:bg-success hover:text-white border border-success/20">P</Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs border-danger/30 text-danger hover:bg-danger-light">A</Button>
+                        <Button size="sm" className="h-7 text-xs bg-success/10 text-success hover:bg-success hover:text-white border border-success/20">P</Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10">A</Button>
                       </div>
                     </div>
                   ))}
@@ -193,24 +214,22 @@ export default function TeacherDemo() {
                 ))}
               </div>
               <Card className="p-5 shadow-card border-border/50">
-                <h3 className="font-display font-semibold mb-3">Batch Rankings</h3>
+                <h3 className="font-display font-semibold mb-1">Physics Unit Test 3</h3>
+                <p className="text-xs text-muted-foreground mb-4">Max Marks: 100 · Date: 4 Mar 2026</p>
                 <div className="space-y-2">
-                  {students
-                    .map((s, i) => ({ ...s, score: Math.floor(60 + Math.random() * 40), max: 100 }))
-                    .sort((a, b) => b.score - a.score)
-                    .map((s, rank) => (
-                      <div key={rank} className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border border-border/30">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
-                          rank === 0 ? "bg-yellow-100 text-yellow-600" : rank === 1 ? "bg-gray-100 text-gray-600" : rank === 2 ? "bg-orange-100 text-orange-600" : "bg-muted text-muted-foreground"
-                        }`}>
-                          {rank === 0 ? "🥇" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : rank + 1}
-                        </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{s.name}</p>
-                        </div>
-                        <p className="font-display font-bold">{s.score}<span className="text-xs text-muted-foreground">/{s.max}</span></p>
+                  {scores.map((s, rank) => (
+                    <div key={rank} className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border border-border/30">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                        rank === 0 ? "bg-yellow-100 text-yellow-600" : rank === 1 ? "bg-gray-100 text-gray-600" : rank === 2 ? "bg-orange-100 text-orange-600" : "bg-muted text-muted-foreground"
+                      }`}>
+                        {rank === 0 ? "🥇" : rank === 1 ? "🥈" : rank === 2 ? "🥉" : rank + 1}
                       </div>
-                    ))}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{s.name}</p>
+                      </div>
+                      <p className="font-display font-bold">{s.score}<span className="text-xs text-muted-foreground">/100</span></p>
+                    </div>
+                  ))}
                 </div>
               </Card>
             </div>
