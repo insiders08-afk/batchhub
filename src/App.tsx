@@ -5,6 +5,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
+import AdminDemo from "./pages/demo/AdminDemo";
+import TeacherDemo from "./pages/demo/TeacherDemo";
+import StudentDemo from "./pages/demo/StudentDemo";
+import ParentDemo from "./pages/demo/ParentDemo";
+import StudentBatchApply from "./pages/StudentBatchApply";
+import AdminBatchApplications from "./pages/AdminBatchApplications";
 import RoleSelection from "./pages/RoleSelection";
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminBatches from "./pages/AdminBatches";
@@ -49,6 +55,12 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/role-select" element={<RoleSelection />} />
+          {/* Demo routes — pure fake data, no DB */}
+          <Route path="/demo/admin" element={<AdminDemo />} />
+          <Route path="/demo/teacher" element={<TeacherDemo />} />
+          <Route path="/demo/student" element={<StudentDemo />} />
+          <Route path="/demo/parent" element={<ParentDemo />} />
+          {/* Admin */}
           <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/batches" element={<AdminBatches />} />
           <Route path="/admin/students" element={<AdminStudents />} />
@@ -59,6 +71,7 @@ const App = () => (
           <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/approvals" element={<AdminApprovals />} />
           <Route path="/admin/team" element={<AdminTeam />} />
+          <Route path="/admin/batch-applications" element={<AdminBatchApplications />} />
           <Route path="/auth/admin" element={<AdminAuth />} />
           <Route path="/auth/superadmin" element={<SuperAdminAuth />} />
           <Route path="/superadmin" element={<SuperAdminDashboard />} />
@@ -69,16 +82,20 @@ const App = () => (
           <Route path="/owner" element={<OwnerDashboard />} />
           <Route path="/apply/city-partner" element={<CityPartnerApply />} />
           <Route path="/batch/:id" element={<BatchWorkspace />} />
+          {/* Teacher */}
           <Route path="/teacher" element={<TeacherDashboard />} />
           <Route path="/teacher/attendance" element={<TeacherAttendance />} />
           <Route path="/teacher/announcements" element={<TeacherAnnouncements />} />
           <Route path="/teacher/tests" element={<TeacherTests />} />
           <Route path="/teacher/homework" element={<TeacherHomework />} />
+          {/* Student */}
           <Route path="/student" element={<StudentDashboard />} />
           <Route path="/student/attendance" element={<StudentAttendance />} />
           <Route path="/student/tests" element={<StudentTests />} />
           <Route path="/student/homework" element={<StudentHomework />} />
           <Route path="/student/announcements" element={<StudentAnnouncements />} />
+          <Route path="/student/apply-batch" element={<StudentBatchApply />} />
+          {/* Parent */}
           <Route path="/parent" element={<ParentDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

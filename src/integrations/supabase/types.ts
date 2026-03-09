@@ -99,6 +99,47 @@ export type Database = {
           },
         ]
       }
+      batch_applications: {
+        Row: {
+          applied_at: string
+          batch_id: string
+          id: string
+          institute_code: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          student_id: string
+        }
+        Insert: {
+          applied_at?: string
+          batch_id: string
+          id?: string
+          institute_code: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          student_id: string
+        }
+        Update: {
+          applied_at?: string
+          batch_id?: string
+          id?: string
+          institute_code?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batch_applications_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       batch_messages: {
         Row: {
           batch_id: string

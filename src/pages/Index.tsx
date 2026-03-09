@@ -149,14 +149,14 @@ export default function Index() {
               </Link>
             </div>
 
-            {/* Role demo links */}
+            {/* Role demo links — use /demo/* routes that show only fake data */}
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
               <span className="text-sm text-muted-foreground mr-1">Try a demo:</span>
               {[
-                { label: "Admin Demo", to: "/admin", color: "bg-primary-light text-primary border-primary/20 hover:bg-primary/10" },
-                { label: "Teacher Demo", to: "/teacher", color: "bg-success-light text-success border-success/20 hover:bg-success/10" },
-                { label: "Student Demo", to: "/student", color: "bg-accent-light text-accent border-accent/20 hover:bg-accent/10" },
-                { label: "Parent Demo", to: "/parent", color: "bg-muted text-foreground border-border/40 hover:bg-muted/70" },
+                { label: "Admin Demo", to: "/demo/admin", color: "bg-primary-light text-primary border-primary/20 hover:bg-primary/10" },
+                { label: "Teacher Demo", to: "/demo/teacher", color: "bg-success-light text-success border-success/20 hover:bg-success/10" },
+                { label: "Student Demo", to: "/demo/student", color: "bg-accent-light text-accent border-accent/20 hover:bg-accent/10" },
+                { label: "Parent Demo", to: "/demo/parent", color: "bg-muted text-foreground border-border/40 hover:bg-muted/70" },
               ].map((d) => (
                 <Link key={d.to} to={d.to}>
                   <Button size="sm" variant="outline" className={`h-8 text-xs font-medium border ${d.color}`}>

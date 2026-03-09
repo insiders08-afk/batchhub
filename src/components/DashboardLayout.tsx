@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, CalendarCheck, Megaphone,
   FlaskConical, IndianRupee, GraduationCap, Settings,
   LogOut, Zap, ChevronLeft, Menu, X, ShieldCheck,
-  BookOpen, Trophy, ClipboardList, UserCircle
+  BookOpen, Trophy, ClipboardList, UserCircle, BookMarked, PlusCircle
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Role = "admin" | "teacher" | "student" | "parent";
 
-const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: string }[]> = {
+const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: string; badge?: string }[]> = {
   admin: [
     { icon: LayoutDashboard, label: "Overview", path: "/admin" },
     { icon: Users, label: "Batches", path: "/admin/batches" },
@@ -23,6 +23,7 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: GraduationCap, label: "Students", path: "/admin/students" },
     { icon: ClipboardList, label: "Team", path: "/admin/team" },
     { icon: ShieldCheck, label: "Approvals", path: "/admin/approvals" },
+    { icon: BookMarked, label: "Batch Applications", path: "/admin/batch-applications" },
     { icon: Settings, label: "Settings", path: "/admin/settings" },
   ],
   teacher: [
@@ -31,9 +32,11 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: Megaphone, label: "Announcements", path: "/teacher/announcements" },
     { icon: FlaskConical, label: "Tests & Scores", path: "/teacher/tests" },
     { icon: BookOpen, label: "Homework / DPP", path: "/teacher/homework" },
+    { icon: BookMarked, label: "Batch Applications", path: "/admin/batch-applications" },
   ],
   student: [
     { icon: LayoutDashboard, label: "My Dashboard", path: "/student" },
+    { icon: PlusCircle, label: "Join a Batch", path: "/student/apply-batch" },
     { icon: CalendarCheck, label: "My Attendance", path: "/student/attendance" },
     { icon: Trophy, label: "Tests & Scores", path: "/student/tests" },
     { icon: BookOpen, label: "Homework / DPP", path: "/student/homework" },
@@ -42,9 +45,9 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
   parent: [
     { icon: LayoutDashboard, label: "Overview", path: "/parent" },
     { icon: UserCircle, label: "My Child", path: "/parent" },
-    { icon: CalendarCheck, label: "Attendance", path: "/parent" },
-    { icon: IndianRupee, label: "Fees", path: "/parent" },
-    { icon: Megaphone, label: "Announcements", path: "/parent" },
+    { icon: CalendarCheck, label: "Attendance", path: "/parent/attendance" },
+    { icon: IndianRupee, label: "Fees", path: "/parent/fees" },
+    { icon: Megaphone, label: "Announcements", path: "/parent/announcements" },
   ],
 };
 
@@ -109,17 +112,17 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   }, []);
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin || role === "teacher") {
       const fetchPending = async () => {
-        const { data } = await supabase
-          .from("pending_requests")
-          .select("id")
-          .eq("status", "pending");
-        setPendingCount(data?.length || 0);
+        const [reqRes, appRes] = await Promise.all([
+          isAdmin ? supabase.from("pending_requests").select("id").eq("status", "pending") : Promise.resolve({ data: [] }),
+          supabase.from("batch_applications").select("id").eq("status", "pending"),
+        ]);
+        setPendingCount((reqRes.data?.length || 0) + (appRes.data?.length || 0));
       };
       fetchPending();
     }
-  }, [isAdmin]);
+  }, [isAdmin, role]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -184,7 +187,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
             >
               <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-white" : "")} />
               {!collapsed && <span className="flex-1">{item.label}</span>}
-              {!collapsed && isAdmin && item.path === "/admin/approvals" && pendingCount > 0 && (
+              {!collapsed && pendingCount > 0 && (item.path === "/admin/approvals" || item.path === "/admin/batch-applications") && (
                 <span className="text-xs font-bold bg-danger text-white rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
                   {pendingCount}
                 </span>
