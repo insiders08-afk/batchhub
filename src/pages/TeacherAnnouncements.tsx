@@ -104,6 +104,7 @@ export default function TeacherAnnouncements() {
     try {
       const { data: code } = await supabase.rpc("get_my_institute_code");
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", userId).maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await supabase.from("announcements").insert({
         title: form.title.trim(),
         content: form.content.trim(),
@@ -113,7 +114,7 @@ export default function TeacherAnnouncements() {
         posted_by: userId,
         posted_by_name: profile?.full_name || "Teacher",
         notify_push: form.notifyPush,
-      } as Parameters<typeof supabase.from<"announcements">>[0] extends never ? never : object as never);
+      } as any);
       if (error) throw error;
       toast({ title: form.notifyPush ? "✅ Announcement posted with phone alert!" : "✅ Announcement posted!" });
       setForm({ title: "", content: "", batchId: "all", type: "general", notifyPush: false });
