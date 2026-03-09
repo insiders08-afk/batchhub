@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import {
   MessageSquare, Megaphone, CalendarCheck, FlaskConical,
   BookOpen, Trophy, ArrowLeft, Send, Plus, CheckCircle2,
-  XCircle, Clock, Users, Loader2, Star
+  XCircle, Clock, Users, Loader2, Star, Bell
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
