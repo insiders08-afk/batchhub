@@ -178,9 +178,15 @@ export default function StudentDashboard() {
         {loading ? (
           <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : batches.length === 0 ? (
-          <Card className="p-8 text-center shadow-card border-border/50">
-            <BookOpen className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-40" />
-            <p className="text-sm text-muted-foreground">You haven't been enrolled in a batch yet. Ask your admin.</p>
+          <Card className="p-8 text-center shadow-card border-border/50 border-primary/20">
+            <BookOpen className="w-8 h-8 mx-auto mb-3 text-primary opacity-60" />
+            <p className="font-semibold text-sm">Not enrolled in any batch yet</p>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">Browse active batches and apply to join one.</p>
+            <Link to="/student/apply-batch">
+              <Button className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2">
+                <BookOpen className="w-4 h-4" /> Browse & Apply to Batches
+              </Button>
+            </Link>
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-4">
