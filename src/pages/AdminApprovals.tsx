@@ -170,7 +170,7 @@ export default function AdminApprovals() {
           .eq("user_id", req.user_id);
         if (profError) throw profError;
 
-        // 3. INSERT into user_roles — ignore if already exists
+        // 3. INSERT into user_roles — ignore if already exists (duplicate = fine)
         const { error: roleError } = await supabase
           .from("user_roles")
           .insert({
@@ -179,9 +179,9 @@ export default function AdminApprovals() {
             institute_code: req.institute_code,
           });
 
-        // Ignore duplicate key errors — role already exists, which is fine
-        if (roleError && !roleError.message?.includes("duplicate") && !roleError.code?.includes("23505")) {
-          console.warn("user_roles insert note:", roleError.message);
+        // Only ignore duplicate key errors — all other errors must be surfaced
+        if (roleError && !roleError.code?.includes("23505") && !roleError.message?.includes("duplicate")) {
+          throw new Error(`Failed to assign role: ${roleError.message}`);
         }
 
         // 4. For parent: store child_id in pending_request extra_data
