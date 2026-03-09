@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           id: string
           institute_code: string
+          notify_push: boolean
           posted_by: string
           posted_by_name: string | null
           title: string
@@ -32,6 +33,7 @@ export type Database = {
           created_at?: string
           id?: string
           institute_code: string
+          notify_push?: boolean
           posted_by: string
           posted_by_name?: string | null
           title: string
@@ -43,6 +45,7 @@ export type Database = {
           created_at?: string
           id?: string
           institute_code?: string
+          notify_push?: boolean
           posted_by?: string
           posted_by_name?: string | null
           title?: string
