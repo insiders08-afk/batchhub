@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Role = "admin" | "teacher" | "student" | "parent";
 
-const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: string }[]> = {
+const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: string; badge?: string }[]> = {
   admin: [
     { icon: LayoutDashboard, label: "Overview", path: "/admin" },
     { icon: Users, label: "Batches", path: "/admin/batches" },
@@ -23,6 +23,7 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: GraduationCap, label: "Students", path: "/admin/students" },
     { icon: ClipboardList, label: "Team", path: "/admin/team" },
     { icon: ShieldCheck, label: "Approvals", path: "/admin/approvals" },
+    { icon: BookMarked, label: "Batch Applications", path: "/admin/batch-applications" },
     { icon: Settings, label: "Settings", path: "/admin/settings" },
   ],
   teacher: [
@@ -31,9 +32,11 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: Megaphone, label: "Announcements", path: "/teacher/announcements" },
     { icon: FlaskConical, label: "Tests & Scores", path: "/teacher/tests" },
     { icon: BookOpen, label: "Homework / DPP", path: "/teacher/homework" },
+    { icon: BookMarked, label: "Batch Applications", path: "/admin/batch-applications" },
   ],
   student: [
     { icon: LayoutDashboard, label: "My Dashboard", path: "/student" },
+    { icon: PlusCircle, label: "Join a Batch", path: "/student/apply-batch" },
     { icon: CalendarCheck, label: "My Attendance", path: "/student/attendance" },
     { icon: Trophy, label: "Tests & Scores", path: "/student/tests" },
     { icon: BookOpen, label: "Homework / DPP", path: "/student/homework" },
@@ -42,9 +45,9 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
   parent: [
     { icon: LayoutDashboard, label: "Overview", path: "/parent" },
     { icon: UserCircle, label: "My Child", path: "/parent" },
-    { icon: CalendarCheck, label: "Attendance", path: "/parent" },
-    { icon: IndianRupee, label: "Fees", path: "/parent" },
-    { icon: Megaphone, label: "Announcements", path: "/parent" },
+    { icon: CalendarCheck, label: "Attendance", path: "/parent/attendance" },
+    { icon: IndianRupee, label: "Fees", path: "/parent/fees" },
+    { icon: Megaphone, label: "Announcements", path: "/parent/announcements" },
   ],
 };
 
