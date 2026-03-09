@@ -201,6 +201,26 @@ export default function BatchWorkspace() {
     return () => { supabase.removeChannel(channel); };
   }, [batchId, currentUserId]);
 
+  // Realtime announcements subscription
+  useEffect(() => {
+    if (!batchId) return;
+    const channel = supabase
+      .channel(`batch-announcements-${batchId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "announcements", filter: `batch_id=eq.${batchId}` },
+        (payload) => {
+          const ann = payload.new as Announcement;
+          setAnnouncements(prev => {
+            if (prev.some(a => a.id === ann.id)) return prev;
+            return [ann, ...prev];
+          });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [batchId]);
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
