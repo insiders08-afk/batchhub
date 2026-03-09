@@ -89,7 +89,7 @@ export default function BatchWorkspace() {
   // Announcements
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [annDialog, setAnnDialog] = useState(false);
-  const [newAnn, setNewAnn] = useState({ title: "", content: "", type: "general" });
+  const [newAnn, setNewAnn] = useState({ title: "", content: "", type: "general", notifyPush: false });
   const [savingAnn, setSavingAnn] = useState(false);
 
   // Tests
