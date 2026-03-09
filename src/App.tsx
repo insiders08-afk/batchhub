@@ -70,15 +70,15 @@ const App = () => (
           <Route path="/apply/city-partner" element={<CityPartnerApply />} />
           <Route path="/batch/:id" element={<BatchWorkspace />} />
           <Route path="/teacher" element={<TeacherDashboard />} />
-          <Route path="/teacher/attendance" element={<TeacherDashboard />} />
-          <Route path="/teacher/announcements" element={<TeacherDashboard />} />
-          <Route path="/teacher/tests" element={<TeacherDashboard />} />
-          <Route path="/teacher/homework" element={<TeacherDashboard />} />
+          <Route path="/teacher/attendance" element={<TeacherAttendance />} />
+          <Route path="/teacher/announcements" element={<TeacherAnnouncements />} />
+          <Route path="/teacher/tests" element={<TeacherTests />} />
+          <Route path="/teacher/homework" element={<TeacherHomework />} />
           <Route path="/student" element={<StudentDashboard />} />
-          <Route path="/student/attendance" element={<StudentDashboard />} />
-          <Route path="/student/tests" element={<StudentDashboard />} />
-          <Route path="/student/homework" element={<StudentDashboard />} />
-          <Route path="/student/announcements" element={<StudentDashboard />} />
+          <Route path="/student/attendance" element={<StudentAttendance />} />
+          <Route path="/student/tests" element={<StudentTests />} />
+          <Route path="/student/homework" element={<StudentHomework />} />
+          <Route path="/student/announcements" element={<StudentAnnouncements />} />
           <Route path="/parent" element={<ParentDashboard />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
