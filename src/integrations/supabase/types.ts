@@ -173,6 +173,53 @@ export type Database = {
         }
         Relationships: []
       }
+      batch_teacher_requests: {
+        Row: {
+          batch_id: string
+          batch_name: string | null
+          course: string | null
+          created_at: string
+          id: string
+          institute_code: string
+          requested_by: string
+          status: string
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          batch_id: string
+          batch_name?: string | null
+          course?: string | null
+          created_at?: string
+          id?: string
+          institute_code: string
+          requested_by: string
+          status?: string
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          batch_id?: string
+          batch_name?: string | null
+          course?: string | null
+          created_at?: string
+          id?: string
+          institute_code?: string
+          requested_by?: string
+          status?: string
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batch_teacher_requests_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       batches: {
         Row: {
           course: string
@@ -592,6 +639,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_my_child_user_id: { Args: never; Returns: string }
       get_my_institute_code: { Args: never; Returns: string }
       has_role: {
         Args: {
