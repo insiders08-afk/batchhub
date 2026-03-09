@@ -283,24 +283,44 @@ export default function AdminBatches() {
     }
     setSaving(true);
 
-    const { error } = await supabase.from("batches").insert({
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Insert batch WITHOUT teacher_id initially — teacher must accept first
+    const { data: batchData, error } = await supabase.from("batches").insert({
       name: newBatch.name,
       course: newBatch.course,
       schedule: newBatch.schedule || null,
-      teacher_id: newBatch.teacherId || null,
-      teacher_name: newBatch.teacherName || null,
+      teacher_id: null,
+      teacher_name: null,
       institute_code: instituteCode,
       is_active: true,
-    });
+    }).select("id").single();
 
     if (error) {
       toast({ title: "Error creating batch", description: error.message, variant: "destructive" });
+      setSaving(false);
+      return;
+    }
+
+    // If a teacher was selected, send them a batch assignment request
+    if (newBatch.teacherId && batchData && user) {
+      await supabase.from("batch_teacher_requests").insert({
+        batch_id: batchData.id,
+        teacher_id: newBatch.teacherId,
+        institute_code: instituteCode,
+        requested_by: user.id,
+        batch_name: newBatch.name,
+        course: newBatch.course,
+        status: "pending",
+      });
+      toast({ title: "Batch created!", description: `Assignment request sent to ${newBatch.teacherName}. They must accept to be linked.` });
     } else {
       toast({ title: "Batch created successfully!" });
-      setDialogOpen(false);
-      setNewBatch({ name: "", course: "", teacherId: "", teacherName: "", schedule: "" });
-      await fetchBatches(instituteCode);
     }
+
+    setDialogOpen(false);
+    setNewBatch({ name: "", course: "", teacherId: "", teacherName: "", schedule: "" });
+    await fetchBatches(instituteCode);
     setSaving(false);
   };
 
