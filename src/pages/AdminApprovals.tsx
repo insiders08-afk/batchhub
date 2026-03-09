@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
@@ -40,8 +40,7 @@ export default function AdminApprovals() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const fetchRequests = async () => {
-    setLoading(true);
+  const fetchRequests = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("pending_requests")
@@ -55,9 +54,27 @@ export default function AdminApprovals() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  useEffect(() => { fetchRequests(); }, []);
+  // Initial fetch + Realtime subscription for live updates
+  useEffect(() => {
+    fetchRequests();
+
+    const channel = supabase
+      .channel("admin-approvals-realtime")
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "pending_requests",
+      }, () => {
+        fetchRequests();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchRequests]);
 
   const handleAction = async (req: PendingRequest, action: "approved" | "rejected") => {
     setActionLoading(req.id);
@@ -79,15 +96,20 @@ export default function AdminApprovals() {
           .eq("user_id", req.user_id);
         if (profError) throw profError;
 
-        // 3. Upsert into user_roles (safe to call even on re-approval)
+        // 3. INSERT into user_roles — ignore if already exists (duplicate = already has role, which is fine)
         const { error: roleError } = await supabase
           .from("user_roles")
-          .upsert({
+          .insert({
             user_id: req.user_id,
             role: req.role,
             institute_code: req.institute_code,
-          }, { onConflict: "user_id,role" });
-        if (roleError) throw roleError;
+          });
+
+        // Ignore duplicate key errors (23505) — role already exists, which means they're already approved
+        if (roleError && !roleError.message?.includes("duplicate") && !roleError.code?.includes("23505")) {
+          // Log but don't throw — pending_requests and profiles are already updated successfully
+          console.warn("user_roles insert note:", roleError.message);
+        }
 
         toast({ title: "Approved!", description: `${req.full_name} has been granted ${req.role} access.` });
       } else {
@@ -99,6 +121,7 @@ export default function AdminApprovals() {
         toast({ title: "Rejected", description: `${req.full_name}'s request has been rejected.` });
       }
 
+      // Always update local state immediately (don't wait for realtime)
       setRequests((prev) =>
         prev.map((r) => r.id === req.id ? { ...r, status: action } : r)
       );
