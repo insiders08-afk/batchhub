@@ -32,7 +32,6 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: Megaphone, label: "Announcements", path: "/teacher/announcements" },
     { icon: FlaskConical, label: "Tests & Scores", path: "/teacher/tests" },
     { icon: BookOpen, label: "Homework / DPP", path: "/teacher/homework" },
-    { icon: BookMarked, label: "Batch Applications", path: "/admin/batch-applications" },
   ],
   student: [
     { icon: LayoutDashboard, label: "My Dashboard", path: "/student" },
