@@ -514,11 +514,16 @@ export default function BatchWorkspace() {
                         <div className="w-9 h-9 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0">
                           <Megaphone className="w-4 h-4 text-white" />
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold text-sm">{ann.title}</span>
-                            {ann.type && <Badge variant="secondary" className="text-xs">{ann.type}</Badge>}
-                          </div>
+                         <div className="flex-1">
+                           <div className="flex items-center gap-2 mb-1">
+                             <span className="font-semibold text-sm">{ann.title}</span>
+                             {ann.type && <Badge variant="secondary" className="text-xs">{ann.type}</Badge>}
+                             {ann.notify_push && (
+                               <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
+                                 <Bell className="w-2.5 h-2.5" /> Important
+                               </Badge>
+                             )}
+                           </div>
                           <p className="text-sm text-muted-foreground leading-relaxed mb-2">{ann.content}</p>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground">
                             <span>{ann.posted_by_name}</span>
