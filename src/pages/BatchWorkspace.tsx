@@ -483,6 +483,20 @@ export default function BatchWorkspace() {
                         <Label>Message</Label>
                         <Textarea placeholder="Write your announcement..." value={newAnn.content} onChange={e => setNewAnn(p => ({ ...p, content: e.target.value }))} rows={3} />
                       </div>
+                      {/* Notify Push toggle */}
+                      <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                        <div className="flex items-center gap-2.5">
+                          <Bell className="w-4 h-4 text-accent" />
+                          <div>
+                            <p className="text-sm font-medium">Alert students on phone</p>
+                            <p className="text-xs text-muted-foreground">Send a mobile notification for this announcement</p>
+                          </div>
+                        </div>
+                        <Switch
+                          checked={newAnn.notifyPush}
+                          onCheckedChange={v => setNewAnn(p => ({ ...p, notifyPush: v }))}
+                        />
+                      </div>
                       <Button className="w-full gradient-hero text-white border-0 hover:opacity-90" onClick={postAnnouncement} disabled={savingAnn}>
                         {savingAnn ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Post
                       </Button>
