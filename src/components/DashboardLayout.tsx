@@ -135,7 +135,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
     return location.pathname === itemPath;
   };
 
-  const SidebarContent = useCallback(() => (
+  const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
