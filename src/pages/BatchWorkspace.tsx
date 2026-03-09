@@ -51,6 +51,7 @@ interface Announcement {
   posted_by_name: string | null;
   created_at: string;
   type: string | null;
+  notify_push?: boolean;
 }
 
 interface TestScore {
