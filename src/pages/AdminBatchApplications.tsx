@@ -78,6 +78,19 @@ export default function AdminBatchApplications() {
 
   useEffect(() => { fetchApps(); }, [fetchApps]);
 
+  // Realtime: re-fetch when a student applies or admin reviews
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-batch-applications-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "batch_applications" },
+        () => fetchApps()
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchApps]);
+
   const handleAction = async (app: Application, action: "approved" | "rejected") => {
     setActionLoading(app.id);
     const { data: { user } } = await supabase.auth.getUser();
