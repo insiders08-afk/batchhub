@@ -93,14 +93,33 @@ export default function TeacherDashboard() {
   const handleRequest = async (req: BatchRequest, accept: boolean) => {
     setRespondingId(req.id);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) { setRespondingId(null); return; }
 
     if (accept) {
-      // Update batch with teacher_id and set request to accepted
-      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
-      await supabase.from("batches").update({ teacher_id: user.id, teacher_name: profile?.full_name || userName }).eq("id", req.batch_id);
+      // Get teacher's name from profile
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("user_id", user.id)
+        .single();
+
+      const teacherName = profile?.full_name || userName;
+
+      // Update batch to assign this teacher
+      const { error: batchErr } = await supabase
+        .from("batches")
+        .update({ teacher_id: user.id, teacher_name: teacherName })
+        .eq("id", req.batch_id);
+
+      if (batchErr) {
+        toast({ title: "Error", description: batchErr.message, variant: "destructive" });
+        setRespondingId(null);
+        return;
+      }
+
+      // Mark request as accepted
       await supabase.from("batch_teacher_requests").update({ status: "accepted" }).eq("id", req.id);
-      toast({ title: `You've joined "${req.batch_name}"!` });
+      toast({ title: `✅ You've joined "${req.batch_name}"!`, description: "The batch now appears in your dashboard." });
     } else {
       await supabase.from("batch_teacher_requests").update({ status: "rejected" }).eq("id", req.id);
       toast({ title: `Request for "${req.batch_name}" declined.` });

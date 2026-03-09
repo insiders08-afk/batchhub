@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 type Role = "admin" | "teacher" | "student" | "parent";
 
-const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: string; badge?: string }[]> = {
+const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: string }[]> = {
   admin: [
     { icon: LayoutDashboard, label: "Overview", path: "/admin" },
     { icon: Users, label: "Batches", path: "/admin/batches" },
@@ -50,6 +50,13 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
   ],
 };
 
+const roleAuthPaths: Record<Role, string> = {
+  admin: "/auth/admin",
+  teacher: "/auth/teacher",
+  student: "/auth/student",
+  parent: "/auth/parent",
+};
+
 const roleLabels: Record<Role, string> = {
   admin: "Admin",
   teacher: "Teacher",
@@ -72,14 +79,19 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   const [userName, setUserName] = useState("Loading...");
   const [userInitials, setUserInitials] = useState("...");
   const [instituteName, setInstituteName] = useState("");
+  const [authChecked, setAuthChecked] = useState(false);
 
   const menuItems = menusByRole[role];
   const isAdmin = role === "admin";
 
+  // Auth guard + profile fetch
   useEffect(() => {
-    const fetchProfile = async () => {
+    const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        navigate(roleAuthPaths[role], { replace: true });
+        return;
+      }
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -105,37 +117,32 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
           }
         }
       }
+
+      setAuthChecked(true);
     };
 
-    fetchProfile();
-  }, []);
+    checkAuth();
+  }, [navigate, role]);
 
+  // Fetch pending count for admin sidebar badges
   useEffect(() => {
-    if (isAdmin) {
-      const fetchPending = async () => {
-        const [reqRes, appRes] = await Promise.all([
-          supabase.from("pending_requests").select("id").eq("status", "pending"),
-          supabase.from("batch_applications").select("id").eq("status", "pending"),
-        ]);
-        setPendingCount((reqRes.data?.length || 0) + (appRes.data?.length || 0));
-      };
-      fetchPending();
-    }
-  }, [isAdmin]);
+    if (!isAdmin || !authChecked) return;
+    const fetchPending = async () => {
+      const [reqRes, appRes] = await Promise.all([
+        supabase.from("pending_requests").select("id").eq("status", "pending"),
+        supabase.from("batch_applications").select("id").eq("status", "pending"),
+      ]);
+      setPendingCount((reqRes.data?.length || 0) + (appRes.data?.length || 0));
+    };
+    fetchPending();
+  }, [isAdmin, authChecked]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/");
   };
 
-  // Determine active state: for non-admin, only exact match on the current path
-  const isActiveItem = (itemPath: string) => {
-    if (role === "admin") {
-      return location.pathname === itemPath;
-    }
-    // For teacher/student: exact match
-    return location.pathname === itemPath;
-  };
+  const isActiveItem = (itemPath: string) => location.pathname === itemPath;
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -171,6 +178,8 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const active = isActiveItem(item.path);
+          const showBadge = isAdmin && pendingCount > 0 &&
+            (item.path === "/admin/approvals" || item.path === "/admin/batch-applications");
           return (
             <Link
               key={`${item.path}-${item.label}`}
@@ -186,7 +195,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
             >
               <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-white" : "")} />
               {!collapsed && <span className="flex-1">{item.label}</span>}
-              {!collapsed && pendingCount > 0 && (item.path === "/admin/approvals" || item.path === "/admin/batch-applications") && role === "admin" && (
+              {!collapsed && showBadge && (
                 <span className="text-xs font-bold bg-danger text-white rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
                   {pendingCount}
                 </span>
