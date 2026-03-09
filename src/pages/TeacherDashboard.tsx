@@ -105,19 +105,24 @@ export default function TeacherDashboard() {
 
       const teacherName = profile?.full_name || userName;
 
-      // Update batch to assign this teacher
-      const { error: batchErr } = await supabase
+      // Update batch to assign this teacher — use .select() to verify the row was actually updated
+      const { data: updated, error: batchErr } = await supabase
         .from("batches")
         .update({ teacher_id: user.id, teacher_name: teacherName })
-        .eq("id", req.batch_id);
+        .eq("id", req.batch_id)
+        .select("id");
 
-      if (batchErr) {
-        toast({ title: "Error", description: batchErr.message, variant: "destructive" });
+      if (batchErr || !updated || updated.length === 0) {
+        toast({
+          title: "Assignment failed",
+          description: batchErr?.message || "Could not update the batch. Please ask your admin to re-send the request.",
+          variant: "destructive",
+        });
         setRespondingId(null);
         return;
       }
 
-      // Mark request as accepted
+      // Only mark as accepted AFTER confirming the batch was updated
       await supabase.from("batch_teacher_requests").update({ status: "accepted" }).eq("id", req.id);
       toast({ title: `✅ You've joined "${req.batch_name}"!`, description: "The batch now appears in your dashboard." });
     } else {
