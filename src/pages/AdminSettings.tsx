@@ -28,14 +28,19 @@ export default function AdminSettings() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      // Use RPC to get institute_code (works for any admin, not just owner)
+      const { data: codeData } = await supabase.rpc("get_my_institute_code");
+      const myInstCode = codeData as string | null;
 
-      // Get institute
+      if (!myInstCode) {
+        toast({ title: "Error", description: "Could not find your institute. Make sure you are logged in as admin.", variant: "destructive" });
+        return;
+      }
+
       const { data: inst, error: instErr } = await supabase
         .from("institutes")
         .select("*")
-        .eq("owner_user_id", user.id)
+        .eq("institute_code", myInstCode)
         .maybeSingle();
 
       if (instErr) throw instErr;
@@ -52,7 +57,7 @@ export default function AdminSettings() {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("*")
-          .eq("institute_code", inst.institute_code)
+          .eq("institute_code", myInstCode)
           .eq("role", "admin");
 
         setTeam(profiles || []);

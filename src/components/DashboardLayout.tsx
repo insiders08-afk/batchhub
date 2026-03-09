@@ -27,20 +27,17 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
   ],
   teacher: [
     { icon: LayoutDashboard, label: "My Dashboard", path: "/teacher" },
-    { icon: Users, label: "My Batches", path: "/teacher" },
-    { icon: CalendarCheck, label: "Attendance", path: "/teacher" },
-    { icon: Megaphone, label: "Announcements", path: "/teacher" },
-    { icon: FlaskConical, label: "Tests", path: "/teacher" },
-    { icon: BookOpen, label: "Homework / DPP", path: "/teacher" },
-    { icon: Settings, label: "Settings", path: "/teacher" },
+    { icon: CalendarCheck, label: "Attendance", path: "/teacher/attendance" },
+    { icon: Megaphone, label: "Announcements", path: "/teacher/announcements" },
+    { icon: FlaskConical, label: "Tests & Scores", path: "/teacher/tests" },
+    { icon: BookOpen, label: "Homework / DPP", path: "/teacher/homework" },
   ],
   student: [
     { icon: LayoutDashboard, label: "My Dashboard", path: "/student" },
-    { icon: Users, label: "My Batch", path: "/student" },
-    { icon: Trophy, label: "Tests & Scores", path: "/student" },
-    { icon: BookOpen, label: "Homework / DPP", path: "/student" },
-    { icon: Megaphone, label: "Announcements", path: "/student" },
-    { icon: Settings, label: "Settings", path: "/student" },
+    { icon: CalendarCheck, label: "My Attendance", path: "/student/attendance" },
+    { icon: Trophy, label: "Tests & Scores", path: "/student/tests" },
+    { icon: BookOpen, label: "Homework / DPP", path: "/student/homework" },
+    { icon: Megaphone, label: "Announcements", path: "/student/announcements" },
   ],
   parent: [
     { icon: LayoutDashboard, label: "Overview", path: "/parent" },
@@ -78,7 +75,6 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   const isAdmin = role === "admin";
 
   useEffect(() => {
-    // Fetch real user profile
     const fetchProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -95,7 +91,6 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
         setUserInitials(parts.map((p: string) => p[0]).join("").toUpperCase().slice(0, 2));
 
         if (profile.institute_code) {
-          // Try to fetch institute name
           const { data: institute } = await supabase
             .from("institutes")
             .select("institute_name, city")
@@ -131,6 +126,15 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
     navigate("/");
   };
 
+  // Determine active state: for non-admin, only exact match on the current path
+  const isActiveItem = (itemPath: string) => {
+    if (role === "admin") {
+      return location.pathname === itemPath;
+    }
+    // For teacher/student: exact match
+    return location.pathname === itemPath;
+  };
+
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       {/* Logo */}
@@ -163,10 +167,8 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
-        {menuItems.map((item, idx) => {
-          const isActiveItem = isAdmin
-            ? location.pathname === item.path
-            : location.pathname === item.path && idx === 0;
+        {menuItems.map((item) => {
+          const active = isActiveItem(item.path);
           return (
             <Link
               key={`${item.path}-${item.label}`}
@@ -174,13 +176,13 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
               onClick={() => setMobileOpen(false)}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group",
-                isActiveItem
+                active
                   ? "bg-sidebar-primary text-white shadow-primary/30 shadow-md"
                   : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
               )}
               title={collapsed ? item.label : undefined}
             >
-              <item.icon className={cn("w-4 h-4 flex-shrink-0", isActiveItem ? "text-white" : "")} />
+              <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-white" : "")} />
               {!collapsed && <span className="flex-1">{item.label}</span>}
               {!collapsed && isAdmin && item.path === "/admin/approvals" && pendingCount > 0 && (
                 <span className="text-xs font-bold bg-danger text-white rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">

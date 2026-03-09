@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarCheck, Trophy, IndianRupee, Megaphone,
@@ -50,7 +49,7 @@ export default function ParentDashboard() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, institute_code, extra_data:id")
+        .select("full_name, institute_code")
         .eq("user_id", user.id)
         .single();
 
@@ -66,20 +65,52 @@ export default function ParentDashboard() {
         }
       }
 
-      // Find child via pending_requests (child linked by parent's user_id in extra_data)
-      // For now: look for students with same institute_code (basic implementation)
-      // A more robust version would link parent -> child via extra_data
+      // Find child via pending_requests — look for child_id (set by admin) OR fallback to studentId text match
       const { data: pendingReq } = await supabase
         .from("pending_requests")
         .select("extra_data")
         .eq("user_id", user.id)
         .eq("role", "parent")
-        .single();
+        .maybeSingle();
 
       let childUserId: string | null = null;
+
       if (pendingReq?.extra_data && typeof pendingReq.extra_data === "object") {
         const ed = pendingReq.extra_data as Record<string, unknown>;
-        childUserId = (ed.child_id as string) || null;
+        // First try: admin has linked child_id (UUID)
+        if (ed.child_id && typeof ed.child_id === "string") {
+          childUserId = ed.child_id;
+        }
+        // Fallback: match by studentId text field stored in student's pending_request extra_data
+        else if (ed.studentId && typeof ed.studentId === "string") {
+          // Look for a student whose pending_request extra_data has a matching studentId or teacherId
+          // More reliable: query profiles by role=student in same institute and try to match
+          const { data: parentProf } = await supabase
+            .from("profiles")
+            .select("institute_code")
+            .eq("user_id", user.id)
+            .maybeSingle();
+
+          if (parentProf?.institute_code) {
+            // Find student pending request with matching extra_data.studentId
+            const { data: studentRequests } = await supabase
+              .from("pending_requests")
+              .select("user_id, extra_data")
+              .eq("role", "student")
+              .eq("institute_code", parentProf.institute_code)
+              .eq("status", "approved");
+
+            if (studentRequests) {
+              const matchedReq = studentRequests.find((sr) => {
+                const srEd = sr.extra_data as Record<string, unknown> | null;
+                return srEd && (srEd.studentId === ed.studentId || srEd.teacherId === ed.studentId);
+              });
+              if (matchedReq) {
+                childUserId = matchedReq.user_id;
+              }
+            }
+          }
+        }
       }
 
       if (childUserId) {
@@ -97,7 +128,7 @@ export default function ParentDashboard() {
             .select("batch_id")
             .eq("student_id", childUserId)
             .limit(1)
-            .single();
+            .maybeSingle();
 
           if (enrollment) {
             const { data: batch } = await supabase
@@ -201,7 +232,8 @@ export default function ParentDashboard() {
           </motion.div>
         ) : (
           <Card className="p-5 shadow-card border-border/50 text-center">
-            <p className="text-sm text-muted-foreground">Child profile not linked yet. Contact your institute admin.</p>
+            <p className="text-sm text-muted-foreground">Child profile not linked yet.</p>
+            <p className="text-xs text-muted-foreground mt-1">The admin needs to link your account to your child's profile in the Approvals page.</p>
           </Card>
         )}
 
