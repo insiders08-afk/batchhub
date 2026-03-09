@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, UserCircle, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, Zap, UserCircle, Eye, EyeOff, Loader2, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -20,6 +20,7 @@ export default function ParentAuth() {
   const [submittedName, setSubmittedName] = useState("");
   const [submittedStudentId, setSubmittedStudentId] = useState("");
   const [submittedInstitute, setSubmittedInstitute] = useState("");
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
@@ -43,7 +44,15 @@ export default function ParentAuth() {
         password: form.password,
         options: { emailRedirectTo: `${window.location.origin}/auth/parent` },
       });
-      if (authError) throw authError;
+
+      if (authError) {
+        if (authError.message?.includes("already registered") || authError.status === 422) {
+          toast({ title: "Already registered", description: "This email is already registered. Please use Sign In.", variant: "destructive" });
+          setScreen("login");
+          return;
+        }
+        throw authError;
+      }
       const userId = authData.user?.id;
       if (!userId) throw new Error("No user ID returned");
 
@@ -58,7 +67,7 @@ export default function ParentAuth() {
         institute_code: instituteCode,
         status: "pending",
       });
-      if (profError) throw profError;
+      if (profError && !profError.message?.includes("duplicate")) throw profError;
 
       const { error: reqError } = await supabase.from("pending_requests").insert({
         user_id: userId,
@@ -69,8 +78,9 @@ export default function ParentAuth() {
         extra_data: { studentId: form.studentId, relation: form.relation, phone: form.phone },
         status: "pending",
       });
-      if (reqError) throw reqError;
+      if (reqError && !reqError.message?.includes("duplicate")) throw reqError;
 
+      setPendingUserId(userId);
       setSubmittedName(form.parentName);
       setSubmittedStudentId(form.studentId);
       setSubmittedInstitute(instituteCode);
@@ -106,7 +116,11 @@ export default function ParentAuth() {
 
       if (profile.status === "approved" || profile.status === "active") {
         navigate("/parent");
+      } else if (profile.status === "rejected") {
+        toast({ title: "Access Denied", description: "Your request was rejected. Please contact the institute admin.", variant: "destructive" });
+        await supabase.auth.signOut();
       } else {
+        setPendingUserId(data.user.id);
         setSubmittedName(profile.full_name);
         setSubmittedInstitute(profile.institute_code || "");
         setSubmitted(true);
@@ -120,7 +134,15 @@ export default function ParentAuth() {
   };
 
   if (submitted) {
-    return <PendingApprovalScreen name={submittedName} studentId={submittedStudentId} instituteId={submittedInstitute} />;
+    return (
+      <PendingApprovalScreen
+        name={submittedName}
+        studentId={submittedStudentId}
+        instituteId={submittedInstitute}
+        userId={pendingUserId}
+        onApproved={() => navigate("/parent")}
+      />
+    );
   }
 
   return (
@@ -255,7 +277,82 @@ export default function ParentAuth() {
   );
 }
 
-function PendingApprovalScreen({ name, studentId, instituteId }: { name: string; studentId: string; instituteId: string }) {
+function PendingApprovalScreen({
+  name, studentId, instituteId, userId, onApproved
+}: {
+  name: string;
+  studentId: string;
+  instituteId: string;
+  userId: string | null;
+  onApproved: () => void;
+}) {
+  const [approvalStatus, setApprovalStatus] = useState<"pending" | "approved" | "rejected">("pending");
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const checkStatus = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (data?.status === "approved" || data?.status === "active") {
+        setApprovalStatus("approved");
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setTimeout(onApproved, 2000);
+      } else if (data?.status === "rejected") {
+        setApprovalStatus("rejected");
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      }
+    };
+
+    // Check immediately, then every 5 seconds
+    checkStatus();
+    intervalRef.current = setInterval(checkStatus, 5000);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [userId, onApproved]);
+
+  const handleBackHome = async () => {
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  };
+
+  if (approvalStatus === "approved") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center mx-auto mb-6 shadow-lg">
+            <CheckCircle2 className="w-10 h-10 text-white" />
+          </div>
+          <h2 className="text-2xl font-display font-bold mb-2 text-success">Access Approved! 🎉</h2>
+          <p className="text-muted-foreground mb-4">You're being redirected to your parent dashboard...</p>
+          <Loader2 className="w-5 h-5 animate-spin text-primary mx-auto" />
+        </motion.div>
+      </div>
+    );
+  }
+
+  if (approvalStatus === "rejected") {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
+          <div className="w-20 h-20 rounded-full bg-danger-light flex items-center justify-center mx-auto mb-6">
+            <span className="text-4xl">✗</span>
+          </div>
+          <h2 className="text-2xl font-display font-bold mb-2 text-danger">Request Rejected</h2>
+          <p className="text-muted-foreground mb-6">Your parent access request was not approved. Please contact your institute admin directly.</p>
+          <Button onClick={handleBackHome} variant="outline">Back to Home</Button>
+        </motion.div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
@@ -280,15 +377,15 @@ function PendingApprovalScreen({ name, studentId, instituteId }: { name: string;
             <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
               <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
             </div>
-            <p className="text-sm text-muted-foreground">Admin verifying student ID and parent link...</p>
+            <p className="text-sm text-muted-foreground">Admin verifying student ID and parent link... <span className="text-xs">(auto-checking every 5s)</span></p>
           </div>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
             <p className="text-sm text-muted-foreground">Admin assigns your Parent ID and grants access</p>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground mb-4">Admin will verify and approve your access. You'll be contacted on your registered mobile.</p>
-        <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
+        <p className="text-xs text-muted-foreground mb-4">You'll be automatically redirected when approved. No need to refresh!</p>
+        <Button variant="outline" size="sm" onClick={handleBackHome}>Back to Home</Button>
       </motion.div>
     </div>
   );

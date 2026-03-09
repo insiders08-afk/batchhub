@@ -7,11 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   CheckCircle2, XCircle, Clock, BookOpen, GraduationCap,
-  UserCircle, Search, Loader2, RotateCcw
+  UserCircle, Search, Loader2, RotateCcw, Link2
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 
 type PendingRequest = Tables<"pending_requests">;
 
@@ -39,6 +45,11 @@ export default function AdminApprovals() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Parent-child link dialog state
+  const [linkDialog, setLinkDialog] = useState<{ open: boolean; req: PendingRequest | null }>({ open: false, req: null });
+  const [studentProfiles, setStudentProfiles] = useState<{ user_id: string; full_name: string; email: string }[]>([]);
+  const [selectedChildId, setSelectedChildId] = useState<string>("");
 
   const fetchRequests = useCallback(async () => {
     try {
@@ -77,6 +88,25 @@ export default function AdminApprovals() {
   }, [fetchRequests]);
 
   const handleAction = async (req: PendingRequest, action: "approved" | "rejected") => {
+    // For parent approval, open the child-link dialog first
+    if (action === "approved" && req.role === "parent") {
+      // Fetch approved students in this institute
+      const { data: students } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .eq("institute_code", req.institute_code)
+        .eq("role", "student")
+        .in("status", ["approved", "active"]);
+      setStudentProfiles(students || []);
+      setSelectedChildId("");
+      setLinkDialog({ open: true, req });
+      return;
+    }
+
+    await executeApproval(req, action, null);
+  };
+
+  const executeApproval = async (req: PendingRequest, action: "approved" | "rejected", childId: string | null) => {
     setActionLoading(req.id);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -96,7 +126,7 @@ export default function AdminApprovals() {
           .eq("user_id", req.user_id);
         if (profError) throw profError;
 
-        // 3. INSERT into user_roles — ignore if already exists (duplicate = already has role, which is fine)
+        // 3. INSERT into user_roles — ignore if already exists
         const { error: roleError } = await supabase
           .from("user_roles")
           .insert({
@@ -105,10 +135,18 @@ export default function AdminApprovals() {
             institute_code: req.institute_code,
           });
 
-        // Ignore duplicate key errors (23505) — role already exists, which means they're already approved
+        // Ignore duplicate key errors — role already exists, which is fine
         if (roleError && !roleError.message?.includes("duplicate") && !roleError.code?.includes("23505")) {
-          // Log but don't throw — pending_requests and profiles are already updated successfully
           console.warn("user_roles insert note:", roleError.message);
+        }
+
+        // 4. For parent: store child_id in pending_request extra_data
+        if (req.role === "parent" && childId) {
+          const existingExtra = (req.extra_data as Record<string, unknown>) || {};
+          await supabase
+            .from("pending_requests")
+            .update({ extra_data: { ...existingExtra, child_id: childId } })
+            .eq("id", req.id);
         }
 
         toast({ title: "Approved!", description: `${req.full_name} has been granted ${req.role} access.` });
@@ -131,6 +169,12 @@ export default function AdminApprovals() {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const handleParentLinkConfirm = async () => {
+    if (!linkDialog.req) return;
+    setLinkDialog({ open: false, req: null });
+    await executeApproval(linkDialog.req, "approved", selectedChildId || null);
   };
 
   const filtered = requests.filter((r) => {
@@ -262,6 +306,12 @@ export default function AdminApprovals() {
                               <XCircle className="w-2.5 h-2.5" /> Rejected
                             </Badge>
                           )}
+                          {/* Show child link info for approved parents */}
+                          {req.status === "approved" && req.role === "parent" && extra.child_id && (
+                            <Badge className="text-xs bg-violet-100 text-violet-600 border-0 flex items-center gap-1">
+                              <Link2 className="w-2.5 h-2.5" /> Child linked
+                            </Badge>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -316,6 +366,67 @@ export default function AdminApprovals() {
           )}
         </div>
       </div>
+
+      {/* Parent-Child Link Dialog */}
+      <Dialog open={linkDialog.open} onOpenChange={(open) => !open && setLinkDialog({ open: false, req: null })}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="w-5 h-5 text-violet-500" />
+              Link Parent to Child
+            </DialogTitle>
+            <DialogDescription>
+              Select which student <strong>{linkDialog.req?.full_name}</strong> is the parent of. This enables the parent to view their child's attendance, fees, and announcements.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Child's Student ID from request: <span className="font-mono text-primary">{(linkDialog.req?.extra_data as Record<string, string>)?.studentId || "Not provided"}</span></p>
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Select child from approved students:</p>
+              <Select value={selectedChildId} onValueChange={setSelectedChildId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select student..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {studentProfiles.length === 0 ? (
+                    <SelectItem value="none" disabled>No approved students found</SelectItem>
+                  ) : (
+                    studentProfiles.map((s) => (
+                      <SelectItem key={s.user_id} value={s.user_id}>
+                        {s.full_name} — {s.email}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button
+                className="flex-1 gradient-hero text-white border-0"
+                onClick={handleParentLinkConfirm}
+                disabled={actionLoading === linkDialog.req?.id}
+              >
+                {actionLoading === linkDialog.req?.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Approve & Link"}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  // Approve without linking child (admin can link later)
+                  if (linkDialog.req) {
+                    setLinkDialog({ open: false, req: null });
+                    executeApproval(linkDialog.req, "approved", null);
+                  }
+                }}
+              >
+                Approve Without Link
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">You can also approve now and link the child later.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
