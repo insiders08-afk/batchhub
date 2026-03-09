@@ -67,8 +67,52 @@ export default function AdminApprovals() {
     }
   }, [toast]);
 
+  // Auto-repair: backfill any approved profiles missing a user_roles row
+  const repairMissingRoles = useCallback(async () => {
+    try {
+      // Get all approved profiles in this admin's institute
+      const { data: approved } = await supabase
+        .from("profiles")
+        .select("user_id, role, institute_code")
+        .in("status", ["approved", "active"])
+        .not("institute_code", "is", null);
+
+      if (!approved || approved.length === 0) return;
+
+      // Get existing user_roles
+      const { data: existingRoles } = await supabase
+        .from("user_roles")
+        .select("user_id, role");
+
+      const existingSet = new Set(
+        (existingRoles || []).map((r) => `${r.user_id}::${r.role}`)
+      );
+
+      const missing = approved.filter(
+        (p) => !existingSet.has(`${p.user_id}::${p.role}`)
+      );
+
+      if (missing.length === 0) return;
+
+      // Silently backfill
+      await supabase.from("user_roles").insert(
+        missing.map((p) => ({
+          user_id: p.user_id,
+          role: p.role,
+          institute_code: p.institute_code,
+        }))
+      );
+
+      console.log(`Auto-repaired ${missing.length} missing user_roles entries`);
+    } catch (err) {
+      // Non-critical repair — don't surface to user
+      console.warn("Auto-repair warning:", err);
+    }
+  }, []);
+
   // Initial fetch + Realtime subscription for live updates
   useEffect(() => {
+    repairMissingRoles();
     fetchRequests();
 
     const channel = supabase
@@ -85,7 +129,7 @@ export default function AdminApprovals() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchRequests]);
+  }, [fetchRequests, repairMissingRoles]);
 
   const handleAction = async (req: PendingRequest, action: "approved" | "rejected") => {
     // For parent approval, open the child-link dialog first
