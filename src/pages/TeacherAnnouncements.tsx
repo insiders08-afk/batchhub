@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Megaphone, Clock, Users, Loader2, Trash2 } from "lucide-react";
+import { Plus, Search, Megaphone, Clock, Users, Loader2, Trash2, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -22,6 +23,7 @@ interface Announcement {
   posted_by: string;
   posted_by_name: string | null;
   created_at: string;
+  notify_push: boolean;
 }
 
 const typeColors: Record<string, string> = {
@@ -48,7 +50,7 @@ export default function TeacherAnnouncements() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [posting, setPosting] = useState(false);
   const [userId, setUserId] = useState<string>("");
-  const [form, setForm] = useState({ title: "", content: "", batchId: "all", type: "general" });
+  const [form, setForm] = useState({ title: "", content: "", batchId: "all", type: "general", notifyPush: false });
 
   useEffect(() => {
     const init = async () => {
@@ -61,17 +63,37 @@ export default function TeacherAnnouncements() {
         supabase.from("batches").select("id, name").eq("teacher_id", user.id).eq("is_active", true).order("name"),
       ]);
 
-      setAnnouncements(annRes.data || []);
+      setAnnouncements((annRes.data || []) as Announcement[]);
       setBatches(batchRes.data || []);
       setLoading(false);
     };
     init();
   }, []);
 
-  const refetch = async () => {
-    const { data } = await supabase.from("announcements").select("*").order("created_at", { ascending: false });
-    setAnnouncements(data || []);
-  };
+  // Realtime subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel("teacher-announcements-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "announcements" },
+        (payload) => {
+          setAnnouncements(prev => {
+            if (prev.some(a => a.id === (payload.new as Announcement).id)) return prev;
+            return [payload.new as Announcement, ...prev];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "announcements" },
+        (payload) => {
+          setAnnouncements(prev => prev.filter(a => a.id !== (payload.old as { id: string }).id));
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const handlePost = async () => {
     if (!form.title.trim() || !form.content.trim()) {
@@ -90,12 +112,12 @@ export default function TeacherAnnouncements() {
         institute_code: code!,
         posted_by: userId,
         posted_by_name: profile?.full_name || "Teacher",
-      });
+        notify_push: form.notifyPush,
+      } as Parameters<typeof supabase.from<"announcements">>[0] extends never ? never : object as never);
       if (error) throw error;
-      toast({ title: "✅ Announcement posted!" });
-      setForm({ title: "", content: "", batchId: "all", type: "general" });
+      toast({ title: form.notifyPush ? "✅ Announcement posted with phone alert!" : "✅ Announcement posted!" });
+      setForm({ title: "", content: "", batchId: "all", type: "general", notifyPush: false });
       setDialogOpen(false);
-      refetch();
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed", variant: "destructive" });
     } finally {
@@ -171,6 +193,20 @@ export default function TeacherAnnouncements() {
                   <Label>Content</Label>
                   <Textarea placeholder="Write your announcement..." rows={4} value={form.content} onChange={e => setForm({ ...form, content: e.target.value })} />
                 </div>
+                {/* Notify Push toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
+                  <div className="flex items-center gap-2.5">
+                    <Bell className="w-4 h-4 text-accent" />
+                    <div>
+                      <p className="text-sm font-medium">Alert students on phone</p>
+                      <p className="text-xs text-muted-foreground">Send a mobile notification for this announcement</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={form.notifyPush}
+                    onCheckedChange={v => setForm({ ...form, notifyPush: v })}
+                  />
+                </div>
                 <Button className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90" onClick={handlePost} disabled={posting}>
                   {posting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Posting...</> : "Post Announcement"}
                 </Button>
@@ -202,6 +238,11 @@ export default function TeacherAnnouncements() {
                         {ann.type && (
                           <Badge className={`text-xs ${typeColors[ann.type] || typeColors.general}`}>
                             {ann.type.charAt(0).toUpperCase() + ann.type.slice(1)}
+                          </Badge>
+                        )}
+                        {ann.notify_push && (
+                          <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
+                            <Bell className="w-2.5 h-2.5" /> Alerted
                           </Badge>
                         )}
                       </div>

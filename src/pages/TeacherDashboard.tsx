@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
@@ -35,7 +35,7 @@ export default function TeacherDashboard() {
   const [batchRequests, setBatchRequests] = useState<BatchRequest[]>([]);
   const [respondingId, setRespondingId] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
@@ -77,7 +77,6 @@ export default function TeacherDashboard() {
       setTotalStudents(enriched.reduce((sum, b) => sum + b.studentCount, 0));
     }
 
-    // Fetch pending batch assignment requests for this teacher
     const { data: requests } = await supabase
       .from("batch_teacher_requests")
       .select("id, batch_id, batch_name, course, status")
@@ -86,9 +85,22 @@ export default function TeacherDashboard() {
     setBatchRequests(requests || []);
 
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  // Realtime subscription for batch assignment requests
+  useEffect(() => {
+    const channel = supabase
+      .channel("teacher-batch-requests-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "batch_teacher_requests" },
+        () => fetchData()
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchData]);
 
   const handleRequest = async (req: BatchRequest, accept: boolean) => {
     setRespondingId(req.id);
@@ -96,7 +108,6 @@ export default function TeacherDashboard() {
     if (!user) { setRespondingId(null); return; }
 
     if (accept) {
-      // Get teacher's name from profile
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name")
@@ -105,7 +116,6 @@ export default function TeacherDashboard() {
 
       const teacherName = profile?.full_name || userName;
 
-      // Update batch to assign this teacher — use .select() to verify the row was actually updated
       const { data: updated, error: batchErr } = await supabase
         .from("batches")
         .update({ teacher_id: user.id, teacher_name: teacherName })
@@ -122,7 +132,6 @@ export default function TeacherDashboard() {
         return;
       }
 
-      // Only mark as accepted AFTER confirming the batch was updated
       await supabase.from("batch_teacher_requests").update({ status: "accepted" }).eq("id", req.id);
       toast({ title: `✅ You've joined "${req.batch_name}"!`, description: "The batch now appears in your dashboard." });
     } else {

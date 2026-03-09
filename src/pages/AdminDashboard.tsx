@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
@@ -8,10 +8,6 @@ import {
   Users, CalendarCheck, IndianRupee, TrendingUp, AlertTriangle,
   ArrowUpRight, Megaphone, Clock, CheckCircle2
 } from "lucide-react";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar
-} from "recharts";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -26,49 +22,61 @@ export default function AdminDashboard() {
   const [announcements, setAnnouncements] = useState<{ id: string; title: string; batch_id: string | null; created_at: string; posted_by_name: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const code = await supabase.rpc("get_my_institute_code");
-      const instituteCode = code.data;
-      if (!instituteCode) { setLoading(false); return; }
+  const fetchData = useCallback(async () => {
+    const code = await supabase.rpc("get_my_institute_code");
+    const instituteCode = code.data;
+    if (!instituteCode) { setLoading(false); return; }
 
-      const today = new Date().toISOString().split("T")[0];
+    const today = new Date().toISOString().split("T")[0];
 
-      const [studentsRes, batchesRes, attendanceRes, feesRes, announcementsRes] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact" }).eq("institute_code", instituteCode).eq("role", "student"),
-        supabase.from("batches").select("id, name, teacher_name").eq("institute_code", instituteCode).eq("is_active", true),
-        supabase.from("attendance").select("present").eq("institute_code", instituteCode).eq("date", today),
-        supabase.from("fees").select("id", { count: "exact" }).eq("institute_code", instituteCode).eq("paid", false),
-        supabase.from("announcements").select("id, title, batch_id, created_at, posted_by_name").eq("institute_code", instituteCode).order("created_at", { ascending: false }).limit(5),
-      ]);
+    const [studentsRes, batchesRes, attendanceRes, feesRes, announcementsRes] = await Promise.all([
+      supabase.from("profiles").select("id", { count: "exact" }).eq("institute_code", instituteCode).eq("role", "student"),
+      supabase.from("batches").select("id, name, teacher_name").eq("institute_code", instituteCode).eq("is_active", true),
+      supabase.from("attendance").select("present").eq("institute_code", instituteCode).eq("date", today),
+      supabase.from("fees").select("id", { count: "exact" }).eq("institute_code", instituteCode).eq("paid", false),
+      supabase.from("announcements").select("id, title, batch_id, created_at, posted_by_name").eq("institute_code", instituteCode).order("created_at", { ascending: false }).limit(5),
+    ]);
 
-      const totalStudents = studentsRes.count || 0;
-      const activeBatches = batchesRes.data?.length || 0;
-      const attendanceRows = attendanceRes.data || [];
-      const todayAttendance = attendanceRows.length
-        ? Math.round((attendanceRows.filter(r => r.present).length / attendanceRows.length) * 100)
-        : 0;
-      const unpaidFees = feesRes.count || 0;
+    const totalStudents = studentsRes.count || 0;
+    const activeBatches = batchesRes.data?.length || 0;
+    const attendanceRows = attendanceRes.data || [];
+    const todayAttendance = attendanceRows.length
+      ? Math.round((attendanceRows.filter(r => r.present).length / attendanceRows.length) * 100)
+      : 0;
+    const unpaidFees = feesRes.count || 0;
 
-      // Enrich batches with student counts
-      const enrichedBatches = await Promise.all(
-        (batchesRes.data || []).slice(0, 5).map(async (b) => {
-          const { count } = await supabase
-            .from("students_batches")
-            .select("id", { count: "exact" })
-            .eq("batch_id", b.id);
-          return { ...b, studentCount: count || 0 };
-        })
-      );
+    const enrichedBatches = await Promise.all(
+      (batchesRes.data || []).slice(0, 5).map(async (b) => {
+        const { count } = await supabase
+          .from("students_batches")
+          .select("id", { count: "exact" })
+          .eq("batch_id", b.id);
+        return { ...b, studentCount: count || 0 };
+      })
+    );
 
-      setStats({ totalStudents, activeBatches, todayAttendance, unpaidFees });
-      setBatches(enrichedBatches);
-      setAnnouncements(announcementsRes.data || []);
-      setLoading(false);
-    };
-
-    fetchData();
+    setStats({ totalStudents, activeBatches, todayAttendance, unpaidFees });
+    setBatches(enrichedBatches);
+    setAnnouncements(announcementsRes.data || []);
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Realtime: re-fetch when new announcements are posted
+  useEffect(() => {
+    const channel = supabase
+      .channel("admin-dashboard-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "announcements" },
+        () => fetchData()
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchData]);
 
   const statCards = [
     { title: "Total Students", value: loading ? "—" : String(stats.totalStudents), icon: Users, bg: "bg-primary-light", iconColor: "text-primary", trend: "up" },
