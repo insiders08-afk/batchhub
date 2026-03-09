@@ -111,17 +111,17 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   }, []);
 
   useEffect(() => {
-    if (isAdmin || role === "teacher") {
+    if (isAdmin) {
       const fetchPending = async () => {
         const [reqRes, appRes] = await Promise.all([
-          isAdmin ? supabase.from("pending_requests").select("id").eq("status", "pending") : Promise.resolve({ data: [] }),
+          supabase.from("pending_requests").select("id").eq("status", "pending"),
           supabase.from("batch_applications").select("id").eq("status", "pending"),
         ]);
         setPendingCount((reqRes.data?.length || 0) + (appRes.data?.length || 0));
       };
       fetchPending();
     }
-  }, [isAdmin, role]);
+  }, [isAdmin]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
