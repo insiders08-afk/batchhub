@@ -1,16 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, GraduationCap, Eye, EyeOff, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, Zap, GraduationCap, Eye, EyeOff, Loader2, XCircle, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 type Screen = "register" | "login";
-type PendingStatus = "pending" | "rejected";
+type PendingStatus = "pending" | "rejected" | "approved";
 
 export default function StudentAuth() {
   const navigate = useNavigate();
@@ -20,6 +20,7 @@ export default function StudentAuth() {
   const [loading, setLoading] = useState(false);
   const [submittedName, setSubmittedName] = useState("");
   const [submittedInstitute, setSubmittedInstitute] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
@@ -72,10 +73,11 @@ export default function StudentAuth() {
           }, { onConflict: "user_id,role" });
           if (reqError) throw reqError;
 
+          setCurrentUserId(userId);
           setSubmittedName(form.name);
           setSubmittedInstitute(instituteCode);
           setPendingStatus("pending");
-          await supabase.auth.signOut();
+          // Keep signed in for polling
           return;
         }
         throw authError;
@@ -106,10 +108,11 @@ export default function StudentAuth() {
       });
       if (reqError) throw reqError;
 
+      setCurrentUserId(userId);
       setSubmittedName(form.name);
       setSubmittedInstitute(instituteCode);
       setPendingStatus("pending");
-      await supabase.auth.signOut();
+      // Keep signed in for polling
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
       toast({ title: "Registration failed", description: message, variant: "destructive" });
@@ -143,10 +146,11 @@ export default function StudentAuth() {
       if (profile.status === "approved" || profile.status === "active") {
         navigate("/student");
       } else {
+        setCurrentUserId(data.user.id);
         setSubmittedName(profile.full_name);
         setSubmittedInstitute(profile.institute_code || "");
         setPendingStatus(profile.status === "rejected" ? "rejected" : "pending");
-        await supabase.auth.signOut();
+        // Keep signed in for polling
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
@@ -162,7 +166,17 @@ export default function StudentAuth() {
         name={submittedName}
         instituteId={submittedInstitute}
         status={pendingStatus}
-        onRetry={() => { setPendingStatus(null); setScreen("register"); }}
+        userId={currentUserId}
+        onStatusChange={setPendingStatus}
+        onApproved={() => navigate("/student")}
+        onRetry={async () => {
+          await supabase.auth.signOut();
+          setPendingStatus(null);
+          setScreen("register");
+        }}
+        onBackHome={async () => {
+          await supabase.auth.signOut();
+        }}
       />
     );
   }
@@ -293,17 +307,62 @@ export default function StudentAuth() {
 }
 
 function PendingApprovalScreen({
-  name, instituteId, status, onRetry
+  name, instituteId, status, userId, onStatusChange, onApproved, onRetry, onBackHome
 }: {
   name: string; instituteId: string;
-  status: "pending" | "rejected"; onRetry: () => void;
+  status: "pending" | "rejected" | "approved";
+  userId: string | null;
+  onStatusChange: (s: "pending" | "rejected" | "approved") => void;
+  onApproved: () => void;
+  onRetry: () => void;
+  onBackHome: () => void;
 }) {
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll every 5 seconds when pending
+  useEffect(() => {
+    if (status !== "pending" || !userId) return;
+
+    const poll = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("user_id", userId)
+        .eq("role", "student")
+        .maybeSingle();
+
+      if (data?.status === "approved" || data?.status === "active") {
+        onStatusChange("approved");
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setTimeout(() => onApproved(), 1800);
+      } else if (data?.status === "rejected") {
+        onStatusChange("rejected");
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      }
+    };
+
+    intervalRef.current = setInterval(poll, 5000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [status, userId, onStatusChange, onApproved]);
+
   const isRejected = status === "rejected";
+  const isApproved = status === "approved";
+
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
         <div className="relative w-20 h-20 mx-auto mb-6">
-          {isRejected ? (
+          {isApproved ? (
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="relative w-20 h-20 rounded-full bg-gradient-to-br from-accent to-orange-400 flex items-center justify-center shadow-lg"
+            >
+              <CheckCircle2 className="w-8 h-8 text-white" />
+            </motion.div>
+          ) : isRejected ? (
             <div className="relative w-20 h-20 rounded-full bg-danger-light flex items-center justify-center shadow-lg">
               <XCircle className="w-8 h-8 text-danger" />
             </div>
@@ -316,7 +375,16 @@ function PendingApprovalScreen({
             </>
           )}
         </div>
-        {isRejected ? (
+
+        {isApproved ? (
+          <>
+            <h2 className="text-2xl font-display font-bold mb-2 text-success">Approved! 🎉</h2>
+            <p className="text-muted-foreground mb-4">
+              Welcome, <span className="font-semibold text-foreground">{name}</span>! Redirecting you to your dashboard...
+            </p>
+            <Loader2 className="w-5 h-5 animate-spin text-success mx-auto" />
+          </>
+        ) : isRejected ? (
           <>
             <h2 className="text-2xl font-display font-bold mb-2 text-danger">Request Rejected</h2>
             <p className="text-muted-foreground mb-4">
@@ -328,6 +396,9 @@ function PendingApprovalScreen({
             </div>
             <Button onClick={onRetry} className="w-full mb-2 bg-gradient-to-r from-accent to-orange-400 text-white border-0">
               Re-submit Request
+            </Button>
+            <Button variant="outline" size="sm" onClick={onBackHome} asChild>
+              <Link to="/">Back to Home</Link>
             </Button>
           </>
         ) : (
@@ -350,13 +421,17 @@ function PendingApprovalScreen({
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
-                <p className="text-sm text-muted-foreground">Access to your batch dashboard will be granted</p>
+                <p className="text-sm text-muted-foreground">You'll be automatically redirected when approved</p>
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mb-4">Once approved, come back and use the <strong>Sign In</strong> tab.</p>
+            <p className="text-xs text-muted-foreground mb-4">
+              This page checks for approval automatically every few seconds. <strong>Keep it open!</strong>
+            </p>
+            <Button variant="outline" size="sm" onClick={onBackHome} asChild>
+              <Link to="/">Back to Home</Link>
+            </Button>
           </>
         )}
-        <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
       </motion.div>
     </div>
   );
