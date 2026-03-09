@@ -250,6 +250,7 @@ export default function BatchWorkspace() {
   const postAnnouncement = async () => {
     if (!newAnn.title || !newAnn.content || !batch) return;
     setSavingAnn(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.from("announcements").insert({
       batch_id: batchId!,
       institute_code: batch.institute_code,
@@ -258,15 +259,14 @@ export default function BatchWorkspace() {
       title: newAnn.title,
       content: newAnn.content,
       type: newAnn.type,
-    });
+      notify_push: newAnn.notifyPush,
+    } as any);
     if (error) {
       toast({ title: "Error posting announcement", variant: "destructive" });
     } else {
-      toast({ title: "Announcement posted!" });
+      toast({ title: newAnn.notifyPush ? "Announcement posted with phone alert!" : "Announcement posted!" });
       setAnnDialog(false);
-      setNewAnn({ title: "", content: "", type: "general" });
-      const { data } = await supabase.from("announcements").select("*").eq("batch_id", batchId!).order("created_at", { ascending: false });
-      setAnnouncements(data || []);
+      setNewAnn({ title: "", content: "", type: "general", notifyPush: false });
     }
     setSavingAnn(false);
   };
