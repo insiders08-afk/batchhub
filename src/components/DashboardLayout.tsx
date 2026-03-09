@@ -32,7 +32,6 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: Megaphone, label: "Announcements", path: "/teacher/announcements" },
     { icon: FlaskConical, label: "Tests & Scores", path: "/teacher/tests" },
     { icon: BookOpen, label: "Homework / DPP", path: "/teacher/homework" },
-    { icon: BookMarked, label: "Batch Applications", path: "/admin/batch-applications" },
   ],
   student: [
     { icon: LayoutDashboard, label: "My Dashboard", path: "/student" },
@@ -112,17 +111,17 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   }, []);
 
   useEffect(() => {
-    if (isAdmin || role === "teacher") {
+    if (isAdmin) {
       const fetchPending = async () => {
         const [reqRes, appRes] = await Promise.all([
-          isAdmin ? supabase.from("pending_requests").select("id").eq("status", "pending") : Promise.resolve({ data: [] }),
+          supabase.from("pending_requests").select("id").eq("status", "pending"),
           supabase.from("batch_applications").select("id").eq("status", "pending"),
         ]);
         setPendingCount((reqRes.data?.length || 0) + (appRes.data?.length || 0));
       };
       fetchPending();
     }
-  }, [isAdmin, role]);
+  }, [isAdmin]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -187,7 +186,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
             >
               <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-white" : "")} />
               {!collapsed && <span className="flex-1">{item.label}</span>}
-              {!collapsed && pendingCount > 0 && (item.path === "/admin/approvals" || item.path === "/admin/batch-applications") && (
+              {!collapsed && pendingCount > 0 && (item.path === "/admin/approvals" || item.path === "/admin/batch-applications") && role === "admin" && (
                 <span className="text-xs font-bold bg-danger text-white rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
                   {pendingCount}
                 </span>
