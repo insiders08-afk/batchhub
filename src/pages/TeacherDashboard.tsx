@@ -5,8 +5,9 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, CalendarCheck, Users, ExternalLink, Megaphone, ClipboardList, Loader2, Trophy, MessageSquare } from "lucide-react";
+import { BookOpen, CalendarCheck, Users, ExternalLink, Megaphone, ClipboardList, Loader2, Trophy, MessageSquare, CheckCircle2, X, Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface Batch {
   id: string;
@@ -16,59 +17,97 @@ interface Batch {
   studentCount: number;
 }
 
+interface BatchRequest {
+  id: string;
+  batch_id: string;
+  batch_name: string | null;
+  course: string | null;
+  status: string;
+}
+
 export default function TeacherDashboard() {
+  const { toast } = useToast();
   const [userName, setUserName] = useState("Teacher");
   const [instituteName, setInstituteName] = useState("");
   const [batches, setBatches] = useState<Batch[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalStudents, setTotalStudents] = useState(0);
+  const [batchRequests, setBatchRequests] = useState<BatchRequest[]>([]);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+  const fetchData = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setLoading(false); return; }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, institute_code")
-        .eq("user_id", user.id)
-        .single();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, institute_code")
+      .eq("user_id", user.id)
+      .single();
 
-      if (profile) {
-        setUserName(profile.full_name);
-        if (profile.institute_code) {
-          const { data: inst } = await supabase
-            .from("institutes")
-            .select("institute_name, city")
-            .eq("institute_code", profile.institute_code)
-            .single();
-          if (inst) setInstituteName(`${inst.institute_name}${inst.city ? ", " + inst.city : ""}`);
-        }
+    if (profile) {
+      setUserName(profile.full_name);
+      if (profile.institute_code) {
+        const { data: inst } = await supabase
+          .from("institutes")
+          .select("institute_name, city")
+          .eq("institute_code", profile.institute_code)
+          .single();
+        if (inst) setInstituteName(`${inst.institute_name}${inst.city ? ", " + inst.city : ""}`);
       }
+    }
 
-      const { data: batchData } = await supabase
-        .from("batches")
-        .select("id, name, course, schedule")
-        .eq("teacher_id", user.id)
-        .eq("is_active", true);
+    const { data: batchData } = await supabase
+      .from("batches")
+      .select("id, name, course, schedule")
+      .eq("teacher_id", user.id)
+      .eq("is_active", true);
 
-      if (batchData) {
-        const enriched = await Promise.all(
-          batchData.map(async (b) => {
-            const { count } = await supabase
-              .from("students_batches")
-              .select("id", { count: "exact" })
-              .eq("batch_id", b.id);
-            return { ...b, studentCount: count || 0 };
-          })
-        );
-        setBatches(enriched);
-        setTotalStudents(enriched.reduce((sum, b) => sum + b.studentCount, 0));
-      }
-      setLoading(false);
-    };
-    fetchData();
-  }, []);
+    if (batchData) {
+      const enriched = await Promise.all(
+        batchData.map(async (b) => {
+          const { count } = await supabase
+            .from("students_batches")
+            .select("id", { count: "exact" })
+            .eq("batch_id", b.id);
+          return { ...b, studentCount: count || 0 };
+        })
+      );
+      setBatches(enriched);
+      setTotalStudents(enriched.reduce((sum, b) => sum + b.studentCount, 0));
+    }
+
+    // Fetch pending batch assignment requests for this teacher
+    const { data: requests } = await supabase
+      .from("batch_teacher_requests")
+      .select("id, batch_id, batch_name, course, status")
+      .eq("teacher_id", user.id)
+      .eq("status", "pending");
+    setBatchRequests(requests || []);
+
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleRequest = async (req: BatchRequest, accept: boolean) => {
+    setRespondingId(req.id);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    if (accept) {
+      // Update batch with teacher_id and set request to accepted
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
+      await supabase.from("batches").update({ teacher_id: user.id, teacher_name: profile?.full_name || userName }).eq("id", req.batch_id);
+      await supabase.from("batch_teacher_requests").update({ status: "accepted" }).eq("id", req.id);
+      toast({ title: `You've joined "${req.batch_name}"!` });
+    } else {
+      await supabase.from("batch_teacher_requests").update({ status: "rejected" }).eq("id", req.id);
+      toast({ title: `Request for "${req.batch_name}" declined.` });
+    }
+    await fetchData();
+    setRespondingId(null);
+  };
 
   return (
     <DashboardLayout title="My Dashboard" role="teacher">
@@ -82,6 +121,46 @@ export default function TeacherDashboard() {
             <p className="text-white/70 text-sm mt-0.5">Teacher · {instituteName || "..."}</p>
           </div>
         </motion.div>
+
+        {/* Pending batch assignment requests */}
+        {batchRequests.length > 0 && (
+          <Card className="p-5 shadow-card border-accent/30 bg-accent/5">
+            <div className="flex items-center gap-2 mb-3">
+              <Bell className="w-4 h-4 text-accent" />
+              <h3 className="font-display font-semibold text-accent">Batch Assignment Requests</h3>
+              <Badge className="bg-accent/10 text-accent border-accent/20 text-xs">{batchRequests.length}</Badge>
+            </div>
+            <div className="space-y-2">
+              {batchRequests.map(req => (
+                <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-background border border-border/50">
+                  <div>
+                    <p className="text-sm font-semibold">{req.batch_name || "Unnamed Batch"}</p>
+                    <p className="text-xs text-muted-foreground">{req.course} · Admin wants you to teach this batch</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="h-7 text-xs gap-1 bg-success/10 text-success hover:bg-success hover:text-white border border-success/20"
+                      disabled={respondingId === req.id}
+                      onClick={() => handleRequest(req, true)}
+                    >
+                      {respondingId === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />} Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs gap-1 border-destructive/30 text-destructive hover:bg-destructive/10"
+                      disabled={respondingId === req.id}
+                      onClick={() => handleRequest(req, false)}
+                    >
+                      <X className="w-3 h-3" /> Decline
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
 
         {/* Summary stats */}
         <div className="grid grid-cols-3 gap-3">
@@ -112,23 +191,23 @@ export default function TeacherDashboard() {
                   </Button>
                 </Link>
                 <Link to="/teacher/announcements">
-                  <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary-light">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary/10">
                     <Megaphone className="w-4 h-4" /> Post Announcement
                   </Button>
                 </Link>
                 <Link to="/teacher/tests">
-                  <Button variant="outline" className="w-full gap-2 h-11 border-accent/30 text-accent hover:bg-accent-light">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-accent/30 text-accent hover:bg-accent/10">
                     <Trophy className="w-4 h-4" /> Enter Test Scores
                   </Button>
                 </Link>
                 <Link to="/teacher/homework">
-                  <Button variant="outline" className="w-full gap-2 h-11 border-success/30 text-success hover:bg-success-light">
+                  <Button variant="outline" className="w-full gap-2 h-11 border-success/30 text-success hover:bg-success/10">
                     <BookOpen className="w-4 h-4" /> Post Homework / DPP
                   </Button>
                 </Link>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No batches assigned yet. Ask your admin.</p>
+              <p className="text-sm text-muted-foreground">No batches assigned yet. Ask your admin to assign you a batch.</p>
             )}
           </Card>
         </motion.div>

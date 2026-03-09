@@ -1,7 +1,6 @@
 /**
  * AdminDemo — completely hardcoded fake data, zero DB calls.
- * This page is served at /demo/admin from the landing page demo buttons.
- * It must NEVER touch Supabase or show real institute data.
+ * NEVER touches Supabase or shows real institute data.
  */
 import { useState } from "react";
 import { Link } from "react-router-dom";
@@ -11,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Users, CalendarCheck, IndianRupee, CheckCircle2, TrendingUp,
-  Megaphone, Clock, AlertTriangle, ArrowUpRight, Zap, ArrowLeft
+  Megaphone, Clock, AlertTriangle, ArrowUpRight, Zap, Home
 } from "lucide-react";
 
 const fakeBatches = [
@@ -20,30 +19,43 @@ const fakeBatches = [
   { id: "b3", name: "Foundation XI", teacher: "Arun Kumar", students: 40, course: "Foundation" },
 ];
 
+const fakeStudents = [
+  { id: "s1", name: "Arjun Verma", batch: "JEE Advanced 2025-A", status: "active" },
+  { id: "s2", name: "Sneha Patel", batch: "NEET Dropper Batch", status: "active" },
+  { id: "s3", name: "Rohit Singh", batch: "JEE Advanced 2025-A", status: "active" },
+  { id: "s4", name: "Kavya Nair", batch: "Foundation XI", status: "active" },
+  { id: "s5", name: "Manish Jha", batch: "NEET Dropper Batch", status: "pending" },
+];
+
 const fakeAnnouncements = [
   { id: "a1", title: "Unit Test 3 — Physics scheduled for Monday", by: "Rahul Sharma", ago: "2h ago" },
   { id: "a2", title: "Fee reminder: last date is 15th March", by: "Admin", ago: "1d ago" },
   { id: "a3", title: "Holiday on 14th March — Holi", by: "Admin", ago: "2d ago" },
 ];
 
+const fakeAttendanceByBatch = [
+  { batchId: "b1", name: "JEE Advanced 2025-A", present: 24, total: 28, pct: 86 },
+  { batchId: "b2", name: "NEET Dropper Batch", present: 30, total: 35, pct: 86 },
+  { batchId: "b3", name: "Foundation XI", present: 33, total: 40, pct: 83 },
+];
+
 const stats = [
-  { title: "Total Students", value: "103", icon: Users, bg: "bg-primary-light", color: "text-primary", trend: "up" },
-  { title: "Active Batches", value: "3", icon: CalendarCheck, bg: "bg-success-light", color: "text-success", trend: "up" },
-  { title: "Today's Attendance", value: "87%", icon: CheckCircle2, bg: "bg-accent-light", color: "text-accent", trend: "up" },
-  { title: "Unpaid Fees", value: "7", icon: IndianRupee, bg: "bg-danger-light", color: "text-danger", trend: "down" },
+  { title: "Total Students", value: "103", icon: Users, bg: "bg-primary/10", color: "text-primary", trend: "up" },
+  { title: "Active Batches", value: "3", icon: CalendarCheck, bg: "bg-success/10", color: "text-success", trend: "up" },
+  { title: "Today's Attendance", value: "85%", icon: CheckCircle2, bg: "bg-accent/10", color: "text-accent", trend: "up" },
+  { title: "Unpaid Fees", value: "7", icon: IndianRupee, bg: "bg-destructive/10", color: "text-destructive", trend: "down" },
 ];
 
 export default function AdminDemo() {
-  const [tab, setTab] = useState<"dashboard" | "batches" | "attendance">("dashboard");
+  const [tab, setTab] = useState<"dashboard" | "batches" | "students" | "attendance">("dashboard");
 
   return (
     <div className="min-h-screen bg-background">
       {/* Demo Banner */}
       <div className="bg-accent text-white text-center text-xs py-2 font-medium">
-        🎭 Demo Mode — This is fake data only. <Link to="/" className="underline ml-1">← Back to homepage</Link>
+        🎭 Demo Mode — This is entirely fake data. No real institute.
       </div>
 
-      {/* Fake Sidebar + Content */}
       <div className="flex h-[calc(100vh-32px)]">
         {/* Sidebar */}
         <aside className="w-56 bg-card border-r border-border/50 flex flex-col p-4 gap-1 shrink-0">
@@ -59,20 +71,26 @@ export default function AdminDemo() {
           {[
             { label: "Overview", key: "dashboard" },
             { label: "Batches", key: "batches" },
+            { label: "Students", key: "students" },
             { label: "Attendance", key: "attendance" },
           ].map(item => (
             <button
               key={item.key}
               onClick={() => setTab(item.key as typeof tab)}
               className={`text-sm text-left px-3 py-2 rounded-lg transition-colors ${
-                tab === item.key ? "bg-primary-light text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
+                tab === item.key ? "bg-primary/10 text-primary font-semibold" : "text-muted-foreground hover:bg-muted"
               }`}
             >
               {item.label}
             </button>
           ))}
 
-          <div className="mt-auto">
+          <div className="mt-auto space-y-2">
+            <Link to="/">
+              <Button variant="outline" className="w-full gap-2 h-9 text-xs border-primary/30 text-primary hover:bg-primary/10">
+                <Home className="w-3.5 h-3.5" /> Back to Homepage
+              </Button>
+            </Link>
             <div className="p-3 rounded-lg bg-muted/50 border border-border/40">
               <p className="text-xs font-semibold">Sanjay Mishra</p>
               <p className="text-xs text-muted-foreground">Admin · Demo Institute</p>
@@ -94,7 +112,7 @@ export default function AdminDemo() {
                         <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center`}>
                           <s.icon className={`w-4 h-4 ${s.color}`} />
                         </div>
-                        <TrendingUp className={`w-4 h-4 ${s.trend === "up" ? "text-success" : "text-danger rotate-180"}`} />
+                        <TrendingUp className={`w-4 h-4 ${s.trend === "up" ? "text-success" : "text-destructive rotate-180"}`} />
                       </div>
                       <div className="text-2xl font-display font-bold">{s.value}</div>
                       <div className="text-xs text-muted-foreground mt-0.5">{s.title}</div>
@@ -112,7 +130,7 @@ export default function AdminDemo() {
                   <div className="space-y-3">
                     {fakeAnnouncements.map(a => (
                       <div key={a.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50 border border-border/40">
-                        <div className="w-7 h-7 rounded-lg bg-primary-light flex items-center justify-center shrink-0">
+                        <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                           <Megaphone className="w-3.5 h-3.5 text-primary" />
                         </div>
                         <div>
@@ -126,13 +144,22 @@ export default function AdminDemo() {
 
                 <Card className="p-5 shadow-card border-border/50">
                   <h3 className="font-display font-semibold mb-4">Alerts</h3>
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-danger-light/30 border border-danger/20">
-                    <div className="w-7 h-7 rounded-lg bg-danger-light flex items-center justify-center shrink-0">
-                      <AlertTriangle className="w-3.5 h-3.5 text-danger" />
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                    <div className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
+                      <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
                     </div>
                     <div>
                       <p className="text-sm">7 students have unpaid fees</p>
-                      <Button variant="ghost" size="sm" className="text-danger h-6 text-xs p-0 mt-1">View fees →</Button>
+                      <Button variant="ghost" size="sm" className="text-destructive h-6 text-xs p-0 mt-1">View fees →</Button>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg bg-accent/5 border border-accent/20 mt-3">
+                    <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                      <Users className="w-3.5 h-3.5 text-accent" />
+                    </div>
+                    <div>
+                      <p className="text-sm">2 pending approval requests</p>
+                      <Button variant="ghost" size="sm" className="text-accent h-6 text-xs p-0 mt-1">Review →</Button>
                     </div>
                   </div>
                 </Card>
@@ -168,19 +195,45 @@ export default function AdminDemo() {
             </div>
           )}
 
+          {tab === "students" && (
+            <div className="space-y-5 max-w-3xl">
+              <h1 className="text-xl font-display font-bold">Students</h1>
+              <div className="space-y-2">
+                {fakeStudents.map((s, i) => (
+                  <motion.div key={s.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+                    <Card className="p-4 shadow-card border-border/50 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                          {s.name[0]}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{s.name}</p>
+                          <p className="text-xs text-muted-foreground">{s.batch}</p>
+                        </div>
+                      </div>
+                      <Badge className={`text-xs ${s.status === "active" ? "bg-success/10 text-success border-success/20" : "bg-accent/10 text-accent border-accent/20"}`}>
+                        {s.status === "active" ? "Active" : "Pending"}
+                      </Badge>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {tab === "attendance" && (
             <div className="space-y-5 max-w-3xl">
-              <h1 className="text-xl font-display font-bold">Attendance</h1>
+              <h1 className="text-xl font-display font-bold">Today's Attendance</h1>
               <div className="space-y-3">
-                {fakeBatches.map(b => (
-                  <Card key={b.id} className="p-4 shadow-card border-border/50 flex items-center justify-between">
+                {fakeAttendanceByBatch.map(b => (
+                  <Card key={b.batchId} className="p-4 shadow-card border-border/50 flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-sm">{b.name}</p>
-                      <p className="text-xs text-muted-foreground">{b.students} students</p>
+                      <p className="text-xs text-muted-foreground">{b.present}/{b.total} students present</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-display font-bold text-success text-sm">
-                        {Math.floor(80 + Math.random() * 15).toFixed(0)}%
+                      <p className={`font-display font-bold text-sm ${b.pct >= 75 ? "text-success" : "text-destructive"}`}>
+                        {b.pct}%
                       </p>
                       <p className="text-xs text-muted-foreground">Today</p>
                     </div>
