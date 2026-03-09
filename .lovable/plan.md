@@ -1,85 +1,90 @@
 
-## Complete Data Audit — What Exists
+## Root Cause — Confirmed
 
-**KEEP (kjais1104@gmail.com, user_id: 5dc7ea0f-...):**
-- `profiles` row: Super Admin (super_admin, status: approved)
-- `user_roles` rows: super_admin (Bareilly) + app_owner (India) — both on same user_id
+### Problem 1: Teacher cannot update a batch that has no teacher yet (CRITICAL BUG)
 
-**DELETE — Institute MISS077 (Mission, Bareilly, owner: Waseem):**
+The `batches` table has this RLS policy for UPDATE:
+```
+"Teachers can update own batches" → WHERE teacher_id = auth.uid()
+```
 
-| Table | Rows to delete |
-|---|---|
-| `institutes` | 1 row (MISS077 — Mission institute) |
-| `profiles` | 6 rows: Waseem (admin), Akib, Saman, Lavi, Kavi (teachers), Shiv (student) |
-| `user_roles` | 6 rows: same 6 users' role entries |
-| `pending_requests` | 5 rows: Akib, Saman, Lavi, Kavi, Shiv approval records |
-| `batches` | 1 row: "King" batch |
-| `batch_teacher_requests` | 1 row: King→Saman accepted request |
-| `batch_applications` | 1 row: Shiv's application to King batch |
-| `students_batches` | 1 row: Shiv enrolled in King batch |
+When a teacher accepts a batch request, the batch still has `teacher_id = NULL`. The UPDATE `WHERE id = req.batch_id` runs, but RLS filters it out because `NULL = auth.uid()` is false. **Zero rows are updated. No error is thrown.** The code silently proceeds to mark the request `accepted`, but the batch remains with `teacher_id = NULL` and `teacher_name = NULL`.
 
-**Tables already empty for MISS077:** attendance (0), announcements (0), fees (0), test_scores (0), homeworks (0), batch_messages (0)
+**Proof from DB:**
+- `batch_teacher_requests`: `status = accepted`, `teacher_id = 3f786f1b` ✓
+- `batches`: `teacher_id = NULL`, `teacher_name = NULL` ✗ — the update never went through
 
-**Auth users** (in `auth.users`): The 6 test users (Waseem, Akib, Saman, Lavi, Kavi, Shiv) need to be deleted from auth too. This requires an edge function since auth deletion requires the service role key.
+### Problem 2: `handleRequest` doesn't check if UPDATE actually worked
+
+The code in `TeacherDashboard.tsx` checks `if (batchErr)` — but when RLS silently blocks the update, PostgREST returns 200 with 0 rows changed and **no error**. So `batchErr` is null and the code thinks it succeeded.
+
+### Problem 3: Admin panel shows "No teacher assigned" even after teacher accepts
+
+Because `teacher_id` and `teacher_name` on `batches` are never written, the admin panel reads the batch and correctly shows "No teacher assigned".
+
+### Problem 4: Teacher dashboard shows no batches after accepting
+
+`TeacherDashboard.tsx` fetches batches with `.eq("teacher_id", user.id)` — since `teacher_id` is NULL, nothing is returned.
 
 ---
 
-## Plan
+## The Fix
 
-### Step 1: Delete all MISS077 data via SQL (data operations — no migration needed)
+### Fix 1: Add a new RLS policy — "Teacher accepting assignment can update batch"
 
-Run these DELETE statements in order (child → parent to avoid FK issues):
+A teacher should be allowed to update a batch's `teacher_id`/`teacher_name` when there is an **accepted** `batch_teacher_requests` row linking them to that batch. Add a new PERMISSIVE policy:
 
 ```sql
--- 1. students_batches
-DELETE FROM public.students_batches WHERE institute_code = 'MISS077';
-
--- 2. batch_applications
-DELETE FROM public.batch_applications WHERE institute_code = 'MISS077';
-
--- 3. batch_teacher_requests
-DELETE FROM public.batch_teacher_requests WHERE institute_code = 'MISS077';
-
--- 4. batches
-DELETE FROM public.batches WHERE institute_code = 'MISS077';
-
--- 5. pending_requests
-DELETE FROM public.pending_requests WHERE institute_code = 'MISS077';
-
--- 6. user_roles for MISS077 users
-DELETE FROM public.user_roles WHERE institute_code = 'MISS077';
-
--- 7. profiles for MISS077 users
-DELETE FROM public.profiles WHERE institute_code = 'MISS077';
-
--- 8. institute record itself
-DELETE FROM public.institutes WHERE institute_code = 'MISS077';
+CREATE POLICY "Teacher can claim batch via accepted request"
+ON public.batches
+FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM public.batch_teacher_requests btr
+    WHERE btr.batch_id = batches.id
+      AND btr.teacher_id = auth.uid()
+      AND btr.status = 'pending'
+  )
+);
 ```
 
-### Step 2: Delete auth users via existing edge function infrastructure
+This allows a teacher to update the batch **only when** there is a pending request from admin appointing them to it. This is secure — the admin created the request, so the teacher has permission to claim it.
 
-Use the `fix-superadmin` edge function pattern to build a one-time `cleanup-test-users` edge function that calls `supabase.auth.admin.deleteUser()` for each of the 6 user IDs:
-- `17ef1e93` (Waseem/admin)
-- `6f6d9183` (Akib)
-- `77c0aaf4` (Saman)
-- `53d519e2` (Lavi)
-- `87cc7d62` (Kavi)
-- `cdf047e4` (Shiv)
+### Fix 2: Backfill the existing broken batch
 
-This edge function is called once and then can be deleted.
+The current batch `38ff1a5e` (Class IX Physics, LAM01) has an accepted request but `teacher_id = NULL`. We need to write the teacher data directly via a data fix (using the service role, outside RLS).
+
+Run via migration/data fix:
+```sql
+UPDATE public.batches
+SET teacher_id = '3f786f1b-6b95-419b-91b3-c76861a94191',
+    teacher_name = 'Lavii Singh'
+WHERE id = '38ff1a5e-0e59-4fe3-8db3-593268afd1f1';
+```
+
+### Fix 3: Improve `handleRequest` to verify the UPDATE actually worked
+
+Add a check using `.select()` after the update to confirm rows were modified. If not, show a clear error:
+```ts
+const { data: updated, error: batchErr } = await supabase
+  .from("batches")
+  .update({ teacher_id: user.id, teacher_name: teacherName })
+  .eq("id", req.batch_id)
+  .select("id");
+
+if (batchErr || !updated || updated.length === 0) {
+  toast({ title: "Error", description: "Could not update batch. The admin may need to re-send the request.", variant: "destructive" });
+  ...
+}
+```
 
 ---
 
 ## Files to change
 
-| Action | Detail |
+| Change | Where |
 |---|---|
-| Run data DELETE SQL (via insert tool) | 8 DELETE statements covering all MISS077 data |
-| Create + deploy `supabase/functions/cleanup-test-users/index.ts` | Deletes 6 auth users using service role |
-| Call the edge function once | Cleans auth.users entries |
-| Delete the edge function file | Cleanup after use |
-
-After this, the database will have only:
-- `kjais1104@gmail.com` as super_admin + app_owner
-- Zero test institute data
-- Clean slate for real onboarding
+| Add new RLS policy "Teacher can claim batch via accepted request" | DB migration |
+| Backfill existing broken batch (Class IX Physics) | DB data fix |
+| Fix `handleRequest` to verify UPDATE worked + show error if it didn't | `src/pages/TeacherDashboard.tsx` |
+| Also fix: mark request as accepted **only after** batch update succeeds | `src/pages/TeacherDashboard.tsx` |
