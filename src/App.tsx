@@ -43,6 +43,7 @@ import SuperAdminAuth from "./pages/auth/SuperAdminAuth";
 import OwnerAuth from "./pages/auth/OwnerAuth";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import CityPartnerApply from "./pages/CityPartnerApply";
+import Install from "./pages/Install";
 
 const queryClient = new QueryClient();
 
@@ -81,6 +82,7 @@ const App = () => (
           <Route path="/auth/owner" element={<OwnerAuth />} />
           <Route path="/owner" element={<OwnerDashboard />} />
           <Route path="/apply/city-partner" element={<CityPartnerApply />} />
+          <Route path="/install" element={<Install />} />
           <Route path="/batch/:id" element={<BatchWorkspace />} />
           {/* Teacher */}
           <Route path="/teacher" element={<TeacherDashboard />} />

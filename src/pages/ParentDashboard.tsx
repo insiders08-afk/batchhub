@@ -199,7 +199,7 @@ export default function ParentDashboard() {
 
   return (
     <DashboardLayout title="Parent Overview" role="parent">
-      <div className="space-y-5 max-w-3xl">
+      <div className="space-y-5 w-full max-w-3xl">
 
         {/* Welcome hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>

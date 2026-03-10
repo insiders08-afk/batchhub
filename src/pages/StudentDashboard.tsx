@@ -110,7 +110,7 @@ export default function StudentDashboard() {
 
   return (
     <DashboardLayout title="My Dashboard" role="student">
-      <div className="space-y-5 max-w-2xl">
+      <div className="space-y-5 w-full max-w-2xl">
 
         {/* Welcome hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
