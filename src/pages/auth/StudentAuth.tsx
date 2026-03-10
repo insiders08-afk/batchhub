@@ -132,11 +132,11 @@ export default function StudentAuth() {
       });
       if (error) throw error;
       if (rememberMe) {
-        localStorage.setItem("lamba_remember_me", "true");
-        sessionStorage.removeItem("lamba_session_only");
+        localStorage.setItem("batchhub_remember_me", "true");
+        sessionStorage.removeItem("batchhub_session_only");
       } else {
-        localStorage.removeItem("lamba_remember_me");
-        sessionStorage.setItem("lamba_session_only", "true");
+        localStorage.removeItem("batchhub_remember_me");
+        sessionStorage.setItem("batchhub_session_only", "true");
       }
 
       const { data: profile } = await supabase

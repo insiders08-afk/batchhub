@@ -126,11 +126,11 @@ export default function AdminAuth() {
       // Remember me: mark session as active in sessionStorage (cleared on app close)
       // Index.tsx checks this flag — if missing on next open, signs out
       if (rememberMe) {
-        localStorage.setItem("lamba_remember_me", "true");
-        sessionStorage.removeItem("lamba_session_only");
+        localStorage.setItem("batchhub_remember_me", "true");
+        sessionStorage.removeItem("batchhub_session_only");
       } else {
-        localStorage.removeItem("lamba_remember_me");
-        sessionStorage.setItem("lamba_session_only", "true");
+        localStorage.removeItem("batchhub_remember_me");
+        sessionStorage.setItem("batchhub_session_only", "true");
       }
 
       const userId = data.user?.id;
