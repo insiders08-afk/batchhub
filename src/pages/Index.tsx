@@ -46,7 +46,7 @@ const testimonials = [
 {
   name: "Rajesh Sharma",
   role: "Director, Apex Classes, Kota",
-  text: "Lamba replaced 6 WhatsApp groups and 3 spreadsheets. My teachers love the attendance feature.",
+  text: "BatchHub replaced 6 WhatsApp groups and 3 spreadsheets. My teachers love the attendance feature.",
   avatar: "RS"
 },
 {
@@ -167,7 +167,7 @@ export default function Index() {
             <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center">
               <Zap className="w-4 h-4 text-white" />
             </div>
-            <span className="text-xl font-display font-bold text-gradient">Lamba</span>
+            <span className="text-xl font-display font-bold text-gradient">BatchHub</span>
           </Link>
 
           <div className="hidden md:flex items-center gap-8">
@@ -217,7 +217,7 @@ export default function Index() {
             </h1>
 
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed font-light md:text-2xl font-sans">
-              Lamba replaces paper registers, scattered WhatsApp groups, and manual fee tracking with one clean platform built for how Indian coaching institutes actually work.
+              BatchHub replaces paper registers, scattered WhatsApp groups, and manual fee tracking with one clean platform built for how Indian coaching institutes actually work.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -259,7 +259,7 @@ export default function Index() {
             <div className="relative max-w-5xl mx-auto">
               <div className="absolute inset-0 gradient-hero rounded-2xl blur-2xl opacity-10 scale-95" />
               <div className="relative rounded-2xl border border-border/50 shadow-lg overflow-hidden">
-                <img src={heroDashboard} alt="Lamba Dashboard Preview" className="w-full h-auto" />
+                <img src={heroDashboard} alt="BatchHub Dashboard Preview" className="w-full h-auto" />
               </div>
             </div>
           </motion.div>
@@ -341,7 +341,7 @@ export default function Index() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}>
               
-              <Link to="/auth/owner" className="mb-4 inline-flex items-center rounded-full border border-primary/20 bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors cursor-pointer hover:bg-primary/10">Why Lamba</Link>
+              <Link to="/auth/owner" className="mb-4 inline-flex items-center rounded-full border border-primary/20 bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors cursor-pointer hover:bg-primary/10">Why BatchHub</Link>
               <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">
                 Designed for the real chaos of running a coaching institute
               </h2>
@@ -523,7 +523,7 @@ export default function Index() {
               Ready to transform your institute?
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto mb-10 text-lg">
-              Join 2,400+ institutes already running smarter with Lamba.
+              Join 2,400+ institutes already running smarter with BatchHub.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link to="/role-select">
@@ -551,7 +551,7 @@ export default function Index() {
                 <Zap className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">Install Lamba App</p>
+                <p className="text-sm font-semibold text-foreground">Install BatchHub App</p>
                 <p className="text-xs text-muted-foreground">Add to home screen for the best experience</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
@@ -591,9 +591,9 @@ export default function Index() {
             <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
               <Zap className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="font-display font-bold text-gradient">Lamba</span>
+            <span className="font-display font-bold text-gradient">BatchHub</span>
           </div>
-          <p className="text-sm text-muted-foreground">© 2025 Lamba. Built for India's coaching ecosystem.</p>
+          <p className="text-sm text-muted-foreground">© 2025 BatchHub. Built for India's coaching ecosystem.</p>
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground justify-center">
             <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors">Terms</a>

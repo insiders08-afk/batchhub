@@ -68,7 +68,7 @@ export default function OwnerAuth() {
             <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
               <Zap className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="text-lg font-display font-bold text-gradient">Lamba</span>
+            <span className="text-lg font-display font-bold text-gradient">BatchHub</span>
           </Link>
           <div className="flex items-center gap-2">
             <InstallButton />

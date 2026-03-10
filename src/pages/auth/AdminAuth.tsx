@@ -188,7 +188,7 @@ export default function AdminAuth() {
           </div>
           <h2 className="text-2xl font-display font-bold mb-2">Pending City Partner Approval</h2>
           <p className="text-muted-foreground mb-4">
-            <span className="font-semibold text-foreground">{pendingInstituteName}</span> has been submitted and is pending review by {pendingCity ? `the ${pendingCity} City Partner` : "your city's Lamba partner"}.
+            <span className="font-semibold text-foreground">{pendingInstituteName}</span> has been submitted and is pending review by {pendingCity ? `the ${pendingCity} City Partner` : "your city's BatchHub partner"}.
           </p>
           <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-6 shadow-card">
             <div className="flex items-center gap-3">
@@ -239,7 +239,7 @@ export default function AdminAuth() {
               </a>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground mb-4">Please contact your city's Lamba partner for more information.</p>
+            <p className="text-xs text-muted-foreground mb-4">Please contact your city's BatchHub partner for more information.</p>
           )}
           <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
         </motion.div>
@@ -255,7 +255,7 @@ export default function AdminAuth() {
             <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
               <Zap className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="text-lg font-display font-bold text-gradient">Lamba</span>
+            <span className="text-lg font-display font-bold text-gradient">BatchHub</span>
           </Link>
           <div className="flex items-center gap-2">
             <InstallButton />
@@ -301,7 +301,7 @@ export default function AdminAuth() {
                   <div className="p-3 bg-primary-light border border-primary/20 rounded-lg mb-2">
                     <p className="text-xs text-primary font-medium flex items-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      Your institute will be reviewed by your city's Lamba partner before going live.
+                      Your institute will be reviewed by your city's BatchHub partner before going live.
                     </p>
                   </div>
 
@@ -337,7 +337,7 @@ export default function AdminAuth() {
                       </select>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground -mt-2">Institute ID will be the unique identifier on Lamba.</p>
+                  <p className="text-xs text-muted-foreground -mt-2">Institute ID will be the unique identifier on BatchHub.</p>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="govtRegistrationNo">Government Registration / Trust No. *</Label>
