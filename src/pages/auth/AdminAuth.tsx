@@ -188,7 +188,7 @@ export default function AdminAuth() {
           </div>
           <h2 className="text-2xl font-display font-bold mb-2">Pending City Partner Approval</h2>
           <p className="text-muted-foreground mb-4">
-            <span className="font-semibold text-foreground">{pendingInstituteName}</span> has been submitted and is pending review by {pendingCity ? `the ${pendingCity} City Partner` : "your city's Lamba partner"}.
+            <span className="font-semibold text-foreground">{pendingInstituteName}</span> has been submitted and is pending review by {pendingCity ? `the ${pendingCity} City Partner` : "your city's BatchHub partner"}.
           </p>
           <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-6 shadow-card">
             <div className="flex items-center gap-3">
