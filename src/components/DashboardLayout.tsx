@@ -85,23 +85,17 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   const menuItems = menusByRole[role];
   const isAdmin = role === "admin";
 
-  // Auth guard + profile fetch
+  // Auth guard + profile fetch — uses getSession() (localStorage, instant) not getUser() (network)
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate(roleAuthPaths[role], { replace: true });
-        return;
-      }
-
+    const loadProfile = async (userId: string, email: string | undefined) => {
       const { data: profile } = await supabase
         .from("profiles")
         .select("full_name, institute_code")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .single();
 
       if (profile) {
-        setUserName(profile.full_name || user.email || "User");
+        setUserName(profile.full_name || email || "User");
         const parts = (profile.full_name || "U").split(" ");
         setUserInitials(parts.map((p: string) => p[0]).join("").toUpperCase().slice(0, 2));
 
@@ -118,11 +112,26 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
           }
         }
       }
-
       setAuthChecked(true);
     };
 
-    checkAuth();
+    // Read session from localStorage instantly (no network round-trip)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        navigate(roleAuthPaths[role], { replace: true });
+        return;
+      }
+      loadProfile(session.user.id, session.user.email);
+    });
+
+    // Listen for sign-out events to redirect immediately
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || (!session && event !== "INITIAL_SESSION")) {
+        navigate(roleAuthPaths[role], { replace: true });
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate, role]);
 
   // Fetch pending count for admin sidebar badges
