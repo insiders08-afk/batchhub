@@ -523,7 +523,7 @@ export default function Index() {
               Ready to transform your institute?
             </h2>
             <p className="text-muted-foreground max-w-xl mx-auto mb-10 text-lg">
-              Join 2,400+ institutes already running smarter with Lamba.
+              Join 2,400+ institutes already running smarter with BatchHub.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link to="/role-select">
