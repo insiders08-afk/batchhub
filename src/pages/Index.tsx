@@ -80,6 +80,34 @@ const plans = [
 const navLinks = ["Features", "Pricing", "Testimonials"];
 
 export default function Index() {
+  const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
+  const [showBanner, setShowBanner] = useState(false);
+
+  useEffect(() => {
+    // Only show banner if NOT already installed and on mobile
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    if (isStandalone) return;
+
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) setShowBanner(true);
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleNativeInstall = async () => {
+    if (!installPrompt) return;
+    const promptEvent = installPrompt as BeforeInstallPromptEvent;
+    promptEvent.prompt();
+    const result = await promptEvent.userChoice;
+    if (result.outcome === "accepted") setShowBanner(false);
+  };
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
