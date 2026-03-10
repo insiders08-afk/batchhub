@@ -96,9 +96,9 @@ export default function AdminDashboard() {
 
   return (
     <DashboardLayout title="Overview">
-      <div className="space-y-6">
+      <div className="space-y-6 w-full">
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
           {statCards.map((stat, i) => (
             <motion.div
               key={stat.title}
