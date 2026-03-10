@@ -310,6 +310,16 @@ export default function TeacherAuth() {
                       </button>
                     </div>
                   </div>
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 accent-primary rounded"
+                    />
+                    <span className="text-sm text-muted-foreground">Keep me signed in</span>
+                    {!rememberMe && <span className="text-xs text-muted-foreground/60 ml-auto">(session only)</span>}
+                  </label>
                   <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-success to-emerald-400 text-white border-0 hover:opacity-90 h-11 font-semibold">
                     {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in...</> : "Sign In"}
                   </Button>
