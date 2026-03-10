@@ -41,7 +41,7 @@ export default function TeacherAuth() {
     e.preventDefault();
     setLoading(true);
     try {
-      const instituteCode = form.instituteId.toUpperCase().trim();
+      const instituteCode = form.instituteId.trim();
 
       // Try to sign up
       const { data: authData, error: authError } = await supabase.auth.signUp({

@@ -97,7 +97,7 @@ export default function AdminAuth() {
         email: regForm.email,
         phone: regForm.phone,
         role: "admin",
-        institute_code: regForm.instituteId.toUpperCase().trim(),
+        institute_code: regForm.instituteId.trim(),
         status: "pending",
       });
       if (profError) throw profError;
