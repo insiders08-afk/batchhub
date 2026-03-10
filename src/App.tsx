@@ -43,6 +43,7 @@ import SuperAdminAuth from "./pages/auth/SuperAdminAuth";
 import OwnerAuth from "./pages/auth/OwnerAuth";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import CityPartnerApply from "./pages/CityPartnerApply";
+import Install from "./pages/Install";
 
 const queryClient = new QueryClient();
 

@@ -230,7 +230,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   );
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
+    <div className="flex h-[100dvh] bg-background overflow-hidden">
       {/* Desktop Sidebar */}
       <aside
         className={cn(
@@ -249,30 +249,30 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
         />
       )}
 
-      {/* Mobile sidebar */}
+      {/* Mobile sidebar — max-w so it never covers full screen */}
       <aside className={cn(
-        "fixed left-0 top-0 bottom-0 w-64 bg-sidebar z-50 lg:hidden transition-transform duration-300",
+        "fixed left-0 top-0 bottom-0 w-[72vw] max-w-[260px] bg-sidebar z-50 lg:hidden transition-transform duration-300",
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <SidebarContent />
       </aside>
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Top bar */}
         <header className="h-14 border-b border-border/50 bg-card flex items-center justify-between px-4 flex-shrink-0">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <Button
               variant="ghost"
               size="icon"
-              className="lg:hidden w-9 h-9"
+              className="lg:hidden w-9 h-9 flex-shrink-0"
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               {mobileOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
             </Button>
-            {title && <h1 className="font-display font-semibold text-lg">{title}</h1>}
+            {title && <h1 className="font-display font-semibold text-base sm:text-lg truncate">{title}</h1>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground bg-muted rounded-lg px-3 py-1.5">
               <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
               Live
@@ -283,7 +283,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4 md:p-6">
           {children}
         </main>
       </div>
