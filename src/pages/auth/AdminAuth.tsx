@@ -239,7 +239,7 @@ export default function AdminAuth() {
               </a>
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground mb-4">Please contact your city's Lamba partner for more information.</p>
+            <p className="text-xs text-muted-foreground mb-4">Please contact your city's BatchHub partner for more information.</p>
           )}
           <Link to="/"><Button variant="outline" size="sm">Back to Home</Button></Link>
         </motion.div>
