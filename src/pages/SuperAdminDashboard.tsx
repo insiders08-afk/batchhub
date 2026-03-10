@@ -97,7 +97,7 @@ export default function SuperAdminDashboard() {
         }, { onConflict: "user_id,role" });
         if (roleError) throw roleError;
         await supabase.from("profiles").update({ status: "approved" }).eq("user_id", inst.owner_user_id);
-        toast({ title: "✅ Approved!", description: `${inst.institute_name} is now live on Lamba.` });
+        toast({ title: "✅ Approved!", description: `${inst.institute_name} is now live on BatchHub.` });
       } else {
         if (inst.owner_user_id) {
           await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", inst.owner_user_id);
@@ -154,7 +154,7 @@ export default function SuperAdminDashboard() {
               <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
                 <Zap className="w-3.5 h-3.5 text-white" />
               </div>
-              <span className="text-lg font-display font-bold text-gradient">Lamba</span>
+              <span className="text-lg font-display font-bold text-gradient">BatchHub</span>
             </Link>
             <Badge className="bg-primary-light text-primary border-0 text-xs ml-1">Super Admin</Badge>
             {adminCity && (
@@ -195,7 +195,7 @@ export default function SuperAdminDashboard() {
           {[
             { label: "Total Institutes", value: institutes.length, color: "text-foreground" },
             { label: "Pending Approval", value: pendingCount, color: "text-accent" },
-            { label: "Live on Lamba", value: approvedCount, color: "text-success" },
+            { label: "Live on BatchHub", value: approvedCount, color: "text-success" },
           ].map(s => (
             <Card key={s.label} className="p-4 shadow-card border-border/50 text-center">
               <p className={`text-2xl font-display font-bold ${s.color}`}>{s.value}</p>
@@ -354,7 +354,7 @@ export default function SuperAdminDashboard() {
                 </div>
                 <div>
                   <p className="font-bold text-lg">{selectedInstitute.institute_name}</p>
-                  <Badge className="text-xs bg-success-light text-success border-0 mt-1">Live on Lamba</Badge>
+                  <Badge className="text-xs bg-success-light text-success border-0 mt-1">Live on BatchHub</Badge>
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-2">

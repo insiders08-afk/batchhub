@@ -161,7 +161,7 @@ export default function OwnerDashboard() {
         return;
       }
 
-      const tempPassword = `Lamba@${Math.random().toString(36).slice(2, 10)}`;
+      const tempPassword = `BatchHub@${Math.random().toString(36).slice(2, 10)}`;
       await supabase.functions.invoke("fix-superadmin", {
         body: { action: "create_super_admin", email: app.email, password: tempPassword, city: app.city, fullName: app.full_name }
       });
@@ -224,7 +224,7 @@ export default function OwnerDashboard() {
               <Crown className="w-3.5 h-3.5 text-white" />
             </div>
             <div>
-              <span className="font-display font-bold text-gradient">Lamba Owner Portal</span>
+              <span className="font-display font-bold text-gradient">BatchHub Owner Portal</span>
               <span className="text-muted-foreground text-sm ml-2 hidden sm:inline">· {ownerName}</span>
             </div>
           </div>

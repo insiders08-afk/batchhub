@@ -332,7 +332,7 @@ export default function Index() {
         </div>
       </section>
 
-      {/* Why Lamba Section */}
+      {/* Why BatchHub Section */}
       <section className="py-20 bg-card border-y border-border/50">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">

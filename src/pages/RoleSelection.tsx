@@ -10,7 +10,7 @@ const roles = [
     icon: Users,
     title: "Admin",
     description: "Full institute control. Manage batches, teachers, students, fees and view analytics.",
-    tagline: "Continue as Admin if you are the institute owner and want to register your institute on Lamba.",
+    tagline: "Continue as Admin if you are the institute owner and want to register your institute on BatchHub.",
     path: "/auth/admin",
     badge: "Institute Owner",
     gradient: "from-primary to-primary-glow",
