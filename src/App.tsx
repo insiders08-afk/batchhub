@@ -99,8 +99,10 @@ const App = () => (
           <Route path="/student/homework" element={<StudentHomework />} />
           <Route path="/student/announcements" element={<StudentAnnouncements />} />
           <Route path="/student/apply-batch" element={<StudentBatchApply />} />
+          <Route path="/student/fees" element={<StudentFees />} />
           {/* Parent */}
           <Route path="/parent" element={<ParentDashboard />} />
+          <Route path="/parent/fees" element={<ParentFees />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
