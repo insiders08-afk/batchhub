@@ -337,7 +337,7 @@ export default function AdminAuth() {
                       </select>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground -mt-2">Institute ID will be the unique identifier on Lamba.</p>
+                  <p className="text-xs text-muted-foreground -mt-2">Institute ID will be the unique identifier on BatchHub.</p>
 
                   <div className="space-y-1.5">
                     <Label htmlFor="govtRegistrationNo">Government Registration / Trust No. *</Label>
