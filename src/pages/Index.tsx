@@ -46,7 +46,7 @@ const testimonials = [
 {
   name: "Rajesh Sharma",
   role: "Director, Apex Classes, Kota",
-  text: "Lamba replaced 6 WhatsApp groups and 3 spreadsheets. My teachers love the attendance feature.",
+  text: "BatchHub replaced 6 WhatsApp groups and 3 spreadsheets. My teachers love the attendance feature.",
   avatar: "RS"
 },
 {
