@@ -36,6 +36,7 @@ export default function AdminAuth() {
   });
 
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleRegChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setRegForm({ ...regForm, [e.target.name]: e.target.value });

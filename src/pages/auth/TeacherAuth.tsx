@@ -30,6 +30,7 @@ export default function TeacherAuth() {
     phone: "", email: "", password: "",
   });
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value });
