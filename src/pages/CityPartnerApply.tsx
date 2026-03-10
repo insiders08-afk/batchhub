@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Zap, MapPin, Loader2, Camera, CheckCircle, Upload, AlertCircle } from "lucide-react";
+import { Zap, MapPin, Loader2, Camera, CheckCircle, Upload, AlertCircle, ArrowLeft } from "lucide-react";
+import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 

@@ -1,8 +1,8 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, GraduationCap, BookOpen, Users, UserCircle, ArrowRight } from "lucide-react";
-import { Zap } from "lucide-react";
+import { ArrowLeft, GraduationCap, BookOpen, Users, UserCircle, ArrowRight, Zap } from "lucide-react";
+import InstallButton from "@/components/InstallButton";
 
 const roles = [
   {

@@ -8,6 +8,7 @@ import {
   Zap, Shield, Smartphone, Globe
 } from "lucide-react";
 import heroDashboard from "@/assets/hero-dashboard.png";
+import InstallButton from "@/components/InstallButton";
 
 const features = [
   { icon: Users, title: "Batch Management", desc: "Organise students into batches by course. JEE, NEET, Foundation — all in one place.", color: "primary" },

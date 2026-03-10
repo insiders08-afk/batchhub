@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Zap, UserCircle, Eye, EyeOff, Loader2, CheckCircle2 } from "lucide-react";
+import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
