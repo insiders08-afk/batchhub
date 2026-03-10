@@ -341,7 +341,7 @@ export default function Index() {
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}>
               
-              <Link to="/auth/owner" className="mb-4 inline-flex items-center rounded-full border border-primary/20 bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors cursor-pointer hover:bg-primary/10">Why Lamba</Link>
+              <Link to="/auth/owner" className="mb-4 inline-flex items-center rounded-full border border-primary/20 bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors cursor-pointer hover:bg-primary/10">Why BatchHub</Link>
               <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">
                 Designed for the real chaos of running a coaching institute
               </h2>
