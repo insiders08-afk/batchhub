@@ -175,7 +175,7 @@ export default function CityPartnerApply() {
             <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
               <Zap className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="text-lg font-display font-bold text-gradient">Lamba</span>
+            <span className="text-lg font-display font-bold text-gradient">BatchHub</span>
           </Link>
           <div className="flex items-center gap-2">
             <InstallButton />
@@ -197,7 +197,7 @@ export default function CityPartnerApply() {
               </div>
               <h1 className="text-2xl font-display font-bold mb-1">Become a City Partner</h1>
               <p className="text-muted-foreground text-sm">
-                Manage all coaching institutes in your city on Lamba
+                Manage all coaching institutes in your city on BatchHub
               </p>
             </div>
 

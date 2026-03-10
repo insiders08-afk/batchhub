@@ -195,7 +195,7 @@ export default function SuperAdminDashboard() {
           {[
             { label: "Total Institutes", value: institutes.length, color: "text-foreground" },
             { label: "Pending Approval", value: pendingCount, color: "text-accent" },
-            { label: "Live on Lamba", value: approvedCount, color: "text-success" },
+            { label: "Live on BatchHub", value: approvedCount, color: "text-success" },
           ].map(s => (
             <Card key={s.label} className="p-4 shadow-card border-border/50 text-center">
               <p className={`text-2xl font-display font-bold ${s.color}`}>{s.value}</p>

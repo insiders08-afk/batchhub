@@ -63,7 +63,7 @@ export default function AdminDemo() {
             <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
               <Zap className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="font-display font-bold text-base text-gradient">Lamba</span>
+            <span className="font-display font-bold text-base text-gradient">BatchHub</span>
           </div>
 
           <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide px-2 mb-1">Demo Institute</p>

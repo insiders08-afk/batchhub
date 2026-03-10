@@ -103,7 +103,7 @@ export default function SuperAdminAuth() {
                     id="email"
                     name="email"
                     type="email"
-                    placeholder="superadmin@lamba.app"
+                    placeholder="superadmin@batchhub.app"
                     required
                     value={form.email}
                     onChange={handleChange}
