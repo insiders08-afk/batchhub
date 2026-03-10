@@ -81,7 +81,11 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   const [userName, setUserName] = useState("Loading...");
   const [userInitials, setUserInitials] = useState("...");
   const [instituteName, setInstituteName] = useState("");
+  const [instituteCode, setInstituteCode] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
+
+  // Register push notification subscription once we have the institute code
+  usePushNotifications(instituteCode);
 
   const menuItems = menusByRole[role];
   const isAdmin = role === "admin";
