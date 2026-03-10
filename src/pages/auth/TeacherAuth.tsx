@@ -30,6 +30,7 @@ export default function TeacherAuth() {
     phone: "", email: "", password: "",
   });
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -134,6 +135,13 @@ export default function TeacherAuth() {
         email: loginForm.email, password: loginForm.password,
       });
       if (error) throw error;
+      if (rememberMe) {
+        localStorage.setItem("lamba_remember_me", "true");
+        sessionStorage.removeItem("lamba_session_only");
+      } else {
+        localStorage.removeItem("lamba_remember_me");
+        sessionStorage.setItem("lamba_session_only", "true");
+      }
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -302,6 +310,16 @@ export default function TeacherAuth() {
                       </button>
                     </div>
                   </div>
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 accent-primary rounded"
+                    />
+                    <span className="text-sm text-muted-foreground">Keep me signed in</span>
+                    {!rememberMe && <span className="text-xs text-muted-foreground/60 ml-auto">(session only)</span>}
+                  </label>
                   <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-success to-emerald-400 text-white border-0 hover:opacity-90 h-11 font-semibold">
                     {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in...</> : "Sign In"}
                   </Button>

@@ -36,6 +36,7 @@ export default function AdminAuth() {
   });
 
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleRegChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setRegForm({ ...regForm, [e.target.name]: e.target.value });
@@ -122,6 +123,15 @@ export default function AdminAuth() {
         password: loginForm.password,
       });
       if (error) throw error;
+      // Remember me: mark session as active in sessionStorage (cleared on app close)
+      // Index.tsx checks this flag — if missing on next open, signs out
+      if (rememberMe) {
+        localStorage.setItem("lamba_remember_me", "true");
+        sessionStorage.removeItem("lamba_session_only");
+      } else {
+        localStorage.removeItem("lamba_remember_me");
+        sessionStorage.setItem("lamba_session_only", "true");
+      }
 
       const userId = data.user?.id;
 
@@ -411,6 +421,16 @@ export default function AdminAuth() {
                       </button>
                     </div>
                   </div>
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 accent-primary rounded"
+                    />
+                    <span className="text-sm text-muted-foreground">Keep me signed in</span>
+                    {!rememberMe && <span className="text-xs text-muted-foreground/60 ml-auto">(session only)</span>}
+                  </label>
                   <Button type="submit" disabled={loading} className="w-full gradient-hero text-white border-0 hover:opacity-90 h-11 font-semibold">
                     {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in...</> : "Sign In to Dashboard"}
                   </Button>

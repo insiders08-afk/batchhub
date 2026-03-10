@@ -105,6 +105,16 @@ export default function Index() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
+        // If user chose "session only" (no remember me), sessionStorage flag is set.
+        // When the PWA is closed and reopened, sessionStorage is cleared → sign out.
+        const noRemember = localStorage.getItem("lamba_remember_me") !== "true";
+        const sessionActive = sessionStorage.getItem("lamba_session_only") === "true";
+        if (noRemember && !sessionActive) {
+          // Session exists in localStorage but user didn't want persistence → sign out
+          await supabase.auth.signOut();
+          setAuthChecking(false);
+          return;
+        }
         const { data: profile } = await supabase
           .from("profiles")
           .select("role")
