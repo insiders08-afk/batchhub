@@ -268,6 +268,8 @@ export type Database = {
       fees: {
         Row: {
           amount: number
+          annual_amount: number | null
+          batch_id: string | null
           created_at: string
           description: string | null
           due_date: string | null
@@ -275,11 +277,14 @@ export type Database = {
           institute_code: string
           paid: boolean
           paid_date: string | null
+          payment_frequency: string | null
           student_id: string
           updated_at: string
         }
         Insert: {
           amount: number
+          annual_amount?: number | null
+          batch_id?: string | null
           created_at?: string
           description?: string | null
           due_date?: string | null
@@ -287,11 +292,14 @@ export type Database = {
           institute_code: string
           paid?: boolean
           paid_date?: string | null
+          payment_frequency?: string | null
           student_id: string
           updated_at?: string
         }
         Update: {
           amount?: number
+          annual_amount?: number | null
+          batch_id?: string | null
           created_at?: string
           description?: string | null
           due_date?: string | null
@@ -299,6 +307,7 @@ export type Database = {
           institute_code?: string
           paid?: boolean
           paid_date?: string | null
+          payment_frequency?: string | null
           student_id?: string
           updated_at?: string
         }
