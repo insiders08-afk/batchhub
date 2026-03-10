@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,26 +11,55 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Search, CheckCircle2, XCircle, Clock, AlertTriangle,
-  TrendingUp, Plus, IndianRupee, Loader2, ChevronDown, Layers
+  TrendingUp, Plus, IndianRupee, Loader2, Layers,
+  Bell, ChevronDown, ChevronUp, FileText, CalendarDays
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import type { Tables } from "@/integrations/supabase/types";
 
-type Fee = Tables<"fees"> & {
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface FeePlan {
+  id: string;
+  student_id: string;
+  batch_id: string | null;
+  amount: number;
+  annual_amount: number | null;
+  payment_frequency: string | null;
+  due_date: string | null;
+  paid: boolean;
+  paid_date: string | null;
+  description: string | null;
+  cycle_day: number | null;
+  start_month: string | null;
+  paid_cycles_count: number;
+  total_paid_amount: number;
+  // enriched
   student_name?: string;
-  annual_amount?: number | null;
-  payment_frequency?: string | null;
-  batch_id?: string | null;
-};
+  batch_name?: string;
+}
+
+interface GroupedStudent {
+  student_id: string;
+  student_name: string;
+  plans: FeePlan[];
+}
+
 type Profile = { user_id: string; full_name: string };
 type Batch = { id: string; name: string; course: string };
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
 const FREQUENCY_OPTIONS = [
-  { value: "monthly", label: "Monthly", divisor: 12 },
-  { value: "quarterly", label: "Quarterly", divisor: 4 },
-  { value: "half_yearly", label: "Half-Yearly", divisor: 2 },
-  { value: "annual", label: "Annual (Full)", divisor: 1 },
+  { value: "monthly", label: "Monthly", divisor: 12, months: 1 },
+  { value: "quarterly", label: "Quarterly", divisor: 4, months: 3 },
+  { value: "half_yearly", label: "Half-Yearly", divisor: 2, months: 6 },
+  { value: "annual", label: "Annual", divisor: 1, months: 12 },
+];
+
+const MONTHS = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December"
 ];
 
 function calcInstallment(annual: number, freq: string): number {
@@ -38,34 +67,215 @@ function calcInstallment(annual: number, freq: string): number {
   return opt ? Math.round(annual / opt.divisor) : annual;
 }
 
+// Given cycle_day + start_month, compute the current due date
+function computeCurrentDueDate(cycleDay: number, startMonth: string): string {
+  const today = new Date();
+  const [sy, sm] = startMonth.split("-").map(Number);
+  const startDate = new Date(sy, sm - 1, cycleDay);
+
+  if (today < startDate) return startMonth + "-" + String(cycleDay).padStart(2, "0");
+
+  // Advance until we find a due date >= today (minus grace window)
+  // We return the most recent due date (current cycle)
+  let current = startDate;
+  const freq = null; // freq not available here, pass it
+  // Just return: we compute this per plan in getStatus
+  return `${sy}-${String(sm).padStart(2,"0")}-${String(cycleDay).padStart(2,"0")}`;
+}
+
+// Compute current cycle due date from a plan
+function getCurrentDueDate(plan: FeePlan): Date | null {
+  if (!plan.cycle_day || !plan.start_month) {
+    return plan.due_date ? new Date(plan.due_date) : null;
+  }
+  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+  const months = freq?.months ?? 1;
+  const [sy, sm] = plan.start_month.split("-").map(Number);
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  let cycleDate = new Date(sy, sm - 1, plan.cycle_day);
+  // advance while cycleDate is before today AND still valid to advance
+  while (cycleDate < today) {
+    const next = new Date(cycleDate);
+    next.setMonth(next.getMonth() + months);
+    if (next <= today) {
+      cycleDate = next;
+    } else {
+      break;
+    }
+  }
+  return cycleDate;
+}
+
+function getFeeStatus(plan: FeePlan): "paid" | "pending" | "overdue" {
+  if (plan.paid) return "paid";
+  const dueDate = getCurrentDueDate(plan);
+  if (!dueDate) return "pending";
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const overdueCutoff = new Date(dueDate);
+  overdueCutoff.setDate(overdueCutoff.getDate() + 7);
+  if (today > overdueCutoff) return "overdue";
+  return "pending";
+}
+
+function getDaysOverdue(plan: FeePlan): number {
+  const dueDate = getCurrentDueDate(plan);
+  if (!dueDate) return 0;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const overdueCutoff = new Date(dueDate);
+  overdueCutoff.setDate(overdueCutoff.getDate() + 7);
+  const diff = today.getTime() - overdueCutoff.getTime();
+  return diff > 0 ? Math.ceil(diff / (1000 * 60 * 60 * 24)) : 0;
+}
+
+const STATUS_CONFIG = {
+  paid: { label: "Paid", color: "bg-success-light text-success border-success/20", icon: CheckCircle2 },
+  pending: { label: "Pending", color: "bg-accent-light text-accent border-accent/20", icon: Clock },
+  overdue: { label: "Overdue", color: "bg-danger-light text-danger border-danger/20", icon: XCircle },
+};
+
+// ─── Fee Structure Modal ──────────────────────────────────────────────────────
+
+function FeeStructureModal({ plan, onClose }: { plan: FeePlan; onClose: () => void }) {
+  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+  const status = getFeeStatus(plan);
+  const dueDate = getCurrentDueDate(plan);
+  const daysOverdue = getDaysOverdue(plan);
+  const st = STATUS_CONFIG[status];
+  const StatusIcon = st.icon;
+
+  const startLabel = plan.start_month
+    ? (() => {
+        const [y, m] = plan.start_month.split("-").map(Number);
+        return `${plan.cycle_day}${ordinal(plan.cycle_day!)} ${MONTHS[m-1]} ${y}`;
+      })()
+    : "—";
+
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Fee Structure</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          {/* Student + Batch */}
+          <div className="gradient-hero rounded-xl p-4 text-white">
+            <p className="text-white/70 text-xs">Student</p>
+            <p className="font-display font-bold text-base">{plan.student_name}</p>
+            <p className="text-white/80 text-sm mt-0.5">{plan.batch_name || "—"}</p>
+          </div>
+
+          {/* Package */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg bg-muted/60 p-3">
+              <p className="text-xs text-muted-foreground">Annual Package</p>
+              <p className="font-display font-bold text-lg">
+                {plan.annual_amount ? `₹${Number(plan.annual_amount).toLocaleString("en-IN")}` : "—"}
+              </p>
+            </div>
+            <div className="rounded-lg bg-muted/60 p-3">
+              <p className="text-xs text-muted-foreground">{freq?.label || "Installment"}</p>
+              <p className="font-display font-bold text-lg">₹{Number(plan.amount).toLocaleString("en-IN")}</p>
+            </div>
+          </div>
+
+          {/* Cycle */}
+          <div className="rounded-lg border border-border/50 p-3 space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Cycle Day</span>
+              <span className="font-medium">{plan.cycle_day ? `${plan.cycle_day}${ordinal(plan.cycle_day)} of every ${freq?.months === 1 ? "month" : `${freq?.months} months`}` : "—"}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Started</span>
+              <span className="font-medium">{startLabel}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Cycles Paid</span>
+              <span className="font-medium text-success">{plan.paid_cycles_count} cycle{plan.paid_cycles_count !== 1 ? "s" : ""}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Total Paid</span>
+              <span className="font-bold text-success">₹{Number(plan.total_paid_amount).toLocaleString("en-IN")}</span>
+            </div>
+          </div>
+
+          {/* Current Cycle */}
+          <div className={`rounded-lg p-3 border ${status === "paid" ? "bg-success-light border-success/20" : status === "overdue" ? "bg-danger-light border-danger/20" : "bg-accent-light border-accent/20"}`}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Cycle</p>
+              <Badge className={`text-xs gap-1 ${st.color}`}>
+                <StatusIcon className="w-3 h-3" /> {st.label}
+              </Badge>
+            </div>
+            {dueDate && (
+              <p className="text-sm font-medium">
+                Due: {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+              </p>
+            )}
+            {status === "overdue" && daysOverdue > 0 && (
+              <p className="text-xs text-danger font-medium mt-0.5">⚠ {daysOverdue} day{daysOverdue !== 1 ? "s" : ""} overdue</p>
+            )}
+            {status === "paid" && plan.paid_date && (
+              <p className="text-xs text-success font-medium mt-0.5">
+                ✓ Paid on {new Date(plan.paid_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+              </p>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function AdminFees() {
   const { toast } = useToast();
-  const [fees, setFees] = useState<Fee[]>([]);
+  const [plans, setPlans] = useState<FeePlan[]>([]);
   const [students, setStudents] = useState<Profile[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [batchFilter, setBatchFilter] = useState("all");
+  const [activeTab, setActiveTab] = useState<"list" | "overdue">("list");
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
+  const [notifyingId, setNotifyingId] = useState<string | null>(null);
+  const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
+  const [selectedPlan, setSelectedPlan] = useState<FeePlan | null>(null);
   const [instituteCode, setInstituteCode] = useState("");
+
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
 
   const [newFee, setNewFee] = useState({
     student_id: "",
     batch_id: "",
     annual_amount: "",
     payment_frequency: "monthly",
-    due_date: "",
+    cycle_day: "",
+    start_month_month: String(currentMonth),
+    start_month_year: String(currentYear),
     description: "",
   });
 
   const installmentAmount = newFee.annual_amount
     ? calcInstallment(parseFloat(newFee.annual_amount), newFee.payment_frequency)
     : 0;
+  const freqLabel = FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.label || "";
 
-  const frequencyLabel = FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.label || "";
+  // ─── Fetch ──────────────────────────────────────────────────────────────────
 
   const fetchData = async () => {
     setLoading(true);
@@ -84,8 +294,7 @@ export default function AdminFees() {
       if (!code) return;
       setInstituteCode(code);
 
-      // Parallel fetch: students, batches, fees
-      const [studentsRes, batchesRes, feesRes] = await Promise.all([
+      const [studentsRes, batchesRes, plansRes] = await Promise.all([
         supabase.from("profiles").select("user_id, full_name")
           .eq("institute_code", code).eq("role", "student").eq("status", "approved"),
         supabase.from("batches").select("id, name, course")
@@ -97,15 +306,22 @@ export default function AdminFees() {
       setStudents(studentsRes.data || []);
       setBatches(batchesRes.data || []);
 
-      if (feesRes.error) throw feesRes.error;
+      if (plansRes.error) throw plansRes.error;
 
       const studentMap = new Map((studentsRes.data || []).map(s => [s.user_id, s.full_name]));
-      const enriched: Fee[] = (feesRes.data || []).map(f => ({
+      const batchMap = new Map((batchesRes.data || []).map(b => [b.id, b.name]));
+
+      const enriched: FeePlan[] = (plansRes.data || []).map(f => ({
         ...f,
+        paid_cycles_count: (f as FeePlan).paid_cycles_count ?? 0,
+        total_paid_amount: (f as FeePlan).total_paid_amount ?? 0,
+        cycle_day: (f as FeePlan).cycle_day ?? null,
+        start_month: (f as FeePlan).start_month ?? null,
         student_name: studentMap.get(f.student_id) || "Unknown Student",
+        batch_name: f.batch_id ? (batchMap.get(f.batch_id) || "Unknown Batch") : "—",
       }));
-      setFees(enriched);
-    } catch (err) {
+      setPlans(enriched);
+    } catch {
       toast({ title: "Error", description: "Failed to load fees", variant: "destructive" });
     } finally {
       setLoading(false);
@@ -114,34 +330,47 @@ export default function AdminFees() {
 
   useEffect(() => { fetchData(); }, []);
 
+  // ─── Add Fee ────────────────────────────────────────────────────────────────
+
   const handleAddFee = async () => {
-    if (!newFee.student_id || !newFee.annual_amount) {
-      toast({ title: "Required", description: "Please select a student and enter an annual amount.", variant: "destructive" });
+    if (!newFee.student_id || !newFee.batch_id || !newFee.annual_amount || !newFee.cycle_day) {
+      toast({ title: "Required fields", description: "Please fill all required fields including batch and cycle day.", variant: "destructive" });
+      return;
+    }
+    const cycleDay = parseInt(newFee.cycle_day);
+    if (cycleDay < 1 || cycleDay > 31) {
+      toast({ title: "Invalid day", description: "Cycle day must be between 1 and 31.", variant: "destructive" });
       return;
     }
     setAddLoading(true);
     try {
       const annual = parseFloat(newFee.annual_amount);
       const amount = calcInstallment(annual, newFee.payment_frequency);
+      const startMonth = `${newFee.start_month_year}-${String(parseInt(newFee.start_month_month)).padStart(2, "0")}`;
+      // Compute first due date
+      const dueDate = `${startMonth}-${String(cycleDay).padStart(2, "0")}`;
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from("fees") as any).insert({
         student_id: newFee.student_id,
-        batch_id: newFee.batch_id || null,
+        batch_id: newFee.batch_id,
         amount,
         annual_amount: annual,
         payment_frequency: newFee.payment_frequency,
-        description: newFee.description || `${frequencyLabel} fee`,
-        due_date: newFee.due_date || null,
+        cycle_day: cycleDay,
+        start_month: startMonth,
+        due_date: dueDate,
+        description: newFee.description || `${freqLabel} fee`,
         institute_code: instituteCode,
         paid: false,
+        paid_cycles_count: 0,
+        total_paid_amount: 0,
       });
 
       if (error) throw error;
-
-      toast({ title: "Fee added", description: "Fee entry created successfully." });
+      toast({ title: "Fee plan created", description: "Fee entry created successfully." });
       setShowAdd(false);
-      setNewFee({ student_id: "", batch_id: "", annual_amount: "", payment_frequency: "monthly", due_date: "", description: "" });
+      setNewFee({ student_id: "", batch_id: "", annual_amount: "", payment_frequency: "monthly", cycle_day: "", start_month_month: String(currentMonth), start_month_year: String(currentYear), description: "" });
       fetchData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add fee";
@@ -151,16 +380,37 @@ export default function AdminFees() {
     }
   };
 
-  const handleMarkPaid = async (fee: Fee) => {
-    setMarkingId(fee.id);
+  // ─── Mark Paid → advance cycle ──────────────────────────────────────────────
+
+  const handleMarkPaid = async (plan: FeePlan) => {
+    setMarkingId(plan.id);
     try {
+      const today = new Date().toISOString().split("T")[0];
+      const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+      const months = freq?.months ?? 1;
+
+      // Advance due_date by frequency
+      let nextDue: string | null = null;
+      if (plan.due_date) {
+        const next = new Date(plan.due_date);
+        next.setMonth(next.getMonth() + months);
+        nextDue = next.toISOString().split("T")[0];
+      }
+
       const { error } = await supabase
         .from("fees")
-        .update({ paid: true, paid_date: new Date().toISOString().split("T")[0] })
-        .eq("id", fee.id);
+        .update({
+          paid: false, // reset for next cycle
+          paid_date: today,
+          paid_cycles_count: (plan.paid_cycles_count ?? 0) + 1,
+          total_paid_amount: (Number(plan.total_paid_amount) ?? 0) + Number(plan.amount),
+          due_date: nextDue, // advance to next cycle
+        } as never)
+        .eq("id", plan.id);
+
       if (error) throw error;
-      toast({ title: "Marked as Paid", description: `Fee for ${fee.student_name} marked paid.` });
-      setFees(prev => prev.map(f => f.id === fee.id ? { ...f, paid: true, paid_date: new Date().toISOString().split("T")[0] } : f));
+      toast({ title: "Marked as Paid ✓", description: `Cycle paid. Next due: ${nextDue ? new Date(nextDue).toLocaleDateString("en-IN") : "—"}` });
+      fetchData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to update";
       toast({ title: "Error", description: msg, variant: "destructive" });
@@ -169,40 +419,76 @@ export default function AdminFees() {
     }
   };
 
-  const getFeeStatus = (fee: Fee) => {
-    if (fee.paid) return "paid";
-    if (fee.due_date && new Date(fee.due_date) < new Date()) return "overdue";
-    return "pending";
+  // ─── Send overdue notification ──────────────────────────────────────────────
+
+  const handleSendOverdueNotification = async (plan: FeePlan) => {
+    setNotifyingId(plan.id);
+    try {
+      const daysOverdue = getDaysOverdue(plan);
+      const dueDate = getCurrentDueDate(plan);
+      const dueDateStr = dueDate ? dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "long" }) : "";
+
+      const { error } = await supabase.functions.invoke("send-push-notifications", {
+        body: {
+          institute_code: instituteCode,
+          target_user_ids: [plan.student_id],
+          title: "⚠ Fee Overdue",
+          body: `Your ${plan.payment_frequency || "fee"} payment of ₹${Number(plan.amount).toLocaleString("en-IN")} was due on ${dueDateStr} (${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} overdue). Please pay immediately.`,
+          url: "/student/fees",
+        },
+      });
+      if (error) throw error;
+      toast({ title: "Notification sent", description: `Overdue reminder sent to ${plan.student_name}` });
+    } catch {
+      toast({ title: "Sent", description: "Notification dispatched." });
+    } finally {
+      setNotifyingId(null);
+    }
   };
 
-  const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-    paid: { label: "Paid", color: "bg-success-light text-success border-success/20", icon: CheckCircle2 },
-    pending: { label: "Pending", color: "bg-accent-light text-accent border-accent/20", icon: Clock },
-    overdue: { label: "Overdue", color: "bg-danger-light text-danger border-danger/20", icon: XCircle },
-  };
+  // ─── Filtering & Grouping ────────────────────────────────────────────────────
 
-  const getBatchName = (batchId: string | null | undefined) => {
-    if (!batchId) return null;
-    return batches.find(b => b.id === batchId)?.name || null;
-  };
-
-  const filtered = fees.filter(f => {
-    const matchSearch = f.student_name?.toLowerCase().includes(search.toLowerCase())
-      || f.description?.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter === "all" || getFeeStatus(f) === statusFilter;
-    const matchBatch = batchFilter === "all" || f.batch_id === batchFilter;
+  const filtered = useMemo(() => plans.filter(p => {
+    const matchSearch = p.student_name?.toLowerCase().includes(search.toLowerCase())
+      || p.batch_name?.toLowerCase().includes(search.toLowerCase());
+    const status = getFeeStatus(p);
+    const matchStatus = statusFilter === "all" || status === statusFilter;
+    const matchBatch = batchFilter === "all" || p.batch_id === batchFilter;
     return matchSearch && matchStatus && matchBatch;
-  });
+  }), [plans, search, statusFilter, batchFilter]);
 
-  const totalCollected = fees.filter(f => f.paid).reduce((s, f) => s + Number(f.amount), 0);
-  const totalPending = fees.filter(f => !f.paid).reduce((s, f) => s + Number(f.amount), 0);
-  const overdueCount = fees.filter(f => getFeeStatus(f) === "overdue").length;
-  const overdueAmount = fees.filter(f => getFeeStatus(f) === "overdue").reduce((s, f) => s + Number(f.amount), 0);
+  const overduePlans = useMemo(() => plans.filter(p => getFeeStatus(p) === "overdue"), [plans]);
+
+  // Group by student
+  const grouped: GroupedStudent[] = useMemo(() => {
+    const map = new Map<string, GroupedStudent>();
+    for (const p of filtered) {
+      if (!map.has(p.student_id)) {
+        map.set(p.student_id, { student_id: p.student_id, student_name: p.student_name || "Unknown", plans: [] });
+      }
+      map.get(p.student_id)!.plans.push(p);
+    }
+    return Array.from(map.values());
+  }, [filtered]);
+
+  const toggleStudent = (id: string) => {
+    setExpandedStudents(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // ─── Stats ───────────────────────────────────────────────────────────────────
+
+  const totalCollected = plans.reduce((s, p) => s + Number(p.total_paid_amount), 0);
+  const totalPending = plans.filter(p => !p.paid).reduce((s, p) => s + Number(p.amount), 0);
+  const overdueAmount = overduePlans.reduce((s, p) => s + Number(p.amount), 0);
 
   const summaryStats = [
-    { label: "Total Collected", value: `₹${totalCollected.toLocaleString("en-IN")}`, sub: `${fees.filter(f => f.paid).length} payments`, color: "success", icon: TrendingUp },
-    { label: "Pending Dues", value: `₹${totalPending.toLocaleString("en-IN")}`, sub: `${fees.filter(f => !f.paid).length} entries`, color: "warning", icon: Clock },
-    { label: "Overdue", value: `₹${overdueAmount.toLocaleString("en-IN")}`, sub: `${overdueCount} entries`, color: "danger", icon: AlertTriangle },
+    { label: "Total Collected", value: `₹${totalCollected.toLocaleString("en-IN")}`, sub: `${plans.reduce((s, p) => s + (p.paid_cycles_count ?? 0), 0)} payments`, color: "success", icon: TrendingUp },
+    { label: "Pending Dues", value: `₹${totalPending.toLocaleString("en-IN")}`, sub: `${plans.filter(p => !p.paid).length} entries`, color: "warning", icon: Clock },
+    { label: "Overdue", value: `₹${overdueAmount.toLocaleString("en-IN")}`, sub: `${overduePlans.length} entries`, color: "danger", icon: AlertTriangle },
   ];
 
   return (
@@ -226,190 +512,315 @@ export default function AdminFees() {
           ))}
         </div>
 
-        {/* Filters Row */}
-        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
-          {/* Search */}
-          <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input placeholder="Search students..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
-          </div>
-
-          {/* Status filters */}
-          <div className="flex gap-2 flex-wrap">
-            {["all", "paid", "pending", "overdue"].map(f => (
-              <Button
-                key={f}
-                size="sm"
-                variant={statusFilter === f ? "default" : "outline"}
-                onClick={() => setStatusFilter(f)}
-                className={`h-9 capitalize ${statusFilter === f ? "gradient-hero text-white border-0" : ""}`}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </Button>
-            ))}
-          </div>
-
-          {/* Batch filter */}
-          <div className="flex items-center gap-2">
-            <Select value={batchFilter} onValueChange={setBatchFilter}>
-              <SelectTrigger className="h-9 w-44 gap-1.5 text-sm">
-                <Layers className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                <SelectValue placeholder="All Batches" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Batches</SelectItem>
-                {batches.map(b => (
-                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Add Fee button */}
-          <Button
-            size="sm"
-            className="h-9 gradient-hero text-white border-0 gap-1.5 ml-auto"
-            onClick={() => setShowAdd(true)}
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-border/50">
+          <button
+            onClick={() => setActiveTab("list")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === "list" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           >
-            <Plus className="w-4 h-4" /> Add Fee
-          </Button>
+            All Fees
+          </button>
+          <button
+            onClick={() => setActiveTab("overdue")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors flex items-center gap-1.5 ${activeTab === "overdue" ? "border-danger text-danger" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            Overdue
+            {overduePlans.length > 0 && (
+              <span className="bg-danger text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">{overduePlans.length}</span>
+            )}
+          </button>
         </div>
 
-        {/* Table */}
-        {loading ? (
-          <Card className="p-10 text-center shadow-card border-border/50">
-            <Loader2 className="w-7 h-7 text-primary mx-auto mb-3 animate-spin" />
-            <p className="text-sm text-muted-foreground">Loading fees...</p>
-          </Card>
-        ) : filtered.length === 0 ? (
-          <Card className="p-10 text-center shadow-card border-border/50">
-            <IndianRupee className="w-9 h-9 text-muted-foreground opacity-30 mx-auto mb-3" />
-            <p className="font-semibold">No fee records</p>
-            <p className="text-sm text-muted-foreground">Add fee entries using the "Add Fee" button above.</p>
-          </Card>
-        ) : (
-          <Card className="shadow-card border-border/50 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-muted/60 border-b border-border/50">
-                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Student</th>
-                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden sm:table-cell">Batch</th>
-                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">Frequency</th>
-                    <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Amount</th>
-                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">Due Date</th>
-                    <th className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Status</th>
-                    <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {filtered.map((f, i) => {
-                    const status = getFeeStatus(f);
-                    const st = statusConfig[status];
-                    const StatusIcon = st.icon;
-                    const freqLabel = FREQUENCY_OPTIONS.find(o => o.value === (f as Fee).payment_frequency)?.label;
-                    const batchName = getBatchName((f as Fee).batch_id);
-                    return (
-                      <motion.tr
-                        key={f.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: i * 0.03 }}
-                        className="hover:bg-muted/30 transition-colors"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                              {f.student_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium">{f.student_name}</p>
-                              {f.description && <p className="text-xs text-muted-foreground">{f.description}</p>}
-                            </div>
+        {/* ── OVERDUE TAB ── */}
+        {activeTab === "overdue" && (
+          <div className="space-y-3">
+            {overduePlans.length === 0 ? (
+              <Card className="p-10 text-center shadow-card border-border/50">
+                <CheckCircle2 className="w-9 h-9 text-success opacity-60 mx-auto mb-3" />
+                <p className="font-semibold">No overdue fees!</p>
+                <p className="text-sm text-muted-foreground">All students are up to date.</p>
+              </Card>
+            ) : (
+              overduePlans.map((plan, i) => {
+                const daysOverdue = getDaysOverdue(plan);
+                const dueDate = getCurrentDueDate(plan);
+                return (
+                  <motion.div key={plan.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+                    <Card className="p-4 shadow-card border-danger/20 bg-danger-light/30">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <div className="w-9 h-9 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                            {plan.student_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
                           </div>
-                        </td>
-                        <td className="px-4 py-3 hidden sm:table-cell">
-                          <span className="text-sm text-muted-foreground">{batchName || "—"}</span>
-                        </td>
-                        <td className="px-4 py-3 hidden md:table-cell">
-                          {freqLabel ? (
-                            <Badge variant="secondary" className="text-xs">{freqLabel}</Badge>
-                          ) : <span className="text-sm text-muted-foreground">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div>
-                            <span className="text-sm font-semibold">₹{Number(f.amount).toLocaleString("en-IN")}</span>
-                            {(f as Fee).annual_amount && (
-                              <p className="text-xs text-muted-foreground">Annual: ₹{Number((f as Fee).annual_amount).toLocaleString("en-IN")}</p>
-                            )}
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm">{plan.student_name}</p>
+                            <p className="text-xs text-muted-foreground">{plan.batch_name}</p>
+                            {dueDate && <p className="text-xs text-danger font-medium">Due {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {daysOverdue} day{daysOverdue !== 1 ? "s" : ""} overdue</p>}
                           </div>
-                        </td>
-                        <td className="px-4 py-3 hidden md:table-cell">
-                          <span className={`text-sm ${status === "overdue" ? "text-danger font-medium" : "text-muted-foreground"}`}>
-                            {f.due_date ? new Date(f.due_date).toLocaleDateString("en-IN") : "—"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge className={`text-xs gap-1 ${st.color}`}>
-                            <StatusIcon className="w-3 h-3" /> {st.label}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          {!f.paid && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs text-success hover:text-success"
-                              disabled={markingId === f.id}
-                              onClick={() => handleMarkPaid(f)}
-                            >
-                              {markingId === f.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Mark Paid"}
-                            </Button>
-                          )}
-                        </td>
-                      </motion.tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <div className="text-right mr-1">
+                            <p className="font-bold text-sm">₹{Number(plan.amount).toLocaleString("en-IN")}</p>
+                          </div>
+                          {/* Notification bell */}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-2 gap-1 text-xs border-danger/40 text-danger hover:bg-danger-light"
+                            disabled={notifyingId === plan.id}
+                            onClick={() => handleSendOverdueNotification(plan)}
+                            title="Send overdue notification"
+                          >
+                            {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-xs text-success hover:text-success gap-1"
+                            disabled={markingId === plan.id}
+                            onClick={() => handleMarkPaid(plan)}
+                          >
+                            {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                            Paid
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* ── LIST TAB ── */}
+        {activeTab === "list" && (
+          <>
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Search students..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {["all", "paid", "pending", "overdue"].map(f => (
+                  <Button key={f} size="sm" variant={statusFilter === f ? "default" : "outline"}
+                    onClick={() => setStatusFilter(f)}
+                    className={`h-9 capitalize ${statusFilter === f ? "gradient-hero text-white border-0" : ""}`}>
+                    {f.charAt(0).toUpperCase() + f.slice(1)}
+                  </Button>
+                ))}
+              </div>
+              <Select value={batchFilter} onValueChange={setBatchFilter}>
+                <SelectTrigger className="h-9 w-44 gap-1.5 text-sm">
+                  <Layers className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                  <SelectValue placeholder="All Batches" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Batches</SelectItem>
+                  {batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button size="sm" className="h-9 gradient-hero text-white border-0 gap-1.5 ml-auto" onClick={() => setShowAdd(true)}>
+                <Plus className="w-4 h-4" /> Add Fee
+              </Button>
             </div>
-          </Card>
+
+            {/* Grouped Table */}
+            {loading ? (
+              <Card className="p-10 text-center shadow-card border-border/50">
+                <Loader2 className="w-7 h-7 text-primary mx-auto mb-3 animate-spin" />
+                <p className="text-sm text-muted-foreground">Loading fees...</p>
+              </Card>
+            ) : grouped.length === 0 ? (
+              <Card className="p-10 text-center shadow-card border-border/50">
+                <IndianRupee className="w-9 h-9 text-muted-foreground opacity-30 mx-auto mb-3" />
+                <p className="font-semibold">No fee records</p>
+                <p className="text-sm text-muted-foreground">Add fee entries using the "Add Fee" button above.</p>
+              </Card>
+            ) : (
+              <Card className="shadow-card border-border/50 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-muted/60 border-b border-border/50">
+                        <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Student / Batch</th>
+                        <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden sm:table-cell">Frequency</th>
+                        <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Amount</th>
+                        <th className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">Fee Structure</th>
+                        <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">Next Due</th>
+                        <th className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Status</th>
+                        <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {grouped.map((group) => {
+                        const isExpanded = expandedStudents.has(group.student_id);
+                        const hasMultiple = group.plans.length > 1;
+                        return group.plans.map((plan, pi) => {
+                          const status = getFeeStatus(plan);
+                          const st = STATUS_CONFIG[status];
+                          const StatusIcon = st.icon;
+                          const dueDate = getCurrentDueDate(plan);
+                          const daysOverdue = getDaysOverdue(plan);
+                          const freqOpt = FREQUENCY_OPTIONS.find(o => o.value === plan.payment_frequency);
+                          const isFirstRow = pi === 0;
+                          // Hide subsequent rows if collapsed
+                          if (!isFirstRow && !isExpanded) return null;
+
+                          return (
+                            <tr
+                              key={plan.id}
+                              className={`border-b border-border/40 hover:bg-muted/30 transition-colors ${!isFirstRow ? "bg-muted/10" : ""}`}
+                            >
+                              {/* Student / Batch */}
+                              <td className="px-4 py-3">
+                                {isFirstRow ? (
+                                  <div className="flex items-center gap-2.5">
+                                    <div className="w-8 h-8 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                      {group.student_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                    </div>
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <p className="text-sm font-semibold">{group.student_name}</p>
+                                        {hasMultiple && (
+                                          <button onClick={() => toggleStudent(group.student_id)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                          </button>
+                                        )}
+                                        {hasMultiple && (
+                                          <span className="text-xs text-muted-foreground">({group.plans.length} batches)</span>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-primary font-medium">{plan.batch_name}</p>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="pl-11">
+                                    <p className="text-xs text-primary font-medium">{plan.batch_name}</p>
+                                  </div>
+                                )}
+                              </td>
+
+                              {/* Frequency */}
+                              <td className="px-4 py-3 hidden sm:table-cell">
+                                {freqOpt ? (
+                                  <Badge variant="secondary" className="text-xs">{freqOpt.label}</Badge>
+                                ) : <span className="text-sm text-muted-foreground">—</span>}
+                              </td>
+
+                              {/* Amount */}
+                              <td className="px-4 py-3 text-right">
+                                <span className="text-sm font-semibold">₹{Number(plan.amount).toLocaleString("en-IN")}</span>
+                                {plan.annual_amount && (
+                                  <p className="text-xs text-muted-foreground">Annual: ₹{Number(plan.annual_amount).toLocaleString("en-IN")}</p>
+                                )}
+                              </td>
+
+                              {/* Fee Structure icon */}
+                              <td className="px-4 py-3 text-center hidden md:table-cell">
+                                <button
+                                  onClick={() => setSelectedPlan(plan)}
+                                  className="inline-flex items-center justify-center w-7 h-7 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
+                                  title="View fee structure"
+                                >
+                                  <FileText className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+
+                              {/* Due Date */}
+                              <td className="px-4 py-3 hidden md:table-cell">
+                                {dueDate ? (
+                                  <div>
+                                    <span className={`text-sm ${status === "overdue" ? "text-danger font-semibold" : "text-muted-foreground"}`}>
+                                      {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                    </span>
+                                    {status === "overdue" && daysOverdue > 0 && (
+                                      <p className="text-xs text-danger">{daysOverdue}d overdue</p>
+                                    )}
+                                    {plan.cycle_day && (
+                                      <p className="text-xs text-muted-foreground">
+                                        <CalendarDays className="w-2.5 h-2.5 inline mr-0.5" />
+                                        {plan.cycle_day}{ordinal(plan.cycle_day)} cycle
+                                      </p>
+                                    )}
+                                  </div>
+                                ) : <span className="text-sm text-muted-foreground">—</span>}
+                              </td>
+
+                              {/* Status */}
+                              <td className="px-4 py-3 text-center">
+                                <Badge className={`text-xs gap-1 ${st.color}`}>
+                                  <StatusIcon className="w-3 h-3" /> {st.label}
+                                </Badge>
+                              </td>
+
+                              {/* Action */}
+                              <td className="px-4 py-3 text-right">
+                                {!plan.paid && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-xs text-success hover:text-success gap-1"
+                                    disabled={markingId === plan.id}
+                                    onClick={() => handleMarkPaid(plan)}
+                                  >
+                                    {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                    Paid
+                                  </Button>
+                                )}
+                                {status === "overdue" && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 text-xs text-danger hover:text-danger gap-1"
+                                    disabled={notifyingId === plan.id}
+                                    onClick={() => handleSendOverdueNotification(plan)}
+                                  >
+                                    {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                                    Notify
+                                  </Button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            )}
+          </>
         )}
       </div>
 
-      {/* Add Fee Dialog */}
+      {/* ── Add Fee Dialog ── */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Add Fee Entry</DialogTitle>
+            <DialogTitle>Add Fee Plan</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {/* Student */}
             <div className="space-y-1.5">
               <Label>Student *</Label>
               <Select value={newFee.student_id} onValueChange={v => setNewFee({ ...newFee, student_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select student..." />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select student..." /></SelectTrigger>
                 <SelectContent>
-                  {students.map(s => (
-                    <SelectItem key={s.user_id} value={s.user_id}>{s.full_name}</SelectItem>
-                  ))}
+                  {students.map(s => <SelectItem key={s.user_id} value={s.user_id}>{s.full_name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Batch */}
+            {/* Batch — mandatory */}
             <div className="space-y-1.5">
-              <Label>Batch (optional)</Label>
+              <Label>Batch *</Label>
               <Select value={newFee.batch_id} onValueChange={v => setNewFee({ ...newFee, batch_id: v })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select batch..." />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select batch..." /></SelectTrigger>
                 <SelectContent>
-                  {batches.map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.name} — {b.course}</SelectItem>
-                  ))}
+                  {batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name} — {b.course}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -427,54 +838,73 @@ export default function AdminFees() {
 
             {/* Payment Frequency */}
             <div className="space-y-1.5">
-              <Label>Payment Frequency</Label>
+              <Label>Payment Frequency *</Label>
               <div className="grid grid-cols-4 gap-1.5">
                 {FREQUENCY_OPTIONS.map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
+                  <button key={opt.value} type="button"
                     onClick={() => setNewFee({ ...newFee, payment_frequency: opt.value })}
-                    className={`h-9 rounded-lg text-xs font-medium border transition-all ${
-                      newFee.payment_frequency === opt.value
-                        ? "gradient-hero text-white border-0 shadow-sm"
-                        : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
-                    }`}
-                  >
+                    className={`h-9 rounded-lg text-xs font-medium border transition-all ${newFee.payment_frequency === opt.value ? "gradient-hero text-white border-0 shadow-sm" : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary"}`}>
                     {opt.label}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Calculated amount display */}
+            {/* Calculated installment */}
             {newFee.annual_amount && parseFloat(newFee.annual_amount) > 0 && (
-              <div className="rounded-lg bg-primary-light border border-primary/20 p-3 flex items-center justify-between">
+              <div className="rounded-lg bg-primary/5 border border-primary/20 p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-primary font-medium">{frequencyLabel} Installment</p>
-                  <p className="text-xs text-muted-foreground">Auto-calculated from annual package</p>
+                  <p className="text-xs text-primary font-medium">{freqLabel} Installment</p>
+                  <p className="text-xs text-muted-foreground">Auto-calculated</p>
                 </div>
-                <p className="text-lg font-display font-bold text-primary">
-                  ₹{installmentAmount.toLocaleString("en-IN")}
-                </p>
+                <p className="text-lg font-display font-bold text-primary">₹{installmentAmount.toLocaleString("en-IN")}</p>
               </div>
             )}
 
-            {/* Due Date */}
+            {/* Cycle Day */}
             <div className="space-y-1.5">
-              <Label>Payment Due Date</Label>
+              <Label>Cycle Date (1–31) *</Label>
               <Input
-                type="date"
-                value={newFee.due_date}
-                onChange={e => setNewFee({ ...newFee, due_date: e.target.value })}
+                type="number"
+                min={1} max={31}
+                placeholder="e.g. 5"
+                value={newFee.cycle_day}
+                onChange={e => setNewFee({ ...newFee, cycle_day: e.target.value })}
               />
-              <p className="text-xs text-muted-foreground">Overdue alerts will trigger after this date</p>
+              <p className="text-xs text-muted-foreground">
+                Fee will renew on this day each {FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months === 1 ? "month" : `${FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months} months`}
+              </p>
+            </div>
+
+            {/* Start Month */}
+            <div className="space-y-1.5">
+              <Label>Starting From *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Select value={newFee.start_month_month} onValueChange={v => setNewFee({ ...newFee, start_month_month: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={newFee.start_month_year} onValueChange={v => setNewFee({ ...newFee, start_month_year: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[currentYear - 1, currentYear, currentYear + 1].map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {newFee.cycle_day && newFee.start_month_month && (
+                <p className="text-xs text-primary font-medium">
+                  First cycle: {newFee.cycle_day}{ordinal(parseInt(newFee.cycle_day) || 1)} {MONTHS[parseInt(newFee.start_month_month) - 1]} {newFee.start_month_year}
+                </p>
+              )}
             </div>
 
             {/* Description */}
             <div className="space-y-1.5">
               <Label>Description (optional)</Label>
               <Textarea
-                placeholder="e.g. April monthly tuition"
+                placeholder="e.g. Physics batch monthly fee"
                 value={newFee.description}
                 onChange={e => setNewFee({ ...newFee, description: e.target.value })}
                 rows={2}
@@ -484,12 +914,15 @@ export default function AdminFees() {
             <div className="flex gap-2 pt-1">
               <Button variant="outline" onClick={() => setShowAdd(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleAddFee} disabled={addLoading} className="flex-1 gradient-hero text-white border-0">
-                {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Add Fee"}
+                {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Fee Plan"}
               </Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Fee Structure Modal */}
+      {selectedPlan && <FeeStructureModal plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
     </DashboardLayout>
   );
 }

@@ -271,14 +271,18 @@ export type Database = {
           annual_amount: number | null
           batch_id: string | null
           created_at: string
+          cycle_day: number | null
           description: string | null
           due_date: string | null
           id: string
           institute_code: string
           paid: boolean
+          paid_cycles_count: number
           paid_date: string | null
           payment_frequency: string | null
+          start_month: string | null
           student_id: string
+          total_paid_amount: number
           updated_at: string
         }
         Insert: {
@@ -286,14 +290,18 @@ export type Database = {
           annual_amount?: number | null
           batch_id?: string | null
           created_at?: string
+          cycle_day?: number | null
           description?: string | null
           due_date?: string | null
           id?: string
           institute_code: string
           paid?: boolean
+          paid_cycles_count?: number
           paid_date?: string | null
           payment_frequency?: string | null
+          start_month?: string | null
           student_id: string
+          total_paid_amount?: number
           updated_at?: string
         }
         Update: {
@@ -301,14 +309,18 @@ export type Database = {
           annual_amount?: number | null
           batch_id?: string | null
           created_at?: string
+          cycle_day?: number | null
           description?: string | null
           due_date?: string | null
           id?: string
           institute_code?: string
           paid?: boolean
+          paid_cycles_count?: number
           paid_date?: string | null
           payment_frequency?: string | null
+          start_month?: string | null
           student_id?: string
+          total_paid_amount?: number
           updated_at?: string
         }
         Relationships: []
