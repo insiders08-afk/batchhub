@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,11 +10,21 @@ import {
 "lucide-react";
 import heroDashboard from "@/assets/hero-dashboard.png";
 import InstallButton from "@/components/InstallButton";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => void;
   userChoice: Promise<{outcome: "accepted" | "dismissed";}>;
 }
+
+const roleToPath: Record<string, string> = {
+  admin: "/admin",
+  teacher: "/teacher",
+  student: "/student",
+  parent: "/parent",
+  super_admin: "/superadmin",
+  app_owner: "/owner",
+};
 
 const features = [
 { icon: Users, title: "Batch Management", desc: "Organise students into batches by course. JEE, NEET, Foundation — all in one place.", color: "primary" },
