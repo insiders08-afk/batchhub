@@ -81,7 +81,7 @@ export default function AdminAuth() {
         owner_user_id: userId,
         owner_name: regForm.ownerName,
         institute_name: regForm.instituteName,
-        institute_code: regForm.instituteId.toUpperCase(),
+        institute_code: regForm.instituteId.toUpperCase().trim(),
         govt_registration_no: regForm.govtRegistrationNo,
         city: regForm.city,
         email: regForm.email,
@@ -97,7 +97,7 @@ export default function AdminAuth() {
         email: regForm.email,
         phone: regForm.phone,
         role: "admin",
-        institute_code: regForm.instituteId.toUpperCase(),
+        institute_code: regForm.instituteId.toUpperCase().trim(),
         status: "pending",
       });
       if (profError) throw profError;

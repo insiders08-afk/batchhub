@@ -58,7 +58,7 @@ export default function ParentAuth() {
       const userId = authData.user?.id;
       if (!userId) throw new Error("No user ID returned");
 
-      const instituteCode = form.instituteId.toUpperCase();
+      const instituteCode = form.instituteId.toUpperCase().trim();
 
       const { error: profError } = await supabase.from("profiles").insert({
         user_id: userId,
