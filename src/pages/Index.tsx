@@ -217,7 +217,7 @@ export default function Index() {
             </h1>
 
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed font-light md:text-2xl font-sans">
-              Lamba replaces paper registers, scattered WhatsApp groups, and manual fee tracking with one clean platform built for how Indian coaching institutes actually work.
+              BatchHub replaces paper registers, scattered WhatsApp groups, and manual fee tracking with one clean platform built for how Indian coaching institutes actually work.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
