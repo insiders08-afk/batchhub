@@ -131,6 +131,13 @@ export default function StudentAuth() {
         email: loginForm.email, password: loginForm.password,
       });
       if (error) throw error;
+      if (rememberMe) {
+        localStorage.setItem("lamba_remember_me", "true");
+        sessionStorage.removeItem("lamba_session_only");
+      } else {
+        localStorage.removeItem("lamba_remember_me");
+        sessionStorage.setItem("lamba_session_only", "true");
+      }
 
       const { data: profile } = await supabase
         .from("profiles")

@@ -123,6 +123,15 @@ export default function AdminAuth() {
         password: loginForm.password,
       });
       if (error) throw error;
+      // Remember me: mark session as active in sessionStorage (cleared on app close)
+      // Index.tsx checks this flag — if missing on next open, signs out
+      if (rememberMe) {
+        localStorage.setItem("lamba_remember_me", "true");
+        sessionStorage.removeItem("lamba_session_only");
+      } else {
+        localStorage.removeItem("lamba_remember_me");
+        sessionStorage.setItem("lamba_session_only", "true");
+      }
 
       const userId = data.user?.id;
 
