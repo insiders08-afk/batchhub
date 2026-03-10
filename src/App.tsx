@@ -35,6 +35,7 @@ import StudentTests from "./pages/StudentTests";
 import StudentHomework from "./pages/StudentHomework";
 import StudentAnnouncements from "./pages/StudentAnnouncements";
 import ParentDashboard from "./pages/ParentDashboard";
+import ParentFees from "./pages/ParentFees";
 import AdminAuth from "./pages/auth/AdminAuth";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import TeacherAuth from "./pages/auth/TeacherAuth";
