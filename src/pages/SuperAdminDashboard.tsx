@@ -354,7 +354,7 @@ export default function SuperAdminDashboard() {
                 </div>
                 <div>
                   <p className="font-bold text-lg">{selectedInstitute.institute_name}</p>
-                  <Badge className="text-xs bg-success-light text-success border-0 mt-1">Live on Lamba</Badge>
+                  <Badge className="text-xs bg-success-light text-success border-0 mt-1">Live on BatchHub</Badge>
                 </div>
               </div>
               <div className="grid grid-cols-1 gap-2">
