@@ -259,7 +259,7 @@ export default function Index() {
             <div className="relative max-w-5xl mx-auto">
               <div className="absolute inset-0 gradient-hero rounded-2xl blur-2xl opacity-10 scale-95" />
               <div className="relative rounded-2xl border border-border/50 shadow-lg overflow-hidden">
-                <img src={heroDashboard} alt="Lamba Dashboard Preview" className="w-full h-auto" />
+                <img src={heroDashboard} alt="BatchHub Dashboard Preview" className="w-full h-auto" />
               </div>
             </div>
           </motion.div>
