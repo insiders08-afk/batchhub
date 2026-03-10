@@ -124,7 +124,8 @@ export default function AdminFees() {
       const annual = parseFloat(newFee.annual_amount);
       const amount = calcInstallment(annual, newFee.payment_frequency);
 
-      const { error } = await supabase.from("fees").insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("fees") as any).insert({
         student_id: newFee.student_id,
         batch_id: newFee.batch_id || null,
         amount,
@@ -134,7 +135,7 @@ export default function AdminFees() {
         due_date: newFee.due_date || null,
         institute_code: instituteCode,
         paid: false,
-      } as Parameters<typeof supabase.from<"fees">>[0] extends infer T ? never : never);
+      });
 
       if (error) throw error;
 
