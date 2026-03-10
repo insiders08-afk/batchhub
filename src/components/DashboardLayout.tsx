@@ -162,33 +162,29 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo */}
+      {/* Institute Header */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
-        <Link to="/" className="flex items-center gap-2.5">
+        {!collapsed ? (
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-sidebar-foreground/60 font-medium truncate">{roleLabels[role]}</p>
+            <p className="text-sm font-semibold text-sidebar-foreground truncate">
+              {instituteName || "Loading..."}
+            </p>
+          </div>
+        ) : (
           <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center flex-shrink-0">
             <Zap className="w-4 h-4 text-white" />
           </div>
-          {!collapsed && <span className="text-lg font-display font-bold text-white">Lamba</span>}
-        </Link>
+        )}
         <Button
           variant="ghost"
           size="icon"
-          className="hidden lg:flex text-sidebar-foreground hover:bg-sidebar-accent w-8 h-8"
+          className="hidden lg:flex text-sidebar-foreground hover:bg-sidebar-accent w-8 h-8 flex-shrink-0"
           onClick={() => setCollapsed(!collapsed)}
         >
           <ChevronLeft className={cn("w-4 h-4 transition-transform", collapsed && "rotate-180")} />
         </Button>
       </div>
-
-      {/* Institute Badge */}
-      {!collapsed && (
-        <div className="mx-3 mt-3 mb-1 p-2.5 rounded-lg bg-sidebar-accent border border-sidebar-border">
-          <p className="text-xs text-sidebar-foreground/60 font-medium">Institute</p>
-          <p className="text-sm font-semibold text-sidebar-foreground truncate">
-            {instituteName || "Loading..."}
-          </p>
-        </div>
-      )}
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
