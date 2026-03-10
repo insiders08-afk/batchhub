@@ -591,9 +591,9 @@ export default function Index() {
             <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
               <Zap className="w-3.5 h-3.5 text-white" />
             </div>
-            <span className="font-display font-bold text-gradient">Lamba</span>
+            <span className="font-display font-bold text-gradient">BatchHub</span>
           </div>
-          <p className="text-sm text-muted-foreground">© 2025 Lamba. Built for India's coaching ecosystem.</p>
+          <p className="text-sm text-muted-foreground">© 2025 BatchHub. Built for India's coaching ecosystem.</p>
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground justify-center">
             <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors">Terms</a>
