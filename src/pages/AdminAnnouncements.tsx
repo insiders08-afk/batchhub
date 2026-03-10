@@ -125,6 +125,18 @@ export default function AdminAnnouncements() {
 
       if (error) throw error;
 
+      // Trigger push notifications if requested
+      if (form.notifyPush) {
+        supabase.functions.invoke("send-push-notifications", {
+          body: {
+            institute_code: instituteCode.data,
+            title: form.title.trim(),
+            body: form.content.trim(),
+            url: "/student/announcements",
+          },
+        }).catch(() => {/* non-critical */});
+      }
+
       toast({ title: form.notifyPush ? "✅ Announcement posted with phone alert!" : "✅ Announcement posted!" });
       setForm({ title: "", content: "", batchId: "all", type: "general", notifyPush: false });
       setDialogOpen(false);
