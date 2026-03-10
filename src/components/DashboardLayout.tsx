@@ -4,11 +4,12 @@ import {
   LayoutDashboard, Users, CalendarCheck, Megaphone,
   FlaskConical, IndianRupee, GraduationCap, Settings,
   LogOut, Zap, ChevronLeft, Menu, X, ShieldCheck,
-  BookOpen, Trophy, ClipboardList, UserCircle, BookMarked, PlusCircle
+  BookOpen, Trophy, ClipboardList, UserCircle, BookMarked, PlusCircle, Download
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import InstallButton from "@/components/InstallButton";
 
 type Role = "admin" | "teacher" | "student" | "parent";
 
