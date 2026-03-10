@@ -551,7 +551,7 @@ export default function Index() {
                 <Zap className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">Install Lamba App</p>
+                <p className="text-sm font-semibold text-foreground">Install BatchHub App</p>
                 <p className="text-xs text-muted-foreground">Add to home screen for the best experience</p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
