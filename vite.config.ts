@@ -18,11 +18,14 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "robots.txt", "placeholder.svg"],
-      workbox: {
-        navigateFallbackDenylist: [/^\/~oauth/],
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,webp,woff2}"],
+      // Use injectManifest so our custom sw.ts handles push events
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
+      injectManifest: {
+        injectionPoint: "self.__WB_MANIFEST",
       },
+      includeAssets: ["favicon.ico", "robots.txt", "placeholder.svg"],
       manifest: {
         name: "BatchHub — Coaching Institute Manager",
         short_name: "BatchHub",
