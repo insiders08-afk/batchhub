@@ -783,7 +783,7 @@ export default function AdminFees() {
                                   </Button>
                                 )}
                               </td>
-                            </motion.tr>
+                            </tr>
                           );
                         });
                       })}
