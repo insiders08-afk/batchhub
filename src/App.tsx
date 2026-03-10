@@ -29,6 +29,7 @@ import TeacherAnnouncements from "./pages/TeacherAnnouncements";
 import TeacherTests from "./pages/TeacherTests";
 import TeacherHomework from "./pages/TeacherHomework";
 import StudentDashboard from "./pages/StudentDashboard";
+import StudentFees from "./pages/StudentFees";
 import StudentAttendance from "./pages/StudentAttendance";
 import StudentTests from "./pages/StudentTests";
 import StudentHomework from "./pages/StudentHomework";
