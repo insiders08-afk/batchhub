@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Zap, ShieldCheck, Loader2, MapPin, Eye, EyeOff } from "lucide-react";
+import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -70,11 +71,14 @@ export default function SuperAdminAuth() {
             </div>
             <span className="text-lg font-display font-bold text-gradient">Lamba</span>
           </Link>
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back to Home
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <InstallButton />
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="w-4 h-4" /> Back to Home
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 

@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,9 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, CheckCircle2, Users, BookOpen, ClipboardList,
   MessageSquare, IndianRupee, TrendingUp, Star, ArrowRight,
-  Zap, Shield, Smartphone, Globe
+  Zap, Shield, Smartphone, Globe, Download, X
 } from "lucide-react";
 import heroDashboard from "@/assets/hero-dashboard.png";
+import InstallButton from "@/components/InstallButton";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => void;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
 
 const features = [
   { icon: Users, title: "Batch Management", desc: "Organise students into batches by course. JEE, NEET, Foundation — all in one place.", color: "primary" },
@@ -79,6 +86,34 @@ const plans = [
 const navLinks = ["Features", "Pricing", "Testimonials"];
 
 export default function Index() {
+  const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
+  const [showBanner, setShowBanner] = useState(false);
+
+  useEffect(() => {
+    // Only show banner if NOT already installed and on mobile
+    const isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    if (isStandalone) return;
+
+    const isMobile = window.innerWidth < 768;
+    if (isMobile) setShowBanner(true);
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  const handleNativeInstall = async () => {
+    if (!installPrompt) return;
+    const promptEvent = installPrompt as BeforeInstallPromptEvent;
+    promptEvent.prompt();
+    const result = await promptEvent.userChoice;
+    if (result.outcome === "accepted") setShowBanner(false);
+  };
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
@@ -100,6 +135,7 @@ export default function Index() {
           </div>
 
           <div className="flex items-center gap-3">
+            <InstallButton />
             <Link to="/role-select">
               <Button variant="ghost" size="sm">Login</Button>
             </Link>
@@ -462,8 +498,50 @@ export default function Index() {
         </div>
       </section>
 
+      {/* Mobile Install Banner */}
+      {showBanner && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+          <div className="bg-card border-t border-border/60 shadow-2xl px-4 py-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">Install Lamba App</p>
+                <p className="text-xs text-muted-foreground">Add to home screen for the best experience</p>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {installPrompt ? (
+                  <Button
+                    size="sm"
+                    className="h-8 text-xs gradient-hero text-white border-0 hover:opacity-90 gap-1.5"
+                    onClick={handleNativeInstall}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Install
+                  </Button>
+                ) : (
+                  <Link to="/install">
+                    <Button size="sm" className="h-8 text-xs gradient-hero text-white border-0 hover:opacity-90 gap-1.5">
+                      <Download className="w-3.5 h-3.5" />
+                      How to Install
+                    </Button>
+                  </Link>
+                )}
+                <button
+                  onClick={() => setShowBanner(false)}
+                  className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
-      <footer className="border-t border-border/50 py-10 bg-card">
+      <footer className="border-t border-border/50 py-10 bg-card pb-20 md:pb-10">
         <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">

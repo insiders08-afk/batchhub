@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft, Zap, GraduationCap, Eye, EyeOff, Loader2, XCircle, CheckCircle2 } from "lucide-react";
+import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -191,11 +192,14 @@ export default function StudentAuth() {
             </div>
             <span className="text-lg font-display font-bold text-gradient">Lamba</span>
           </Link>
-          <Link to="/role-select">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <InstallButton />
+            <Link to="/role-select">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="w-4 h-4" /> Back
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 
