@@ -224,7 +224,7 @@ export default function OwnerDashboard() {
               <Crown className="w-3.5 h-3.5 text-white" />
             </div>
             <div>
-              <span className="font-display font-bold text-gradient">Lamba Owner Portal</span>
+              <span className="font-display font-bold text-gradient">BatchHub Owner Portal</span>
               <span className="text-muted-foreground text-sm ml-2 hidden sm:inline">· {ownerName}</span>
             </div>
           </div>
