@@ -96,8 +96,29 @@ const plans = [
 const navLinks = ["Features", "Pricing", "Testimonials"];
 
 export default function Index() {
+  const navigate = useNavigate();
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
   const [showBanner, setShowBanner] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+
+  // Session check — redirect logged-in users straight to their dashboard
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", session.user.id)
+          .single();
+        const path = profile?.role ? roleToPath[profile.role] : null;
+        if (path) {
+          navigate(path, { replace: true });
+          return;
+        }
+      }
+      setAuthChecking(false);
+    });
+  }, [navigate]);
 
   useEffect(() => {
     // Only show banner if NOT already installed and on mobile
