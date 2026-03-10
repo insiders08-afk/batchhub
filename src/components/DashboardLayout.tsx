@@ -105,6 +105,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
         setUserInitials(parts.map((p: string) => p[0]).join("").toUpperCase().slice(0, 2));
 
         if (profile.institute_code) {
+          setInstituteCode(profile.institute_code);
           const { data: institute } = await supabase
             .from("institutes")
             .select("institute_name, city")
