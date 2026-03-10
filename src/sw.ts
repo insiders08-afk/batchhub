@@ -24,7 +24,6 @@ self.addEventListener("push", (event: PushEvent) => {
     icon: payload.icon || "/icons/pwa-192x192.png",
     badge: "/icons/pwa-192x192.png",
     data: { url: payload.url || "/" },
-    vibrate: [200, 100, 200],
     requireInteraction: false,
     tag: "batchhub-announcement",
   };
