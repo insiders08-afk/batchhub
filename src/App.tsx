@@ -82,6 +82,7 @@ const App = () => (
           <Route path="/auth/owner" element={<OwnerAuth />} />
           <Route path="/owner" element={<OwnerDashboard />} />
           <Route path="/apply/city-partner" element={<CityPartnerApply />} />
+          <Route path="/install" element={<Install />} />
           <Route path="/batch/:id" element={<BatchWorkspace />} />
           {/* Teacher */}
           <Route path="/teacher" element={<TeacherDashboard />} />
