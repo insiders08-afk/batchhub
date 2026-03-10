@@ -107,8 +107,8 @@ export default function Index() {
       if (session?.user) {
         // If user chose "session only" (no remember me), sessionStorage flag is set.
         // When the PWA is closed and reopened, sessionStorage is cleared → sign out.
-        const noRemember = localStorage.getItem("lamba_remember_me") !== "true";
-        const sessionActive = sessionStorage.getItem("lamba_session_only") === "true";
+        const noRemember = localStorage.getItem("batchhub_remember_me") !== "true";
+        const sessionActive = sessionStorage.getItem("batchhub_session_only") === "true";
         if (noRemember && !sessionActive) {
           // Session exists in localStorage but user didn't want persistence → sign out
           await supabase.auth.signOut();
