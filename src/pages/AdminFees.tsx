@@ -670,10 +670,8 @@ export default function AdminFees() {
                           if (!isFirstRow && !isExpanded) return null;
 
                           return (
-                            <motion.tr
+                            <tr
                               key={plan.id}
-                              initial={{ opacity: 0 }}
-                              animate={{ opacity: 1 }}
                               className={`border-b border-border/40 hover:bg-muted/30 transition-colors ${!isFirstRow ? "bg-muted/10" : ""}`}
                             >
                               {/* Student / Batch */}
