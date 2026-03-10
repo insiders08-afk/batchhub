@@ -142,9 +142,12 @@ export default function Index() {
     if (!installPrompt) return;
     const promptEvent = installPrompt as BeforeInstallPromptEvent;
     promptEvent.prompt();
-    const result = await promptEvent.userChoice;
+  const result = await promptEvent.userChoice;
     if (result.outcome === "accepted") setShowBanner(false);
   };
+
+  if (authChecking) return null;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
