@@ -59,11 +59,14 @@ export default function RoleSelection() {
             </div>
             <span className="text-lg font-display font-bold text-gradient">Lamba</span>
           </Link>
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back to Home
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <InstallButton />
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="w-4 h-4" /> Back to Home
+              </Button>
+            </Link>
+          </div>
         </div>
       </nav>
 

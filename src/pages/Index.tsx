@@ -101,6 +101,7 @@ export default function Index() {
           </div>
 
           <div className="flex items-center gap-3">
+            <InstallButton />
             <Link to="/role-select">
               <Button variant="ghost" size="sm">Login</Button>
             </Link>
