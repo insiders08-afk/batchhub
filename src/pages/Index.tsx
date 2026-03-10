@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -10,11 +10,21 @@ import {
 "lucide-react";
 import heroDashboard from "@/assets/hero-dashboard.png";
 import InstallButton from "@/components/InstallButton";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => void;
   userChoice: Promise<{outcome: "accepted" | "dismissed";}>;
 }
+
+const roleToPath: Record<string, string> = {
+  admin: "/admin",
+  teacher: "/teacher",
+  student: "/student",
+  parent: "/parent",
+  super_admin: "/superadmin",
+  app_owner: "/owner",
+};
 
 const features = [
 { icon: Users, title: "Batch Management", desc: "Organise students into batches by course. JEE, NEET, Foundation — all in one place.", color: "primary" },
@@ -86,8 +96,29 @@ const plans = [
 const navLinks = ["Features", "Pricing", "Testimonials"];
 
 export default function Index() {
+  const navigate = useNavigate();
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
   const [showBanner, setShowBanner] = useState(false);
+  const [authChecking, setAuthChecking] = useState(true);
+
+  // Session check — redirect logged-in users straight to their dashboard
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("user_id", session.user.id)
+          .single();
+        const path = profile?.role ? roleToPath[profile.role] : null;
+        if (path) {
+          navigate(path, { replace: true });
+          return;
+        }
+      }
+      setAuthChecking(false);
+    });
+  }, [navigate]);
 
   useEffect(() => {
     // Only show banner if NOT already installed and on mobile
@@ -111,9 +142,12 @@ export default function Index() {
     if (!installPrompt) return;
     const promptEvent = installPrompt as BeforeInstallPromptEvent;
     promptEvent.prompt();
-    const result = await promptEvent.userChoice;
+  const result = await promptEvent.userChoice;
     if (result.outcome === "accepted") setShowBanner(false);
   };
+
+  if (authChecking) return null;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navbar */}
