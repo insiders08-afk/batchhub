@@ -97,7 +97,7 @@ export default function SuperAdminDashboard() {
         }, { onConflict: "user_id,role" });
         if (roleError) throw roleError;
         await supabase.from("profiles").update({ status: "approved" }).eq("user_id", inst.owner_user_id);
-        toast({ title: "✅ Approved!", description: `${inst.institute_name} is now live on Lamba.` });
+        toast({ title: "✅ Approved!", description: `${inst.institute_name} is now live on BatchHub.` });
       } else {
         if (inst.owner_user_id) {
           await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", inst.owner_user_id);
