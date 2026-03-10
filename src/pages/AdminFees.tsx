@@ -11,34 +11,65 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Search, CheckCircle2, XCircle, Clock, AlertTriangle,
-  TrendingUp, Plus, IndianRupee, Loader2
+  TrendingUp, Plus, IndianRupee, Loader2, ChevronDown, Layers
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
 
-type Fee = Tables<"fees"> & { student_name?: string };
+type Fee = Tables<"fees"> & {
+  student_name?: string;
+  annual_amount?: number | null;
+  payment_frequency?: string | null;
+  batch_id?: string | null;
+};
 type Profile = { user_id: string; full_name: string };
+type Batch = { id: string; name: string; course: string };
+
+const FREQUENCY_OPTIONS = [
+  { value: "monthly", label: "Monthly", divisor: 12 },
+  { value: "quarterly", label: "Quarterly", divisor: 4 },
+  { value: "half_yearly", label: "Half-Yearly", divisor: 2 },
+  { value: "annual", label: "Annual (Full)", divisor: 1 },
+];
+
+function calcInstallment(annual: number, freq: string): number {
+  const opt = FREQUENCY_OPTIONS.find(o => o.value === freq);
+  return opt ? Math.round(annual / opt.divisor) : annual;
+}
 
 export default function AdminFees() {
   const { toast } = useToast();
   const [fees, setFees] = useState<Fee[]>([]);
   const [students, setStudents] = useState<Profile[]>([]);
+  const [batches, setBatches] = useState<Batch[]>([]);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [batchFilter, setBatchFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [addLoading, setAddLoading] = useState(false);
   const [markingId, setMarkingId] = useState<string | null>(null);
+  const [instituteCode, setInstituteCode] = useState("");
 
   const [newFee, setNewFee] = useState({
-    student_id: "", amount: "", description: "", due_date: "",
+    student_id: "",
+    batch_id: "",
+    annual_amount: "",
+    payment_frequency: "monthly",
+    due_date: "",
+    description: "",
   });
+
+  const installmentAmount = newFee.annual_amount
+    ? calcInstallment(parseFloat(newFee.annual_amount), newFee.payment_frequency)
+    : 0;
+
+  const frequencyLabel = FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.label || "";
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Get institute code
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
@@ -49,35 +80,30 @@ export default function AdminFees() {
         .eq("role", "admin")
         .single();
 
-      const instituteCode = roleData?.institute_code;
-      if (!instituteCode) return;
+      const code = roleData?.institute_code;
+      if (!code) return;
+      setInstituteCode(code);
 
-      // Fetch students for this institute
-      const { data: studentData } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .eq("institute_code", instituteCode)
-        .eq("role", "student")
-        .eq("status", "approved");
+      // Parallel fetch: students, batches, fees
+      const [studentsRes, batchesRes, feesRes] = await Promise.all([
+        supabase.from("profiles").select("user_id, full_name")
+          .eq("institute_code", code).eq("role", "student").eq("status", "approved"),
+        supabase.from("batches").select("id, name, course")
+          .eq("institute_code", code).eq("is_active", true),
+        supabase.from("fees").select("*")
+          .eq("institute_code", code).order("created_at", { ascending: false }),
+      ]);
 
-      setStudents(studentData || []);
+      setStudents(studentsRes.data || []);
+      setBatches(batchesRes.data || []);
 
-      // Fetch fees
-      const { data: feeData, error } = await supabase
-        .from("fees")
-        .select("*")
-        .eq("institute_code", instituteCode)
-        .order("created_at", { ascending: false });
+      if (feesRes.error) throw feesRes.error;
 
-      if (error) throw error;
-
-      // Map student names
-      const studentMap = new Map((studentData || []).map(s => [s.user_id, s.full_name]));
-      const enriched: Fee[] = (feeData || []).map(f => ({
+      const studentMap = new Map((studentsRes.data || []).map(s => [s.user_id, s.full_name]));
+      const enriched: Fee[] = (feesRes.data || []).map(f => ({
         ...f,
         student_name: studentMap.get(f.student_id) || "Unknown Student",
       }));
-
       setFees(enriched);
     } catch (err) {
       toast({ title: "Error", description: "Failed to load fees", variant: "destructive" });
@@ -89,31 +115,33 @@ export default function AdminFees() {
   useEffect(() => { fetchData(); }, []);
 
   const handleAddFee = async () => {
-    if (!newFee.student_id || !newFee.amount) {
-      toast({ title: "Required", description: "Please select a student and enter an amount.", variant: "destructive" });
+    if (!newFee.student_id || !newFee.annual_amount) {
+      toast({ title: "Required", description: "Please select a student and enter an annual amount.", variant: "destructive" });
       return;
     }
     setAddLoading(true);
     try {
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("institute_code")
-        .eq("role", "admin")
-        .single();
+      const annual = parseFloat(newFee.annual_amount);
+      const amount = calcInstallment(annual, newFee.payment_frequency);
 
-      const { error } = await supabase.from("fees").insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("fees") as any).insert({
         student_id: newFee.student_id,
-        amount: parseFloat(newFee.amount),
-        description: newFee.description || null,
+        batch_id: newFee.batch_id || null,
+        amount,
+        annual_amount: annual,
+        payment_frequency: newFee.payment_frequency,
+        description: newFee.description || `${frequencyLabel} fee`,
         due_date: newFee.due_date || null,
-        institute_code: roleData?.institute_code || "",
+        institute_code: instituteCode,
         paid: false,
       });
+
       if (error) throw error;
 
       toast({ title: "Fee added", description: "Fee entry created successfully." });
       setShowAdd(false);
-      setNewFee({ student_id: "", amount: "", description: "", due_date: "" });
+      setNewFee({ student_id: "", batch_id: "", annual_amount: "", payment_frequency: "monthly", due_date: "", description: "" });
       fetchData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add fee";
@@ -153,11 +181,17 @@ export default function AdminFees() {
     overdue: { label: "Overdue", color: "bg-danger-light text-danger border-danger/20", icon: XCircle },
   };
 
+  const getBatchName = (batchId: string | null | undefined) => {
+    if (!batchId) return null;
+    return batches.find(b => b.id === batchId)?.name || null;
+  };
+
   const filtered = fees.filter(f => {
     const matchSearch = f.student_name?.toLowerCase().includes(search.toLowerCase())
       || f.description?.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "all" || getFeeStatus(f) === filter;
-    return matchSearch && matchFilter;
+    const matchStatus = statusFilter === "all" || getFeeStatus(f) === statusFilter;
+    const matchBatch = batchFilter === "all" || f.batch_id === batchFilter;
+    return matchSearch && matchStatus && matchBatch;
   });
 
   const totalCollected = fees.filter(f => f.paid).reduce((s, f) => s + Number(f.amount), 0);
@@ -192,28 +226,49 @@ export default function AdminFees() {
           ))}
         </div>
 
-        {/* Filters + Add button */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative w-full sm:w-72">
+        {/* Filters Row */}
+        <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
+          {/* Search */}
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Search students..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
           </div>
-          <div className="flex gap-2 flex-wrap flex-1">
+
+          {/* Status filters */}
+          <div className="flex gap-2 flex-wrap">
             {["all", "paid", "pending", "overdue"].map(f => (
               <Button
                 key={f}
                 size="sm"
-                variant={filter === f ? "default" : "outline"}
-                onClick={() => setFilter(f)}
-                className={`h-9 capitalize ${filter === f ? "gradient-hero text-white border-0" : ""}`}
+                variant={statusFilter === f ? "default" : "outline"}
+                onClick={() => setStatusFilter(f)}
+                className={`h-9 capitalize ${statusFilter === f ? "gradient-hero text-white border-0" : ""}`}
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
               </Button>
             ))}
           </div>
+
+          {/* Batch filter */}
+          <div className="flex items-center gap-2">
+            <Select value={batchFilter} onValueChange={setBatchFilter}>
+              <SelectTrigger className="h-9 w-44 gap-1.5 text-sm">
+                <Layers className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <SelectValue placeholder="All Batches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Batches</SelectItem>
+                {batches.map(b => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Add Fee button */}
           <Button
             size="sm"
-            className="h-9 gradient-hero text-white border-0 gap-1.5"
+            className="h-9 gradient-hero text-white border-0 gap-1.5 ml-auto"
             onClick={() => setShowAdd(true)}
           >
             <Plus className="w-4 h-4" /> Add Fee
@@ -239,7 +294,8 @@ export default function AdminFees() {
                 <thead>
                   <tr className="bg-muted/60 border-b border-border/50">
                     <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Student</th>
-                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden sm:table-cell">Description</th>
+                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden sm:table-cell">Batch</th>
+                    <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">Frequency</th>
                     <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Amount</th>
                     <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">Due Date</th>
                     <th className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Status</th>
@@ -251,6 +307,8 @@ export default function AdminFees() {
                     const status = getFeeStatus(f);
                     const st = statusConfig[status];
                     const StatusIcon = st.icon;
+                    const freqLabel = FREQUENCY_OPTIONS.find(o => o.value === (f as Fee).payment_frequency)?.label;
+                    const batchName = getBatchName((f as Fee).batch_id);
                     return (
                       <motion.tr
                         key={f.id}
@@ -264,14 +322,27 @@ export default function AdminFees() {
                             <div className="w-8 h-8 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                               {f.student_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
                             </div>
-                            <p className="text-sm font-medium">{f.student_name}</p>
+                            <div>
+                              <p className="text-sm font-medium">{f.student_name}</p>
+                              {f.description && <p className="text-xs text-muted-foreground">{f.description}</p>}
+                            </div>
                           </div>
                         </td>
                         <td className="px-4 py-3 hidden sm:table-cell">
-                          <span className="text-sm text-muted-foreground">{f.description || "—"}</span>
+                          <span className="text-sm text-muted-foreground">{batchName || "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 hidden md:table-cell">
+                          {freqLabel ? (
+                            <Badge variant="secondary" className="text-xs">{freqLabel}</Badge>
+                          ) : <span className="text-sm text-muted-foreground">—</span>}
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <span className="text-sm font-medium">₹{Number(f.amount).toLocaleString("en-IN")}</span>
+                          <div>
+                            <span className="text-sm font-semibold">₹{Number(f.amount).toLocaleString("en-IN")}</span>
+                            {(f as Fee).annual_amount && (
+                              <p className="text-xs text-muted-foreground">Annual: ₹{Number((f as Fee).annual_amount).toLocaleString("en-IN")}</p>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 hidden md:table-cell">
                           <span className={`text-sm ${status === "overdue" ? "text-danger font-medium" : "text-muted-foreground"}`}>
@@ -308,11 +379,12 @@ export default function AdminFees() {
 
       {/* Add Fee Dialog */}
       <Dialog open={showAdd} onOpenChange={setShowAdd}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Add Fee Entry</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Student */}
             <div className="space-y-1.5">
               <Label>Student *</Label>
               <Select value={newFee.student_id} onValueChange={v => setNewFee({ ...newFee, student_id: v })}>
@@ -326,32 +398,89 @@ export default function AdminFees() {
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Batch */}
             <div className="space-y-1.5">
-              <Label>Amount (₹) *</Label>
+              <Label>Batch (optional)</Label>
+              <Select value={newFee.batch_id} onValueChange={v => setNewFee({ ...newFee, batch_id: v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select batch..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {batches.map(b => (
+                    <SelectItem key={b.id} value={b.id}>{b.name} — {b.course}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Annual Amount */}
+            <div className="space-y-1.5">
+              <Label>Annual Package Amount (₹) *</Label>
               <Input
                 type="number"
                 placeholder="e.g. 12000"
-                value={newFee.amount}
-                onChange={e => setNewFee({ ...newFee, amount: e.target.value })}
+                value={newFee.annual_amount}
+                onChange={e => setNewFee({ ...newFee, annual_amount: e.target.value })}
               />
             </div>
+
+            {/* Payment Frequency */}
             <div className="space-y-1.5">
-              <Label>Description</Label>
-              <Textarea
-                placeholder="e.g. Monthly tuition fee"
-                value={newFee.description}
-                onChange={e => setNewFee({ ...newFee, description: e.target.value })}
-                rows={2}
-              />
+              <Label>Payment Frequency</Label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {FREQUENCY_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setNewFee({ ...newFee, payment_frequency: opt.value })}
+                    className={`h-9 rounded-lg text-xs font-medium border transition-all ${
+                      newFee.payment_frequency === opt.value
+                        ? "gradient-hero text-white border-0 shadow-sm"
+                        : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary"
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Calculated amount display */}
+            {newFee.annual_amount && parseFloat(newFee.annual_amount) > 0 && (
+              <div className="rounded-lg bg-primary-light border border-primary/20 p-3 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-primary font-medium">{frequencyLabel} Installment</p>
+                  <p className="text-xs text-muted-foreground">Auto-calculated from annual package</p>
+                </div>
+                <p className="text-lg font-display font-bold text-primary">
+                  ₹{installmentAmount.toLocaleString("en-IN")}
+                </p>
+              </div>
+            )}
+
+            {/* Due Date */}
             <div className="space-y-1.5">
-              <Label>Due Date</Label>
+              <Label>Payment Due Date</Label>
               <Input
                 type="date"
                 value={newFee.due_date}
                 onChange={e => setNewFee({ ...newFee, due_date: e.target.value })}
               />
+              <p className="text-xs text-muted-foreground">Overdue alerts will trigger after this date</p>
             </div>
+
+            {/* Description */}
+            <div className="space-y-1.5">
+              <Label>Description (optional)</Label>
+              <Textarea
+                placeholder="e.g. April monthly tuition"
+                value={newFee.description}
+                onChange={e => setNewFee({ ...newFee, description: e.target.value })}
+                rows={2}
+              />
+            </div>
+
             <div className="flex gap-2 pt-1">
               <Button variant="outline" onClick={() => setShowAdd(false)} className="flex-1">Cancel</Button>
               <Button onClick={handleAddFee} disabled={addLoading} className="flex-1 gradient-hero text-white border-0">

@@ -29,11 +29,13 @@ import TeacherAnnouncements from "./pages/TeacherAnnouncements";
 import TeacherTests from "./pages/TeacherTests";
 import TeacherHomework from "./pages/TeacherHomework";
 import StudentDashboard from "./pages/StudentDashboard";
+import StudentFees from "./pages/StudentFees";
 import StudentAttendance from "./pages/StudentAttendance";
 import StudentTests from "./pages/StudentTests";
 import StudentHomework from "./pages/StudentHomework";
 import StudentAnnouncements from "./pages/StudentAnnouncements";
 import ParentDashboard from "./pages/ParentDashboard";
+import ParentFees from "./pages/ParentFees";
 import AdminAuth from "./pages/auth/AdminAuth";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import TeacherAuth from "./pages/auth/TeacherAuth";
@@ -97,8 +99,10 @@ const App = () => (
           <Route path="/student/homework" element={<StudentHomework />} />
           <Route path="/student/announcements" element={<StudentAnnouncements />} />
           <Route path="/student/apply-batch" element={<StudentBatchApply />} />
+          <Route path="/student/fees" element={<StudentFees />} />
           {/* Parent */}
           <Route path="/parent" element={<ParentDashboard />} />
+          <Route path="/parent/fees" element={<ParentFees />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

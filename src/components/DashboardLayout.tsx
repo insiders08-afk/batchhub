@@ -41,6 +41,7 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: CalendarCheck, label: "My Attendance", path: "/student/attendance" },
     { icon: Trophy, label: "Tests & Scores", path: "/student/tests" },
     { icon: BookOpen, label: "Homework / DPP", path: "/student/homework" },
+    { icon: IndianRupee, label: "My Fees", path: "/student/fees" },
     { icon: Megaphone, label: "Announcements", path: "/student/announcements" },
   ],
   parent: [
