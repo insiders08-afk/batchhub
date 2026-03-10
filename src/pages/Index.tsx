@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,10 +6,15 @@ import { Badge } from "@/components/ui/badge";
 import {
   BarChart3, CheckCircle2, Users, BookOpen, ClipboardList,
   MessageSquare, IndianRupee, TrendingUp, Star, ArrowRight,
-  Zap, Shield, Smartphone, Globe
+  Zap, Shield, Smartphone, Globe, Download, X
 } from "lucide-react";
 import heroDashboard from "@/assets/hero-dashboard.png";
 import InstallButton from "@/components/InstallButton";
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => void;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
 
 const features = [
   { icon: Users, title: "Batch Management", desc: "Organise students into batches by course. JEE, NEET, Foundation — all in one place.", color: "primary" },
