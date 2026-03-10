@@ -6,10 +6,11 @@ import {
   LogOut, Zap, ChevronLeft, Menu, X, ShieldCheck,
   BookOpen, Trophy, ClipboardList, UserCircle, BookMarked, PlusCircle, Download
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import InstallButton from "@/components/InstallButton";
+import { usePushNotifications } from "@/hooks/use-push-notifications";
 
 type Role = "admin" | "teacher" | "student" | "parent";
 
