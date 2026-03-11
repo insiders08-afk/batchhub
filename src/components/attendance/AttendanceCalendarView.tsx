@@ -462,7 +462,21 @@ export default function AttendanceCalendarView({
 
                   // ── DAY OFF (announced holiday on scheduled day) ──
                   if (isDayOff) {
-                    return (
+                    return canMarkDayOff ? (
+                      <button
+                        key={day}
+                        onClick={() => setCancelDayOffDate(formatDateKey(day))}
+                        title="Click to cancel day off"
+                        className={cn(
+                          "aspect-square flex flex-col items-center justify-center text-[10px] font-medium rounded-md border cursor-pointer transition-all",
+                          "bg-warning/8 border-warning/25 text-warning hover:bg-danger/10 hover:border-danger/40 hover:text-danger",
+                          isTodayDay && "ring-2 ring-primary ring-offset-1"
+                        )}
+                      >
+                        <span className="font-semibold">{day}</span>
+                        <span className="text-[8px] font-bold leading-none mt-0.5">Off</span>
+                      </button>
+                    ) : (
                       <div
                         key={day}
                         className={cn(
