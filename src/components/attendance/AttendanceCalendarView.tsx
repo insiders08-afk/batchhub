@@ -96,10 +96,15 @@ function FutureDayOffDialog({
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user!.id).single();
 
+      // Embed machine-readable ISO date tag into content for reliable parsing
+      const contentWithTag = content.includes("day_off_date:")
+        ? content
+        : `${content}\n\nday_off_date:${date}`;
+
       if (notify) {
         await supabase.from("announcements").insert({
           title,
-          content,
+          content: contentWithTag,
           batch_id: batchId,
           institute_code: instituteCode,
           posted_by: user!.id,
