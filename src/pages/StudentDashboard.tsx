@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarCheck, Trophy, BookOpen, ExternalLink,
-  FlaskConical, Megaphone, MessageSquare, Loader2, Users
+  FlaskConical, Megaphone, MessageSquare, Loader2, Users, IndianRupee
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -164,6 +164,11 @@ export default function StudentDashboard() {
               <Link to="/student/announcements">
                 <Button variant="outline" className="w-full h-10 text-xs gap-1.5 border-border text-foreground hover:bg-muted">
                   <Megaphone className="w-3.5 h-3.5" /> Announcements
+                </Button>
+              </Link>
+              <Link to="/student/fees" className="col-span-2">
+                <Button variant="outline" className="w-full h-10 text-xs gap-1.5 border-warning/30 text-warning hover:bg-accent-light">
+                  <IndianRupee className="w-3.5 h-3.5" /> My Fees
                 </Button>
               </Link>
             </div>
