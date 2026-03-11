@@ -112,7 +112,17 @@ function getCurrentDueDate(plan: FeePlan): Date | null {
 }
 
 function getFeeStatus(plan: FeePlan): "paid" | "pending" | "overdue" {
-  if (plan.paid) return "paid";
+  // A plan is "paid" if paid=true AND paid_date is within the current cycle
+  if (plan.paid) {
+    if (plan.paid_date && plan.due_date) {
+      // If the current due_date is after the paid_date, the cycle has already advanced → not paid
+      const paidOn = new Date(plan.paid_date);
+      const dueDateObj = new Date(plan.due_date);
+      if (dueDateObj > paidOn) return "pending"; // next cycle started
+    } else {
+      return "paid";
+    }
+  }
   const dueDate = getCurrentDueDate(plan);
   if (!dueDate) return "pending";
   const today = new Date();
