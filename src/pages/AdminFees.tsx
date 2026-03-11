@@ -258,11 +258,15 @@ export default function AdminFees() {
   const [selectedPlan, setSelectedPlan] = useState<FeePlan | null>(null);
   const [instituteCode, setInstituteCode] = useState("");
 
+  // Add Fee dialog state
+  const [enrolledInBatch, setEnrolledInBatch] = useState<EnrolledStudent[]>([]);
+  const [enrolledLoading, setEnrolledLoading] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
 
   const [newFee, setNewFee] = useState({
-    student_id: "",
     batch_id: "",
     annual_amount: "",
     payment_frequency: "monthly",
@@ -276,6 +280,52 @@ export default function AdminFees() {
     ? calcInstallment(parseFloat(newFee.annual_amount), newFee.payment_frequency)
     : 0;
   const freqLabel = FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.label || "";
+
+  // When batch changes in the Add Fee dialog, load enrolled students
+  const handleAddFeeBatchChange = async (batchId: string) => {
+    setNewFee(prev => ({ ...prev, batch_id: batchId }));
+    setSelectedStudentIds(new Set());
+    if (!batchId) { setEnrolledInBatch([]); return; }
+    setEnrolledLoading(true);
+    try {
+      const { data } = await supabase
+        .from("students_batches")
+        .select("student_id")
+        .eq("batch_id", batchId);
+      if (!data || data.length === 0) { setEnrolledInBatch([]); return; }
+      const ids = data.map(r => r.student_id);
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", ids)
+        .eq("status", "approved");
+      setEnrolledInBatch((profileData || []).map(p => ({ student_id: p.user_id, full_name: p.full_name })));
+    } finally {
+      setEnrolledLoading(false);
+    }
+  };
+
+  const toggleStudent = (id: string) => {
+    setSelectedStudentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllStudents = () => {
+    if (selectedStudentIds.size === enrolledInBatch.length) {
+      setSelectedStudentIds(new Set());
+    } else {
+      setSelectedStudentIds(new Set(enrolledInBatch.map(s => s.student_id)));
+    }
+  };
+
+  const resetAddFeeDialog = () => {
+    setNewFee({ batch_id: "", annual_amount: "", payment_frequency: "monthly", cycle_day: "", start_month_month: String(currentMonth), start_month_year: String(currentYear), description: "" });
+    setSelectedStudentIds(new Set());
+    setEnrolledInBatch([]);
+  };
 
   // ─── Fetch ──────────────────────────────────────────────────────────────────
 
