@@ -848,38 +848,72 @@ export default function AdminFees() {
         )}
       </div>
 
-      {/* ── Add Fee Dialog ── */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+      {/* ── Add Fee Dialog (Batch-first, multi-student) ── */}
+      <Dialog open={showAdd} onOpenChange={open => { if (!open) resetAddFeeDialog(); setShowAdd(open); }}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Fee Plan</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Student */}
-            <div className="space-y-1.5">
-              <Label>Student *</Label>
-              <Select value={newFee.student_id} onValueChange={v => setNewFee({ ...newFee, student_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select student..." /></SelectTrigger>
-                <SelectContent>
-                  {students.map(s => <SelectItem key={s.user_id} value={s.user_id}>{s.full_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
 
-            {/* Batch — mandatory */}
+            {/* Step 1: Batch (mandatory, first) */}
             <div className="space-y-1.5">
-              <Label>Batch *</Label>
-              <Select value={newFee.batch_id} onValueChange={v => setNewFee({ ...newFee, batch_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select batch..." /></SelectTrigger>
+              <Label>Batch <span className="text-danger">*</span></Label>
+              <Select value={newFee.batch_id} onValueChange={handleAddFeeBatchChange}>
+                <SelectTrigger><SelectValue placeholder="Select batch first..." /></SelectTrigger>
                 <SelectContent>
                   {batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name} — {b.course}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Step 2: Students from that batch */}
+            {newFee.batch_id && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    Students <span className="text-danger">*</span>
+                    {selectedStudentIds.size > 0 && (
+                      <span className="text-xs font-normal text-primary">({selectedStudentIds.size} selected)</span>
+                    )}
+                  </Label>
+                  {enrolledInBatch.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleAllStudents}
+                      className="text-xs text-primary font-medium hover:underline"
+                    >
+                      {selectedStudentIds.size === enrolledInBatch.length ? "Deselect all" : "Select all students"}
+                    </button>
+                  )}
+                </div>
+
+                {enrolledLoading ? (
+                  <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading students...
+                  </div>
+                ) : enrolledInBatch.length === 0 ? (
+                  <p className="text-sm text-muted-foreground rounded-lg border border-dashed border-border p-3 text-center">No students enrolled in this batch yet.</p>
+                ) : (
+                  <div className="rounded-lg border border-border max-h-40 overflow-y-auto divide-y divide-border/50">
+                    {enrolledInBatch.map(s => (
+                      <label key={s.student_id} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors">
+                        <Checkbox
+                          checked={selectedStudentIds.has(s.student_id)}
+                          onCheckedChange={() => toggleStudent(s.student_id)}
+                        />
+                        <span className="text-sm font-medium">{s.full_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Annual Amount */}
             <div className="space-y-1.5">
-              <Label>Annual Package Amount (₹) *</Label>
+              <Label>Annual Package Amount (₹) <span className="text-danger">*</span></Label>
               <Input
                 type="number"
                 placeholder="e.g. 12000"
@@ -890,7 +924,7 @@ export default function AdminFees() {
 
             {/* Payment Frequency */}
             <div className="space-y-1.5">
-              <Label>Payment Frequency *</Label>
+              <Label>Payment Frequency <span className="text-danger">*</span></Label>
               <div className="grid grid-cols-4 gap-1.5">
                 {FREQUENCY_OPTIONS.map(opt => (
                   <button key={opt.value} type="button"
@@ -915,7 +949,7 @@ export default function AdminFees() {
 
             {/* Cycle Day */}
             <div className="space-y-1.5">
-              <Label>Cycle Date (1–31) *</Label>
+              <Label>Cycle Date (1–31) <span className="text-danger">*</span></Label>
               <Input
                 type="number"
                 min={1} max={31}
@@ -924,13 +958,13 @@ export default function AdminFees() {
                 onChange={e => setNewFee({ ...newFee, cycle_day: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Fee will renew on this day each {FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months === 1 ? "month" : `${FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months} months`}
+                Fee renews on this day each {FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months === 1 ? "month" : `${FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months} months`}
               </p>
             </div>
 
             {/* Start Month */}
             <div className="space-y-1.5">
-              <Label>Starting From *</Label>
+              <Label>Starting From <span className="text-danger">*</span></Label>
               <div className="grid grid-cols-2 gap-2">
                 <Select value={newFee.start_month_month} onValueChange={v => setNewFee({ ...newFee, start_month_month: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -964,9 +998,9 @@ export default function AdminFees() {
             </div>
 
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" onClick={() => setShowAdd(false)} className="flex-1">Cancel</Button>
-              <Button onClick={handleAddFee} disabled={addLoading} className="flex-1 gradient-hero text-white border-0">
-                {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Fee Plan"}
+              <Button variant="outline" onClick={() => { resetAddFeeDialog(); setShowAdd(false); }} className="flex-1">Cancel</Button>
+              <Button onClick={handleAddFee} disabled={addLoading || selectedStudentIds.size === 0} className="flex-1 gradient-hero text-white border-0">
+                {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : `Apply to ${selectedStudentIds.size > 0 ? selectedStudentIds.size : ""} Student${selectedStudentIds.size !== 1 ? "s" : ""}`}
               </Button>
             </div>
           </div>
