@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Search, CheckCircle2, XCircle, Clock, AlertTriangle,
   TrendingUp, Plus, IndianRupee, Loader2, Layers,
-  Bell, ChevronDown, ChevronUp, FileText, CalendarDays
+  Bell, ChevronDown, ChevronUp, FileText, CalendarDays, Users
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,7 @@ interface GroupedStudent {
 
 type Profile = { user_id: string; full_name: string };
 type Batch = { id: string; name: string; course: string };
+type EnrolledStudent = { student_id: string; full_name: string };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
