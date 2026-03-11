@@ -14,7 +14,7 @@ import {
   Search, CheckCircle2, XCircle, Clock, AlertTriangle,
   TrendingUp, Plus, IndianRupee, Loader2, Layers,
   Bell, ChevronDown, ChevronUp, FileText, CalendarDays, Users,
-  Trash2, Download
+  Trash2, Download, ListOrdered
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -51,6 +51,16 @@ type Profile = { user_id: string; full_name: string };
 type Batch = { id: string; name: string; course: string };
 type EnrolledStudent = { student_id: string; full_name: string };
 
+interface CycleEntry {
+  cycleIndex: number;       // 1-based
+  startDate: Date;
+  endDate: Date;
+  dueDate: Date;
+  paid: boolean;
+  paidDate: string | null;
+  status: "paid" | "pending" | "overdue" | "future";
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const FREQUENCY_OPTIONS = [
@@ -65,68 +75,91 @@ const MONTHS = [
   "July","August","September","October","November","December"
 ];
 
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
+}
+
 function calcInstallment(annual: number, freq: string): number {
   const opt = FREQUENCY_OPTIONS.find(o => o.value === freq);
   return opt ? Math.round(annual / opt.divisor) : annual;
 }
 
-// Given cycle_day + start_month, compute the current due date
-function computeCurrentDueDate(cycleDay: number, startMonth: string): string {
+/**
+ * Build a list of N cycles from plan start_month + cycle_day.
+ * Each cycle: startDate = cycleDay of month M, endDate = cycleDay-1 of month M+freq.
+ * Paid status is determined by paid_cycles_count (cycles 1..paid_cycles_count are paid).
+ * The paid_date is stored on the plan (last paid date).
+ */
+function buildCycles(plan: FeePlan, count = 12): CycleEntry[] {
+  if (!plan.cycle_day || !plan.start_month) return [];
+  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+  const freqMonths = freq?.months ?? 1;
+  const [sy, sm] = plan.start_month.split("-").map(Number);
   const today = new Date();
-  const [sy, sm] = startMonth.split("-").map(Number);
-  const startDate = new Date(sy, sm - 1, cycleDay);
+  today.setHours(0, 0, 0, 0);
 
-  if (today < startDate) return startMonth + "-" + String(cycleDay).padStart(2, "0");
+  const cycles: CycleEntry[] = [];
+  for (let i = 0; i < count; i++) {
+    const dueDate = new Date(sy, sm - 1 + i * freqMonths, plan.cycle_day);
+    const endDate = new Date(sy, sm - 1 + (i + 1) * freqMonths, plan.cycle_day - 1);
+    const startDate = i === 0 ? dueDate : new Date(sy, sm - 1 + i * freqMonths, plan.cycle_day);
 
-  // Advance until we find a due date >= today (minus grace window)
-  // We return the most recent due date (current cycle)
-  let current = startDate;
-  const freq = null; // freq not available here, pass it
-  // Just return: we compute this per plan in getStatus
-  return `${sy}-${String(sm).padStart(2,"0")}-${String(cycleDay).padStart(2,"0")}`;
+    const cycleNumber = i + 1; // 1-based
+    const isPaidCycle = cycleNumber <= (plan.paid_cycles_count ?? 0);
+
+    let status: CycleEntry["status"];
+    if (isPaidCycle) {
+      status = "paid";
+    } else if (dueDate > today) {
+      status = "future";
+    } else {
+      const overdueCutoff = new Date(dueDate);
+      overdueCutoff.setDate(overdueCutoff.getDate() + 7);
+      status = today > overdueCutoff ? "overdue" : "pending";
+    }
+
+    // For the paid date: only the most recent paid cycle carries paid_date
+    const paidDate = isPaidCycle && cycleNumber === (plan.paid_cycles_count ?? 0) ? plan.paid_date : null;
+
+    cycles.push({ cycleIndex: cycleNumber, startDate, endDate, dueDate, paid: isPaidCycle, paidDate, status });
+  }
+  return cycles;
 }
 
-// Compute current cycle due date from a plan
+/**
+ * Get current active cycle due date.
+ * "Current cycle" = the cycle whose dueDate we haven't yet paid for.
+ * This is: the cycle at index = paid_cycles_count (0-indexed), i.e. the (paid_cycles_count+1)th cycle.
+ */
 function getCurrentDueDate(plan: FeePlan): Date | null {
   if (!plan.cycle_day || !plan.start_month) {
     return plan.due_date ? new Date(plan.due_date) : null;
   }
   const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
-  const months = freq?.months ?? 1;
+  const freqMonths = freq?.months ?? 1;
   const [sy, sm] = plan.start_month.split("-").map(Number);
-  const today = new Date();
-  today.setHours(0,0,0,0);
-
-  let cycleDate = new Date(sy, sm - 1, plan.cycle_day);
-  // advance while cycleDate is before today AND still valid to advance
-  while (cycleDate < today) {
-    const next = new Date(cycleDate);
-    next.setMonth(next.getMonth() + months);
-    if (next <= today) {
-      cycleDate = next;
-    } else {
-      break;
-    }
-  }
-  return cycleDate;
+  // Current cycle index = paid_cycles_count (0-indexed)
+  const cycleIndex = plan.paid_cycles_count ?? 0;
+  return new Date(sy, sm - 1 + cycleIndex * freqMonths, plan.cycle_day);
 }
 
+/**
+ * Determine fee status for the CURRENT cycle.
+ * A cycle is "paid" if paid_cycles_count covers it (i.e., the DB is the source of truth for paid cycles).
+ * The current cycle is cycle index = paid_cycles_count (0-indexed).
+ * If paid=true in DB, we treat current cycle as paid.
+ */
 function getFeeStatus(plan: FeePlan): "paid" | "pending" | "overdue" {
-  // A plan is "paid" if paid=true AND paid_date is within the current cycle
-  if (plan.paid) {
-    if (plan.paid_date && plan.due_date) {
-      // If the current due_date is after the paid_date, the cycle has already advanced → not paid
-      const paidOn = new Date(plan.paid_date);
-      const dueDateObj = new Date(plan.due_date);
-      if (dueDateObj > paidOn) return "pending"; // next cycle started
-    } else {
-      return "paid";
-    }
-  }
+  // paid=true means the current cycle (at paid_cycles_count-1) was paid and due_date points to next cycle
+  if (plan.paid) return "paid";
+
   const dueDate = getCurrentDueDate(plan);
   if (!dueDate) return "pending";
+
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
   const overdueCutoff = new Date(dueDate);
   overdueCutoff.setDate(overdueCutoff.getDate() + 7);
   if (today > overdueCutoff) return "overdue";
@@ -137,7 +170,7 @@ function getDaysOverdue(plan: FeePlan): number {
   const dueDate = getCurrentDueDate(plan);
   if (!dueDate) return 0;
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
   const overdueCutoff = new Date(dueDate);
   overdueCutoff.setDate(overdueCutoff.getDate() + 7);
   const diff = today.getTime() - overdueCutoff.getTime();
@@ -149,6 +182,115 @@ const STATUS_CONFIG = {
   pending: { label: "Pending", color: "bg-accent-light text-accent border-accent/20", icon: Clock },
   overdue: { label: "Overdue", color: "bg-danger-light text-danger border-danger/20", icon: XCircle },
 };
+
+// ─── Cycle Structure Modal ────────────────────────────────────────────────────
+
+function CycleStructureModal({ plan, onClose }: { plan: FeePlan; onClose: () => void }) {
+  const cycles = buildCycles(plan, 12);
+  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+  const totalCycles = freq ? Math.round(12 / (freq.months)) : 12;
+
+  const fmt = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+
+  const cycleBg: Record<CycleEntry["status"], string> = {
+    paid: "bg-success-light border-success/20",
+    pending: "bg-accent-light border-accent/20",
+    overdue: "bg-danger-light border-danger/20",
+    future: "bg-muted/50 border-border/40",
+  };
+  const cycleText: Record<CycleEntry["status"], string> = {
+    paid: "text-success",
+    pending: "text-accent",
+    overdue: "text-danger",
+    future: "text-muted-foreground",
+  };
+  const cycleLabel: Record<CycleEntry["status"], string> = {
+    paid: "Paid",
+    pending: "Pending",
+    overdue: "Overdue",
+    future: "Upcoming",
+  };
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ListOrdered className="w-4 h-4 text-primary" />
+            Cycle Structure
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {/* Header info */}
+          <div className="gradient-hero rounded-xl p-3 text-white">
+            <p className="text-white/70 text-xs">Student</p>
+            <p className="font-display font-bold text-sm">{plan.student_name}</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-white/80 text-xs">{plan.batch_name}</p>
+              <p className="text-white/90 text-xs font-medium">
+                ₹{Number(plan.amount).toLocaleString("en-IN")} / {freq?.label || "cycle"}
+              </p>
+            </div>
+          </div>
+
+          {/* Progress summary */}
+          <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+            <div className="flex-1 text-center">
+              <p className="text-lg font-bold text-success">{plan.paid_cycles_count}</p>
+              <p className="text-xs text-muted-foreground">Paid</p>
+            </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="flex-1 text-center">
+              <p className="text-lg font-bold">{Math.max(0, totalCycles - plan.paid_cycles_count)}</p>
+              <p className="text-xs text-muted-foreground">Remaining</p>
+            </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="flex-1 text-center">
+              <p className="text-lg font-bold text-primary">₹{Number(plan.total_paid_amount).toLocaleString("en-IN")}</p>
+              <p className="text-xs text-muted-foreground">Collected</p>
+            </div>
+          </div>
+
+          {/* Cycle list */}
+          <div className="space-y-2">
+            {cycles.slice(0, totalCycles).map(c => (
+              <div key={c.cycleIndex} className={`rounded-lg border p-3 ${cycleBg[c.status]}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${c.status === "paid" ? "bg-success text-white" : c.status === "overdue" ? "bg-danger text-white" : c.status === "pending" ? "bg-accent text-white" : "bg-muted-foreground/20 text-muted-foreground"}`}>
+                      {c.cycleIndex}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold">
+                        {fmt(c.startDate)} → {fmt(c.endDate)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">Due: {fmt(c.dueDate)}</p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className={`text-xs font-bold ${cycleText[c.status]}`}>{cycleLabel[c.status]}</p>
+                    {c.paid && c.paidDate && (
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(c.paidDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                      </p>
+                    )}
+                    {c.paid && !c.paidDate && (
+                      <p className="text-xs text-success">✓</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-xs text-center text-muted-foreground pb-1">
+            Showing {Math.min(totalCycles, cycles.length)} cycles · Updated by admin actions only
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ─── Fee Structure Modal ──────────────────────────────────────────────────────
 
@@ -253,14 +395,12 @@ function FeeStructureModal({
               <p className="text-muted-foreground">All fee history for <strong>{plan.student_name}</strong> under <strong>{plan.batch_name}</strong> will be deleted and cannot be recovered.</p>
             </div>
 
-            {/* Summary before delete */}
             <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
               <p className="font-medium">Fee summary</p>
               <p className="text-muted-foreground">Annual: ₹{Number(plan.annual_amount || 0).toLocaleString("en-IN")} · {freq?.label} ₹{Number(plan.amount).toLocaleString("en-IN")}</p>
               <p className="text-muted-foreground">{plan.paid_cycles_count} cycles paid · ₹{Number(plan.total_paid_amount).toLocaleString("en-IN")} total collected</p>
             </div>
 
-            {/* Download before deleting */}
             <Button
               variant="outline"
               className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/5"
@@ -296,14 +436,12 @@ function FeeStructureModal({
           <DialogTitle>Fee Structure</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          {/* Student + Batch */}
           <div className="gradient-hero rounded-xl p-4 text-white">
             <p className="text-white/70 text-xs">Student</p>
             <p className="font-display font-bold text-base">{plan.student_name}</p>
             <p className="text-white/80 text-sm mt-0.5">{plan.batch_name || "—"}</p>
           </div>
 
-          {/* Package */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg bg-muted/60 p-3">
               <p className="text-xs text-muted-foreground">Annual Package</p>
@@ -317,10 +455,9 @@ function FeeStructureModal({
             </div>
           </div>
 
-          {/* Cycle */}
           <div className="rounded-lg border border-border/50 p-3 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">Cycle Day</span>
+              <span className="text-muted-foreground">Cycle Date</span>
               <span className="font-medium">{plan.cycle_day ? `${plan.cycle_day}${ordinal(plan.cycle_day)} of every ${freq?.months === 1 ? "month" : `${freq?.months} months`}` : "—"}</span>
             </div>
             <div className="flex justify-between">
@@ -337,7 +474,6 @@ function FeeStructureModal({
             </div>
           </div>
 
-          {/* Current Cycle */}
           <div className={`rounded-lg p-3 border ${status === "paid" ? "bg-success-light border-success/20" : status === "overdue" ? "bg-danger-light border-danger/20" : "bg-accent-light border-accent/20"}`}>
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Cycle</p>
@@ -360,7 +496,6 @@ function FeeStructureModal({
             )}
           </div>
 
-          {/* Actions: Download + Delete */}
           <div className="flex gap-2 pt-1">
             <Button
               variant="outline"
@@ -385,12 +520,6 @@ function FeeStructureModal({
   );
 }
 
-function ordinal(n: number): string {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return s[(v - 20) % 10] || s[v] || s[0];
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminFees() {
@@ -409,6 +538,7 @@ export default function AdminFees() {
   const [notifyingId, setNotifyingId] = useState<string | null>(null);
   const [expandedStudents, setExpandedStudents] = useState<Set<string>>(new Set());
   const [selectedPlan, setSelectedPlan] = useState<FeePlan | null>(null);
+  const [cycleStructurePlan, setCycleStructurePlan] = useState<FeePlan | null>(null);
   const [instituteCode, setInstituteCode] = useState("");
 
   // Add Fee dialog state
@@ -586,47 +716,57 @@ export default function AdminFees() {
   };
 
   // ─── Mark Paid → advance cycle ──────────────────────────────────────────────
+  // Rule: each cycle can only be paid ONCE.
+  // paid=true means current cycle is paid. We only allow marking paid when paid=false.
+  // After marking: paid=true, paid_cycles_count++, total_paid_amount+=amount, paid_date=today.
+  // The next cycle's due date is computed from paid_cycles_count (via getCurrentDueDate).
+  // When the next cycle's due date arrives, paid must be reset to false so it shows Pending again.
+  // → We reset paid=false immediately when marking, but increment paid_cycles_count so
+  //   getCurrentDueDate advances to the next cycle. paid=true only during the current cycle window.
+  //
+  // IMPORTANT: We set paid=false + advance paid_cycles_count so that after paying,
+  // the system naturally shows the next cycle as Pending once it arrives.
 
   const handleMarkPaid = async (plan: FeePlan) => {
-    // Guard: only allow marking paid if status is pending or overdue (not already paid)
-    const currentStatus = getFeeStatus(plan);
-    if (currentStatus === "paid") {
-      toast({ title: "Already paid", description: "This cycle is already marked as paid.", variant: "destructive" });
+    // Strict guard: if paid=true in DB, this cycle is already paid — block double-tap
+    if (plan.paid) {
+      toast({
+        title: "Already paid",
+        description: "This cycle is already marked as paid. The next cycle will be pending on its due date.",
+        variant: "destructive",
+      });
       return;
     }
 
     setMarkingId(plan.id);
     try {
       const today = new Date().toISOString().split("T")[0];
-      const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
-      const months = freq?.months ?? 1;
+      const newPaidCyclesCount = (plan.paid_cycles_count ?? 0) + 1;
+      const newTotalPaid = Number(plan.total_paid_amount ?? 0) + Number(plan.amount);
 
-      // Advance due_date to the next cycle
-      const currentDueDate = getCurrentDueDate(plan);
-      let nextDue: string | null = null;
-      if (currentDueDate) {
-        const next = new Date(currentDueDate);
-        next.setMonth(next.getMonth() + months);
-        nextDue = next.toISOString().split("T")[0];
-      } else if (plan.due_date) {
-        const next = new Date(plan.due_date);
-        next.setMonth(next.getMonth() + months);
-        nextDue = next.toISOString().split("T")[0];
-      }
+      // Compute next cycle's due date based on the new paid_cycles_count
+      // We temporarily update paid_cycles_count to compute next due
+      const tempPlan = { ...plan, paid_cycles_count: newPaidCyclesCount };
+      const nextDueDateObj = getCurrentDueDate(tempPlan);
+      const nextDue = nextDueDateObj ? nextDueDateObj.toISOString().split("T")[0] : null;
 
       const { error } = await supabase
         .from("fees")
         .update({
-          paid: true, // mark current cycle paid
+          paid: true,           // mark current cycle as paid
           paid_date: today,
-          paid_cycles_count: (plan.paid_cycles_count ?? 0) + 1,
-          total_paid_amount: (Number(plan.total_paid_amount) ?? 0) + Number(plan.amount),
-          due_date: nextDue, // advance to next cycle due date
+          paid_cycles_count: newPaidCyclesCount,
+          total_paid_amount: newTotalPaid,
+          due_date: nextDue,    // store next cycle due date for reference
         } as never)
         .eq("id", plan.id);
 
       if (error) throw error;
-      toast({ title: "Marked as Paid ✓", description: `Cycle paid. Next due: ${nextDue ? new Date(nextDue).toLocaleDateString("en-IN") : "—"}` });
+
+      toast({
+        title: "Marked as Paid ✓",
+        description: `Cycle ${newPaidCyclesCount} paid. Next due: ${nextDue ? new Date(nextDue).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "—"}`,
+      });
       fetchData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to update";
@@ -676,7 +816,6 @@ export default function AdminFees() {
 
   const overduePlans = useMemo(() => plans.filter(p => getFeeStatus(p) === "overdue"), [plans]);
 
-  // Group by student
   const grouped: GroupedStudent[] = useMemo(() => {
     const map = new Map<string, GroupedStudent>();
     for (const p of filtered) {
@@ -699,12 +838,12 @@ export default function AdminFees() {
   // ─── Stats ───────────────────────────────────────────────────────────────────
 
   const totalCollected = plans.reduce((s, p) => s + Number(p.total_paid_amount), 0);
-  const totalPending = plans.filter(p => !p.paid).reduce((s, p) => s + Number(p.amount), 0);
+  const totalPending = plans.filter(p => getFeeStatus(p) !== "paid").reduce((s, p) => s + Number(p.amount), 0);
   const overdueAmount = overduePlans.reduce((s, p) => s + Number(p.amount), 0);
 
   const summaryStats = [
     { label: "Total Collected", value: `₹${totalCollected.toLocaleString("en-IN")}`, sub: `${plans.reduce((s, p) => s + (p.paid_cycles_count ?? 0), 0)} payments`, color: "success", icon: TrendingUp },
-    { label: "Pending Dues", value: `₹${totalPending.toLocaleString("en-IN")}`, sub: `${plans.filter(p => !p.paid).length} entries`, color: "warning", icon: Clock },
+    { label: "Pending Dues", value: `₹${totalPending.toLocaleString("en-IN")}`, sub: `${plans.filter(p => getFeeStatus(p) !== "paid").length} entries`, color: "warning", icon: Clock },
     { label: "Overdue", value: `₹${overdueAmount.toLocaleString("en-IN")}`, sub: `${overduePlans.length} entries`, color: "danger", icon: AlertTriangle },
   ];
 
@@ -780,7 +919,6 @@ export default function AdminFees() {
                           <div className="text-right mr-1">
                             <p className="font-bold text-sm">₹{Number(plan.amount).toLocaleString("en-IN")}</p>
                           </div>
-                          {/* Notification bell */}
                           <Button
                             size="sm"
                             variant="outline"
@@ -883,7 +1021,6 @@ export default function AdminFees() {
                           const daysOverdue = getDaysOverdue(plan);
                           const freqOpt = FREQUENCY_OPTIONS.find(o => o.value === plan.payment_frequency);
                           const isFirstRow = pi === 0;
-                          // Hide subsequent rows if collapsed
                           if (!isFirstRow && !isExpanded) return null;
 
                           return (
@@ -950,7 +1087,7 @@ export default function AdminFees() {
                               <td className="px-4 py-3 hidden md:table-cell">
                                 {dueDate ? (
                                   <div>
-                                    <span className={`text-sm ${status === "overdue" ? "text-danger font-semibold" : "text-muted-foreground"}`}>
+                                    <span className={`text-sm ${status === "overdue" ? "text-danger font-semibold" : status === "paid" ? "text-success" : "text-muted-foreground"}`}>
                                       {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                                     </span>
                                     {status === "overdue" && daysOverdue > 0 && (
@@ -959,7 +1096,7 @@ export default function AdminFees() {
                                     {plan.cycle_day && (
                                       <p className="text-xs text-muted-foreground">
                                         <CalendarDays className="w-2.5 h-2.5 inline mr-0.5" />
-                                        {plan.cycle_day}{ordinal(plan.cycle_day)} cycle
+                                        Cycle Date — {plan.cycle_day}
                                       </p>
                                     )}
                                   </div>
@@ -974,37 +1111,57 @@ export default function AdminFees() {
                               </td>
 
                               {/* Action */}
-                               <td className="px-4 py-3 text-right">
-                                 {(status === "pending" || status === "overdue") && (
-                                   <Button
-                                     size="sm"
-                                     variant="ghost"
-                                     className="h-7 text-xs text-success hover:text-success gap-1"
-                                     disabled={markingId === plan.id}
-                                     onClick={() => handleMarkPaid(plan)}
-                                   >
-                                     {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                                     Mark Paid
-                                   </Button>
-                                 )}
-                                 {status === "paid" && (
-                                   <span className="text-xs text-success font-medium flex items-center justify-end gap-1">
-                                     <CheckCircle2 className="w-3.5 h-3.5" /> Paid
-                                   </span>
-                                 )}
-                                 {status === "overdue" && (
-                                   <Button
-                                     size="sm"
-                                     variant="ghost"
-                                     className="h-7 text-xs text-danger hover:text-danger gap-1 mt-1"
-                                     disabled={notifyingId === plan.id}
-                                     onClick={() => handleSendOverdueNotification(plan)}
-                                   >
-                                     {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
-                                     Notify
-                                   </Button>
-                                 )}
-                               </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex flex-col items-end gap-1">
+                                  {/* Mark Paid: only show when NOT already paid */}
+                                  {!plan.paid && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-success hover:text-success gap-1"
+                                      disabled={markingId === plan.id}
+                                      onClick={() => handleMarkPaid(plan)}
+                                    >
+                                      {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                      Mark Paid
+                                    </Button>
+                                  )}
+
+                                  {/* Cycle Structure: always show if plan has cycle setup */}
+                                  {plan.cycle_day && plan.start_month && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-primary hover:text-primary gap-1"
+                                      onClick={() => setCycleStructurePlan(plan)}
+                                    >
+                                      <ListOrdered className="w-3.5 h-3.5" />
+                                      Cycle Structure
+                                    </Button>
+                                  )}
+
+                                  {/* Notify: only for overdue */}
+                                  {status === "overdue" && (
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      className="h-7 text-xs text-danger hover:text-danger gap-1"
+                                      disabled={notifyingId === plan.id}
+                                      onClick={() => handleSendOverdueNotification(plan)}
+                                    >
+                                      {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                                      Notify
+                                    </Button>
+                                  )}
+
+                                  {/* If paid and no cycle setup, show nothing special */}
+                                  {plan.paid && !plan.cycle_day && (
+                                    <span className="text-xs text-success font-medium flex items-center justify-end gap-1">
+                                      <CheckCircle2 className="w-3.5 h-3.5" /> Paid
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
                             </tr>
                           );
                         });
@@ -1026,7 +1183,7 @@ export default function AdminFees() {
           </DialogHeader>
           <div className="space-y-4">
 
-            {/* Step 1: Batch (mandatory, first) */}
+            {/* Step 1: Batch */}
             <div className="space-y-1.5">
               <Label>Batch <span className="text-danger">*</span></Label>
               <Select value={newFee.batch_id} onValueChange={handleAddFeeBatchChange}>
@@ -1123,12 +1280,12 @@ export default function AdminFees() {
               <Input
                 type="number"
                 min={1} max={31}
-                placeholder="e.g. 5"
+                placeholder="e.g. 10"
                 value={newFee.cycle_day}
                 onChange={e => setNewFee({ ...newFee, cycle_day: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Fee renews on this day each {FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months === 1 ? "month" : `${FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months} months`}
+                Fee is due on this date each {FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months === 1 ? "month" : `${FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months} months`}
               </p>
             </div>
 
@@ -1186,6 +1343,14 @@ export default function AdminFees() {
             setPlans(prev => prev.filter(p => p.id !== id));
             setSelectedPlan(null);
           }}
+        />
+      )}
+
+      {/* Cycle Structure Modal */}
+      {cycleStructurePlan && (
+        <CycleStructureModal
+          plan={cycleStructurePlan}
+          onClose={() => setCycleStructurePlan(null)}
         />
       )}
     </DashboardLayout>
