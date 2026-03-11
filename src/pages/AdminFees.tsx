@@ -58,7 +58,7 @@ interface CycleEntry {
   dueDate: Date;
   paid: boolean;
   paidDate: string | null;
-  status: "paid" | "pending" | "overdue" | "future";
+  status: "paid" | "pending" | "overdue" | "upcoming";
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
