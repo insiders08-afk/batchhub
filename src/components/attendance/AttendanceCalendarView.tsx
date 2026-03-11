@@ -397,7 +397,10 @@ export default function AttendanceCalendarView({
                     return (
                       <div
                         key={day}
-                        className="aspect-square flex flex-col items-center justify-center text-xs rounded-md border border-transparent"
+                        className={cn(
+                          "aspect-square flex flex-col items-center justify-center text-xs rounded-md border border-transparent",
+                          isTodayDay && "ring-2 ring-primary ring-offset-1"
+                        )}
                         aria-hidden="true"
                       >
                         <span className="text-muted-foreground/40">{day}</span>
@@ -413,11 +416,11 @@ export default function AttendanceCalendarView({
                         className={cn(
                           "aspect-square flex flex-col items-center justify-center text-[10px] font-medium rounded-md border",
                           "bg-warning/8 border-warning/25 text-warning",
-                          isTodayDay && "ring-1 ring-primary"
+                          isTodayDay && "ring-2 ring-primary ring-offset-1"
                         )}
                       >
                         <span className="font-semibold">{day}</span>
-                        <span className="text-[8px] font-bold leading-none mt-0.5">Off</span>
+                        <span className="text-[8px] font-bold leading-none mt-0.5 text-warning">Off</span>
                       </div>
                     );
                   }
@@ -428,19 +431,20 @@ export default function AttendanceCalendarView({
 
                   if (isTodayDay) {
                     if (attendanceWindowOpen) {
-                      cellClass = "border-primary/50 bg-primary/10 text-primary font-bold cursor-default";
+                      cellClass = "border-primary/50 bg-primary/10 text-primary font-bold cursor-default ring-2 ring-primary ring-offset-1";
                     } else if (hasData) {
                       interactive = true;
                       if (isSelected) {
-                        cellClass = "bg-primary text-primary-foreground border-primary shadow-sm cursor-pointer";
+                        cellClass = "bg-primary text-primary-foreground border-primary shadow-sm cursor-pointer ring-2 ring-primary ring-offset-1";
                       } else if (pct !== null && pct >= 75) {
-                        cellClass = "bg-success-light text-success border-success/20 hover:border-success/50 cursor-pointer font-bold";
+                        cellClass = "bg-success-light text-success border-success/20 hover:border-success/50 cursor-pointer font-bold ring-2 ring-primary ring-offset-1";
                       } else {
-                        cellClass = "bg-danger-light text-danger border-danger/20 hover:border-danger/50 cursor-pointer font-bold";
+                        cellClass = "bg-danger-light text-danger border-danger/20 hover:border-danger/50 cursor-pointer font-bold ring-2 ring-primary ring-offset-1";
                       }
                     } else {
-                      cellClass = "bg-muted/20 border-border/20 text-muted-foreground/60 cursor-default font-semibold";
+                      cellClass = "bg-muted/20 border-border/20 text-muted-foreground/60 cursor-default font-semibold ring-2 ring-primary ring-offset-1";
                     }
+
                   } else if (isFutureDay) {
                     if (isFutureBatchDay) {
                       interactive = true;

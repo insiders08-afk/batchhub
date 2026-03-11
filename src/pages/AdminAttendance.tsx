@@ -118,20 +118,50 @@ export default function AdminAttendance() {
   useEffect(() => { if (selectedBatchId) loadBatchData(selectedBatchId); }, [selectedBatchId, loadBatchData]);
 
   const selectedBatch = batches.find(b => b.id === selectedBatchId);
-  const { editable: attEditable, reason: attLockReason } = isAttendanceEditable(selectedBatch?.schedule ?? null);
+  const { editable: attEditable, reason: attLockReason, openTime, lockTime } = isAttendanceEditable(selectedBatch?.schedule ?? null);
+
+  // Check if today is marked as a day-off for this batch
+  const [todayIsDayOff, setTodayIsDayOff] = useState(false);
+  useEffect(() => {
+    if (!selectedBatchId) return;
+    setTodayIsDayOff(false);
+    supabase
+      .from("announcements")
+      .select("title")
+      .eq("batch_id", selectedBatchId)
+      .eq("type", "day_off")
+      .then(({ data }) => {
+        if (!data) return;
+        const todayFormatted = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+        const todayDateStr = `${new Date().getDate()} ${new Date().toLocaleDateString("en-IN", { month: "long" })} ${new Date().getFullYear()}`;
+        const found = data.some(ann => {
+          const t = ann.title.toLowerCase();
+          return t.includes(String(new Date().getDate())) &&
+            t.includes(new Date().toLocaleDateString("en-IN", { month: "long" }).toLowerCase()) &&
+            t.includes(String(new Date().getFullYear()));
+        });
+        setTodayIsDayOff(found);
+      });
+  }, [selectedBatchId, today]);
+
+  const isLocked = !attEditable || todayIsDayOff;
 
   const toggle = (userId: string) => {
-    if (!attEditable) return;
+    if (isLocked) return;
     setAttendance(prev => ({ ...prev, [userId]: prev[userId] === "present" ? "absent" : "present" }));
   };
 
   const markAll = (status: "present" | "absent") => {
-    if (!attEditable) return;
+    if (isLocked) return;
     setAttendance(Object.fromEntries(students.map(s => [s.user_id, status])));
   };
 
   const saveAttendance = async () => {
     if (!selectedBatchId || students.length === 0) return;
+    if (todayIsDayOff) {
+      toast({ title: "Day Off", description: "Today is marked as a day off for this batch. No attendance saved.", variant: "destructive" });
+      return;
+    }
     if (!attEditable) {
       toast({ title: "Attendance locked", description: attLockReason, variant: "destructive" });
       return;
@@ -197,13 +227,13 @@ export default function AdminAttendance() {
           </div>
           <div className="flex gap-2 ml-auto">
             <Button size="sm" variant="outline" onClick={() => markAll("present")}
-              disabled={!attEditable}
-              className={cn("h-9 gap-1.5", attEditable ? "text-success border-success/30 hover:bg-success-light" : "opacity-40 cursor-not-allowed")}>
+              disabled={isLocked}
+              className={cn("h-9 gap-1.5", !isLocked ? "text-success border-success/30 hover:bg-success-light" : "opacity-40 cursor-not-allowed")}>
               <CheckCircle2 className="w-3.5 h-3.5" /> All Present
             </Button>
             <Button size="sm" variant="outline" onClick={() => markAll("absent")}
-              disabled={!attEditable}
-              className={cn("h-9 gap-1.5", attEditable ? "text-danger border-danger/30 hover:bg-danger-light" : "opacity-40 cursor-not-allowed")}>
+              disabled={isLocked}
+              className={cn("h-9 gap-1.5", !isLocked ? "text-danger border-danger/30 hover:bg-danger-light" : "opacity-40 cursor-not-allowed")}>
               <XCircle className="w-3.5 h-3.5" /> All Absent
             </Button>
           </div>
@@ -225,13 +255,31 @@ export default function AdminAttendance() {
                   <span className="text-muted-foreground">· Today: <span className="font-semibold text-foreground">{todayName}</span></span>
                 </div>
               )}
-              <div className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border",
-                attEditable ? "bg-success/5 border-success/20 text-success" : "bg-warning/5 border-warning/20 text-warning"
-              )}>
-                {attEditable ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
-                <span>{attEditable ? `Attendance open · ${formatTimingDisplay(selectedBatch.schedule)}` : attLockReason}</span>
-              </div>
+              {/* Day-off override notice */}
+              {todayIsDayOff ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border bg-warning/8 border-warning/25 text-warning">
+                  <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Attendance locked — Today is a marked Day Off for this batch.</span>
+                </div>
+              ) : (
+                <div className={cn(
+                  "flex flex-wrap items-center gap-1.5 px-3 py-2 rounded-lg text-xs border",
+                  attEditable ? "bg-success/5 border-success/20 text-success" : "bg-warning/5 border-warning/20 text-warning"
+                )}>
+                  {attEditable ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
+                  {attEditable ? (
+                    <span>
+                      Attendance open · Opens at <span className="font-semibold">{openTime}</span> (class start time) · Locks at <span className="font-semibold">{lockTime}</span> <span className="opacity-70">(+2 hrs editing)</span>
+                    </span>
+                  ) : openTime && lockTime ? (
+                    <span>
+                      {attLockReason} · Opens at <span className="font-semibold">{openTime}</span> · Locks at <span className="font-semibold">{lockTime}</span> <span className="opacity-70">(+2 hrs editing)</span>
+                    </span>
+                  ) : (
+                    <span>{attLockReason}</span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })()}
@@ -283,10 +331,10 @@ export default function AdminAttendance() {
                       </button>
                       <button
                         onClick={() => toggle(s.user_id)}
-                        disabled={!attEditable}
+                        disabled={isLocked}
                         className={cn(
                           "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ml-3",
-                          !attEditable ? "opacity-50 cursor-not-allowed" : "",
+                          isLocked ? "opacity-50 cursor-not-allowed" : "",
                           attendance[s.user_id] === "present"
                             ? "bg-success-light text-success hover:bg-success hover:text-white"
                             : "bg-danger-light text-danger hover:bg-danger hover:text-white"
@@ -304,15 +352,17 @@ export default function AdminAttendance() {
 
               <div className="p-4 border-t border-border/50">
                 <Button
-                  className={cn("w-full border-0", attEditable ? "gradient-hero text-white shadow-primary hover:opacity-90" : "bg-muted text-muted-foreground cursor-not-allowed")}
+                  className={cn("w-full border-0", !isLocked ? "gradient-hero text-white shadow-primary hover:opacity-90" : "bg-muted text-muted-foreground cursor-not-allowed")}
                   onClick={saveAttendance}
-                  disabled={saving || students.length === 0 || !attEditable}
+                  disabled={saving || students.length === 0 || isLocked}
                 >
                   {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                    : todayIsDayOff ? <><Lock className="w-4 h-4 mr-2" />Day Off — No Attendance</>
                     : !attEditable ? <><Lock className="w-4 h-4 mr-2" />Attendance Locked</>
                     : "Save Attendance"}
                 </Button>
-                {!attEditable && <p className="text-xs text-muted-foreground text-center mt-1.5">{attLockReason}</p>}
+                {todayIsDayOff && <p className="text-xs text-warning text-center mt-1.5">Today is marked as a day off.</p>}
+                {!todayIsDayOff && !attEditable && <p className="text-xs text-muted-foreground text-center mt-1.5">{attLockReason}</p>}
               </div>
             </Card>
           </div>

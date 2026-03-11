@@ -50,14 +50,37 @@ export function isBatchDay(schedule: string | null, date?: Date): boolean {
   return t.days.includes(todayAbbrev(date));
 }
 
+/** Formats a 24h minute count back to 12h display */
+function minsTo12h(totalMins: number): string {
+  const h24 = Math.floor(totalMins / 60) % 24;
+  const m = totalMins % 60;
+  const ap = h24 >= 12 ? "PM" : "AM";
+  const h12 = h24 > 12 ? h24 - 12 : h24 === 0 ? 12 : h24;
+  return `${h12}:${String(m).padStart(2, "0")} ${ap}`;
+}
+
 /**
  * Returns whether attendance can be edited right now for a given batch.
  * Checks: (1) today is a scheduled batch day, (2) current time is within window.
  * Window: from batch start time to batch end + 2 hours.
  */
-export function isAttendanceEditable(schedule: string | null): { editable: boolean; reason: string } {
+export function isAttendanceEditable(schedule: string | null): {
+  editable: boolean;
+  reason: string;
+  openTime: string;
+  lockTime: string;
+} {
   const t = parseBatchTiming(schedule);
-  if (!t) return { editable: true, reason: "" }; // No timing set — allow
+  if (!t) return { editable: true, reason: "", openTime: "", lockTime: "" };
+
+  const startH24 = to24(t.startHour, t.startAmPm);
+  const endH24 = to24(t.endHour, t.endAmPm);
+  const startMins = startH24 * 60 + t.startMinute;
+  const endMins = endH24 * 60 + t.endMinute;
+  const cutoffMins = endMins + 120; // +2 hours
+
+  const openTime = `${t.startHour}:${String(t.startMinute).padStart(2, "0")} ${t.startAmPm}`;
+  const lockTime = minsTo12h(cutoffMins);
 
   // Check day of week using abbreviations
   const todayIdx = new Date().getDay();
@@ -69,39 +92,32 @@ export function isAttendanceEditable(schedule: string | null): { editable: boole
     return {
       editable: false,
       reason: `No class today (${todayFull}). This batch runs on: ${daysStr}.`,
+      openTime,
+      lockTime,
     };
   }
 
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
 
-  const startH24 = to24(t.startHour, t.startAmPm);
-  const endH24 = to24(t.endHour, t.endAmPm);
-
-  const startMins = startH24 * 60 + t.startMinute;
-  const endMins = endH24 * 60 + t.endMinute;
-  const cutoffMins = endMins + 120; // +2 hours
-
-  const fmt = (h: number, m: number, ap: string) => `${h}:${String(m).padStart(2, "0")} ${ap}`;
-
   if (nowMins < startMins) {
     return {
       editable: false,
-      reason: `Attendance opens at ${fmt(t.startHour, t.startMinute, t.startAmPm)} (class start time).`,
+      reason: `Attendance opens at ${openTime} (class start time). Locks at ${lockTime} (+2 hrs editing).`,
+      openTime,
+      lockTime,
     };
   }
   if (nowMins > cutoffMins) {
-    const cutH = Math.floor(cutoffMins / 60);
-    const cutM = cutoffMins % 60;
-    const cutAp = cutH >= 12 ? "PM" : "AM";
-    const cutH12 = cutH > 12 ? cutH - 12 : cutH === 0 ? 12 : cutH;
     return {
       editable: false,
-      reason: `Attendance window closed at ${cutH12}:${String(cutM).padStart(2, "0")} ${cutAp} (2 hrs after class end).`,
+      reason: `Attendance window closed at ${lockTime} (2 hrs after class end).`,
+      openTime,
+      lockTime,
     };
   }
 
-  return { editable: true, reason: "" };
+  return { editable: true, reason: "", openTime, lockTime };
 }
 
 export function formatTimingDisplay(schedule: string | null): string {
