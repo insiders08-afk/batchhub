@@ -249,13 +249,31 @@ export default function AdminAttendance() {
                   <span className="text-muted-foreground">· Today: <span className="font-semibold text-foreground">{todayName}</span></span>
                 </div>
               )}
-              <div className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border",
-                attEditable ? "bg-success/5 border-success/20 text-success" : "bg-warning/5 border-warning/20 text-warning"
-              )}>
-                {attEditable ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
-                <span>{attEditable ? `Attendance open · ${formatTimingDisplay(selectedBatch.schedule)}` : attLockReason}</span>
-              </div>
+              {/* Day-off override notice */}
+              {todayIsDayOff ? (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border bg-warning/8 border-warning/25 text-warning">
+                  <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>Attendance locked — Today is a marked Day Off for this batch.</span>
+                </div>
+              ) : (
+                <div className={cn(
+                  "flex flex-wrap items-center gap-1.5 px-3 py-2 rounded-lg text-xs border",
+                  attEditable ? "bg-success/5 border-success/20 text-success" : "bg-warning/5 border-warning/20 text-warning"
+                )}>
+                  {attEditable ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
+                  {attEditable ? (
+                    <span>
+                      Attendance open · Opens at <span className="font-semibold">{openTime}</span> (class start time) · Locks at <span className="font-semibold">{lockTime}</span> <span className="opacity-70">(+2 hrs editing)</span>
+                    </span>
+                  ) : openTime && lockTime ? (
+                    <span>
+                      {attLockReason} · Opens at <span className="font-semibold">{openTime}</span> · Locks at <span className="font-semibold">{lockTime}</span> <span className="opacity-70">(+2 hrs editing)</span>
+                    </span>
+                  ) : (
+                    <span>{attLockReason}</span>
+                  )}
+                </div>
+              )}
             </div>
           );
         })()}
