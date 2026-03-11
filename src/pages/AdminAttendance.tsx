@@ -227,13 +227,13 @@ export default function AdminAttendance() {
           </div>
           <div className="flex gap-2 ml-auto">
             <Button size="sm" variant="outline" onClick={() => markAll("present")}
-              disabled={!attEditable}
-              className={cn("h-9 gap-1.5", attEditable ? "text-success border-success/30 hover:bg-success-light" : "opacity-40 cursor-not-allowed")}>
+              disabled={isLocked}
+              className={cn("h-9 gap-1.5", !isLocked ? "text-success border-success/30 hover:bg-success-light" : "opacity-40 cursor-not-allowed")}>
               <CheckCircle2 className="w-3.5 h-3.5" /> All Present
             </Button>
             <Button size="sm" variant="outline" onClick={() => markAll("absent")}
-              disabled={!attEditable}
-              className={cn("h-9 gap-1.5", attEditable ? "text-danger border-danger/30 hover:bg-danger-light" : "opacity-40 cursor-not-allowed")}>
+              disabled={isLocked}
+              className={cn("h-9 gap-1.5", !isLocked ? "text-danger border-danger/30 hover:bg-danger-light" : "opacity-40 cursor-not-allowed")}>
               <XCircle className="w-3.5 h-3.5" /> All Absent
             </Button>
           </div>
