@@ -331,10 +331,10 @@ export default function AdminAttendance() {
                       </button>
                       <button
                         onClick={() => toggle(s.user_id)}
-                        disabled={!attEditable}
+                        disabled={isLocked}
                         className={cn(
                           "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ml-3",
-                          !attEditable ? "opacity-50 cursor-not-allowed" : "",
+                          isLocked ? "opacity-50 cursor-not-allowed" : "",
                           attendance[s.user_id] === "present"
                             ? "bg-success-light text-success hover:bg-success hover:text-white"
                             : "bg-danger-light text-danger hover:bg-danger hover:text-white"
