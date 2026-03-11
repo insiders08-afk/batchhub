@@ -12,8 +12,18 @@ export interface BatchTiming {
   endAmPm: "AM" | "PM";
 }
 
-// Map JS getDay() index to day name stored in batch schedule
+// Days are stored as 3-letter abbreviations ("Mon","Tue"…) from AdminBatches WEEKDAYS array
+// JS getDay() returns 0-6 → map to those same abbreviations
+const JS_DAY_ABBREVS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Full names for display purposes only
 const JS_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** Normalize any day string to 3-letter abbreviation */
+function normDay(d: string): string {
+  if (d.length === 3) return d; // already abbreviated
+  // Full name → first 3 chars
+  return d.slice(0, 3);
+}
 
 export function parseBatchTiming(schedule: string | null): BatchTiming | null {
   if (!schedule) return null;
