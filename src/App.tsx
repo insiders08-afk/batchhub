@@ -24,6 +24,8 @@ import AdminApprovals from "./pages/AdminApprovals";
 import AdminTeam from "./pages/AdminTeam";
 import BatchWorkspace from "./pages/BatchWorkspace";
 import TeacherDashboard from "./pages/TeacherDashboard";
+import TeacherSettings from "./pages/TeacherSettings";
+import StudentSettings from "./pages/StudentSettings";
 import TeacherAttendance from "./pages/TeacherAttendance";
 import TeacherAnnouncements from "./pages/TeacherAnnouncements";
 import TeacherTests from "./pages/TeacherTests";
@@ -88,12 +90,14 @@ const App = () => (
           <Route path="/batch/:id" element={<BatchWorkspace />} />
           {/* Teacher */}
           <Route path="/teacher" element={<TeacherDashboard />} />
+          <Route path="/teacher/settings" element={<TeacherSettings />} />
           <Route path="/teacher/attendance" element={<TeacherAttendance />} />
           <Route path="/teacher/announcements" element={<TeacherAnnouncements />} />
           <Route path="/teacher/tests" element={<TeacherTests />} />
           <Route path="/teacher/homework" element={<TeacherHomework />} />
           {/* Student */}
           <Route path="/student" element={<StudentDashboard />} />
+          <Route path="/student/settings" element={<StudentSettings />} />
           <Route path="/student/attendance" element={<StudentAttendance />} />
           <Route path="/student/tests" element={<StudentTests />} />
           <Route path="/student/homework" element={<StudentHomework />} />

@@ -34,6 +34,7 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: Megaphone, label: "Announcements", path: "/teacher/announcements" },
     { icon: FlaskConical, label: "Tests & Scores", path: "/teacher/tests" },
     { icon: BookOpen, label: "Homework / DPP", path: "/teacher/homework" },
+    { icon: Settings, label: "Settings", path: "/teacher/settings" },
   ],
   student: [
     { icon: LayoutDashboard, label: "My Dashboard", path: "/student" },
@@ -43,6 +44,7 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: BookOpen, label: "Homework / DPP", path: "/student/homework" },
     { icon: IndianRupee, label: "My Fees", path: "/student/fees" },
     { icon: Megaphone, label: "Announcements", path: "/student/announcements" },
+    { icon: Settings, label: "Settings", path: "/student/settings" },
   ],
   parent: [
     { icon: LayoutDashboard, label: "Overview", path: "/parent" },

@@ -4,8 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import { Building2, Bell, Users, Loader2, Save } from "lucide-react";
+import { Building2, Bell, Users, Loader2, Save, Lock, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
@@ -13,13 +12,26 @@ import type { Tables } from "@/integrations/supabase/types";
 type Institute = Tables<"institutes">;
 type Profile = Tables<"profiles">;
 
+function ReadOnlyField({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-muted-foreground">{label}</Label>
+      <div className="flex items-center gap-2 h-10 px-3 rounded-md border border-border/50 bg-muted/40 text-sm text-foreground/70">
+        {icon && <span className="text-muted-foreground/60">{icon}</span>}
+        <span className="flex-1 truncate">{value || "—"}</span>
+        <Lock className="w-3.5 h-3.5 text-muted-foreground/40 flex-shrink-0" />
+      </div>
+    </div>
+  );
+}
+
 export default function AdminSettings() {
   const { toast } = useToast();
   const [institute, setInstitute] = useState<Institute | null>(null);
   const [team, setTeam] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ institute_name: "", city: "", email: "", phone: "" });
+  const [instituteName, setInstituteName] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -28,12 +40,11 @@ export default function AdminSettings() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Use RPC to get institute_code (works for any admin, not just owner)
       const { data: codeData } = await supabase.rpc("get_my_institute_code");
       const myInstCode = codeData as string | null;
 
       if (!myInstCode) {
-        toast({ title: "Error", description: "Could not find your institute. Make sure you are logged in as admin.", variant: "destructive" });
+        toast({ title: "Error", description: "Could not find your institute.", variant: "destructive" });
         return;
       }
 
@@ -46,24 +57,17 @@ export default function AdminSettings() {
       if (instErr) throw instErr;
       if (inst) {
         setInstitute(inst);
-        setForm({
-          institute_name: inst.institute_name,
-          city: inst.city || "",
-          email: inst.email,
-          phone: inst.phone,
-        });
+        setInstituteName(inst.institute_name);
 
-        // Fetch team members (all profiles in this institute with admin role)
         const { data: profiles } = await supabase
           .from("profiles")
           .select("*")
           .eq("institute_code", myInstCode)
           .eq("role", "admin");
-
         setTeam(profiles || []);
       }
     } catch (err: unknown) {
-      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load settings", variant: "destructive" });
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -75,22 +79,26 @@ export default function AdminSettings() {
     try {
       const { error } = await supabase
         .from("institutes")
-        .update({
-          institute_name: form.institute_name,
-          city: form.city,
-          email: form.email,
-          phone: form.phone,
-        })
+        .update({ institute_name: instituteName })
         .eq("id", institute.id);
 
       if (error) throw error;
-      toast({ title: "✅ Changes saved!", description: "Institute profile updated successfully." });
+      toast({ title: "✅ Institute name updated!" });
       fetchData();
     } catch (err: unknown) {
-      toast({ title: "Error saving", description: err instanceof Error ? err.message : "Failed to save", variant: "destructive" });
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to save", variant: "destructive" });
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleContactSuperAdmin = () => {
+    const subject = encodeURIComponent("Request to update institute details");
+    const body = encodeURIComponent(
+      `Institute Code: ${institute?.institute_code || ""}\nInstitute Name: ${institute?.institute_name || ""}\n\nDetails I'd like to change:\n\n`
+    );
+    window.open(`mailto:support@batchhub.app?subject=${subject}&body=${body}`);
+    toast({ title: "Opening email client", description: "Write to us with the changes you need." });
   };
 
   if (loading) {
@@ -106,6 +114,7 @@ export default function AdminSettings() {
   return (
     <DashboardLayout title="Settings">
       <div className="space-y-5 max-w-2xl">
+
         {/* Institute Profile */}
         <Card className="p-5 shadow-card border-border/50">
           <div className="flex items-center gap-3 mb-5">
@@ -114,67 +123,88 @@ export default function AdminSettings() {
             </div>
             <div>
               <h3 className="font-display font-semibold">Institute Profile</h3>
-              <p className="text-xs text-muted-foreground">Basic information about your institute</p>
+              <p className="text-xs text-muted-foreground">Edit institute name; other fields are managed by Super Admin</p>
             </div>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>Institute Name</Label>
-              <Input value={form.institute_name} onChange={e => setForm({ ...form, institute_name: e.target.value })} />
+            {/* Only editable field */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Institute Name <span className="text-primary text-xs">(editable)</span></Label>
+              <Input
+                value={instituteName}
+                onChange={e => setInstituteName(e.target.value)}
+                placeholder="Enter institute name"
+              />
             </div>
-            <div className="space-y-1.5">
-              <Label>City</Label>
-              <Input value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Contact Email</Label>
-              <Input value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Contact Phone</Label>
-              <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} />
-            </div>
+
+            {/* Read-only fields */}
+            <ReadOnlyField label="City" value={institute?.city || ""} />
+            <ReadOnlyField label="Contact Email" value={institute?.email || ""} icon={<Mail className="w-3.5 h-3.5" />} />
+            <ReadOnlyField label="Contact Phone" value={institute?.phone || ""} />
+            <ReadOnlyField label="Government Reg. No." value={institute?.govt_registration_no || ""} />
           </div>
+
           {institute && (
-            <div className="mt-4 p-3 bg-muted/50 rounded-lg">
-              <p className="text-xs text-muted-foreground">Institute Code: <strong className="text-foreground font-mono">{institute.institute_code}</strong></p>
-              <p className="text-xs text-muted-foreground mt-1">Govt. Reg No: <strong className="text-foreground">{institute.govt_registration_no}</strong></p>
-              <p className="text-xs text-muted-foreground mt-1">Status: <strong className={institute.status === "approved" ? "text-success" : institute.status === "pending" ? "text-accent" : "text-danger"}>{institute.status}</strong></p>
+            <div className="mt-4 p-3 bg-muted/50 rounded-lg flex flex-col sm:flex-row sm:items-center gap-2">
+              <div className="flex-1 space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  Institute Code: <strong className="text-foreground font-mono">{institute.institute_code}</strong>
+                  <span className="ml-2 inline-flex items-center gap-0.5 text-muted-foreground/60 text-[10px]">
+                    <Lock className="w-2.5 h-2.5" /> read-only
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Status: <strong className={institute.status === "approved" ? "text-success" : institute.status === "pending" ? "text-accent" : "text-danger"}>{institute.status}</strong>
+                </p>
+              </div>
             </div>
           )}
-          <Button
-            className="mt-4 gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><Save className="w-4 h-4" />Save Changes</>}
-          </Button>
+
+          <div className="mt-4 flex flex-col sm:flex-row gap-3">
+            <Button
+              className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2"
+              onClick={handleSave}
+              disabled={saving || instituteName === institute?.institute_name}
+            >
+              {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><Save className="w-4 h-4" />Save Name</>}
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-2 border-accent/40 text-accent hover:bg-accent/10"
+              onClick={handleContactSuperAdmin}
+            >
+              <Mail className="w-4 h-4" /> Contact Super Admin to Edit Other Fields
+            </Button>
+          </div>
         </Card>
 
         {/* Notifications */}
         <Card className="p-5 shadow-card border-border/50">
-          <div className="flex items-center gap-3 mb-5">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-9 h-9 rounded-xl bg-accent-light flex items-center justify-center">
               <Bell className="w-4 h-4 text-accent" />
             </div>
             <div>
               <h3 className="font-display font-semibold">Notifications</h3>
-              <p className="text-xs text-muted-foreground">Configure system notifications</p>
+              <p className="text-xs text-muted-foreground">System notification preferences (read-only — configured by Super Admin)</p>
             </div>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {[
-              { label: "Fee overdue alerts", desc: "Notify admin when fees are overdue by 30+ days", defaultChecked: true },
-              { label: "Low attendance alerts", desc: "Alert when student attendance drops below 75%", defaultChecked: true },
-              { label: "New student registrations", desc: "Notify when a new student joins the institute", defaultChecked: false },
-              { label: "Test score notifications", desc: "Send score updates to students and parents", defaultChecked: true },
+              { label: "Fee overdue alerts", desc: "Admin notified when fees are overdue by 30+ days", on: true },
+              { label: "Low attendance alerts", desc: "Alert when student attendance drops below 75%", on: true },
+              { label: "New student registrations", desc: "Notify when a new student joins the institute", on: false },
+              { label: "Test score notifications", desc: "Send score updates to students and parents", on: true },
             ].map((n) => (
-              <div key={n.label} className="flex items-center justify-between gap-4">
+              <div key={n.label} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-muted/30 border border-border/30">
                 <div>
                   <p className="text-sm font-medium">{n.label}</p>
                   <p className="text-xs text-muted-foreground">{n.desc}</p>
                 </div>
-                <Switch defaultChecked={n.defaultChecked} />
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${n.on ? "bg-success-light text-success" : "bg-muted text-muted-foreground"}`}>
+                  {n.on ? "On" : "Off"}
+                </span>
               </div>
             ))}
           </div>
