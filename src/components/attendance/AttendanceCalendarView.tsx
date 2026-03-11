@@ -6,10 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarDays, Loader2, XCircle, CheckCircle2, CalendarOff, BanIcon } from "lucide-react";
+import { CalendarDays, Loader2, XCircle, CheckCircle2, CalendarOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { parseBatchTiming } from "@/lib/batchTiming";
+import { parseBatchTiming, isAttendanceEditable } from "@/lib/batchTiming";
 
 interface AttendanceCalendarViewProps {
   batchId: string;
@@ -26,7 +26,19 @@ interface DayAttendance {
 }
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const JS_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+// JS getDay() → name mapping
+const JS_DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+// Display headers and their JS day index
+const HEADER_COLS: { label: string; jsDay: number }[] = [
+  { label: "Su", jsDay: 0 },
+  { label: "Mo", jsDay: 1 },
+  { label: "Tu", jsDay: 2 },
+  { label: "We", jsDay: 3 },
+  { label: "Th", jsDay: 4 },
+  { label: "Fr", jsDay: 5 },
+  { label: "Sa", jsDay: 6 },
+];
+
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
@@ -34,7 +46,6 @@ function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
 
-// Parse a YYYY-MM-DD string into local {year, month, day}
 function parseDateKey(key: string) {
   const [y, m, d] = key.split("-").map(Number);
   return { year: y, month: m - 1, day: d };
@@ -168,7 +179,6 @@ export default function AttendanceCalendarView({
   batchId, batchName, instituteCode, role, schedule
 }: AttendanceCalendarViewProps) {
   const today = new Date();
-  // Use local date components to avoid UTC shift
   const todayKey = localDateToKey(today);
 
   const [calMonth, setCalMonth] = useState(today.getMonth());
@@ -185,11 +195,16 @@ export default function AttendanceCalendarView({
   const scheduledDays: string[] = batchTiming?.days ?? [];
   const hasSchedule = scheduledDays.length > 0;
 
+  // Is the attendance window currently open for TODAY?
+  const { editable: attendanceWindowOpen } = isAttendanceEditable(schedule ?? null);
+
   // Is a given date a scheduled batch day?
   const isBatchScheduledDay = (date: Date): boolean => {
     if (!hasSchedule) return true;
     return scheduledDays.includes(JS_DAY_NAMES[date.getDay()]);
   };
+
+  const canMarkDayOff = !!(role && instituteCode);
 
   const loadMonthData = useCallback(async () => {
     if (!batchId || isFutureMonth) return;
@@ -247,24 +262,30 @@ export default function AttendanceCalendarView({
   };
 
   const selectedDayData = selectedDate ? monthData[selectedDate] : null;
-  const canMarkDayOff = !!(role && instituteCode);
-
   const isCurrentMonth = calYear === today.getFullYear() && calMonth === today.getMonth();
 
   const handleDayClick = (day: number) => {
     const dateKey = formatDateKey(day);
     const d = new Date(calYear, calMonth, day);
-    const isOffDay = !isBatchScheduledDay(d);
 
-    // Off-days are never interactive
-    if (isOffDay) return;
+    // Off-days: never interactive
+    if (!isBatchScheduledDay(d)) return;
 
     const isPastOrToday = dateKey <= todayKey;
     const isFuture = dateKey > todayKey;
+    const isToday = dateKey === todayKey;
 
-    if (isPastOrToday) {
+    if (isToday) {
+      // Today: tappable only if attendance window is CLOSED (window-open = editing mode, not detail mode)
+      // OR if data exists (to view saved attendance)
       const data = monthData[dateKey];
-      // Today: always tappable if data exists (after attendance save)
+      if (!attendanceWindowOpen && data) {
+        setSelectedDate(selectedDate === dateKey ? null : dateKey);
+      } else if (data) {
+        setSelectedDate(selectedDate === dateKey ? null : dateKey);
+      }
+    } else if (isPastOrToday) {
+      const data = monthData[dateKey];
       if (data) setSelectedDate(selectedDate === dateKey ? null : dateKey);
     } else if (isFuture && canMarkDayOff) {
       setDayOffDate(dateKey);
@@ -311,54 +332,90 @@ export default function AttendanceCalendarView({
           <>
             {/* Calendar grid */}
             <div>
+              {/* Column headers — dim non-scheduled columns */}
               <div className="grid grid-cols-7 gap-1 mb-1">
-                {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
-                  <div key={d} className="text-center text-xs text-muted-foreground font-medium">{d}</div>
-                ))}
+                {HEADER_COLS.map(({ label, jsDay }) => {
+                  const dayName = JS_DAY_NAMES[jsDay];
+                  const isScheduled = !hasSchedule || scheduledDays.includes(dayName);
+                  return (
+                    <div
+                      key={label}
+                      className={cn(
+                        "text-center text-xs font-medium",
+                        isScheduled ? "text-muted-foreground" : "text-muted-foreground/20"
+                      )}
+                    >
+                      {label}
+                    </div>
+                  );
+                })}
               </div>
+
+              {/* Day cells */}
               <div className="grid grid-cols-7 gap-1">
                 {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`e-${i}`} />)}
+
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                   const dateKey = formatDateKey(day);
                   const d = new Date(calYear, calMonth, day);
                   const isOffDay = !isBatchScheduledDay(d);
                   const isFutureDay = dateKey > todayKey;
                   const isTodayDay = dateKey === todayKey;
-                  const isPastDay = dateKey < todayKey;
                   const data = monthData[dateKey];
                   const isSelected = selectedDate === dateKey;
                   const hasData = !!data;
                   const pct = hasData ? Math.round((data.present / (data.present + data.absent)) * 100) : null;
                   const isFutureBatchDay = isFutureDay && !isOffDay && canMarkDayOff;
 
-                  // Determine style
+                  // ── OFF-DAY (non-scheduled weekday, past/present/future) ──
+                  // Render as a non-interactive invisible placeholder
+                  if (isOffDay) {
+                    return (
+                      <div
+                        key={day}
+                        className="aspect-square flex flex-col items-center justify-center text-xs rounded-md"
+                        aria-hidden="true"
+                      >
+                        <span className="text-muted-foreground/10">{day}</span>
+                      </div>
+                    );
+                  }
+
+                  // ── FUTURE MONTHS: skip data display ──
+                  // ── Build cell style for interactive/scheduled days ──
                   let cellClass = "";
                   let interactive = false;
 
-                  if (isOffDay) {
-                    // Non-batch weekday — always dimmed, never interactive
-                    cellClass = "bg-muted/10 border-transparent text-muted-foreground/20 cursor-default";
-                  } else if (isTodayDay) {
-                    if (hasData) {
-                      // Today + attendance saved → show as blue + tappable
-                      interactive = true;
-                      cellClass = isSelected
-                        ? "bg-primary text-primary-foreground border-primary shadow-sm cursor-pointer"
-                        : "border-primary/50 bg-primary/10 text-primary font-bold cursor-pointer hover:bg-primary/20";
-                    } else {
-                      // Today, no data yet → just highlight, not tappable
+                  if (isTodayDay) {
+                    if (attendanceWindowOpen) {
+                      // Window open → blue (attendance editing mode, not detail view)
                       cellClass = "border-primary/50 bg-primary/10 text-primary font-bold cursor-default";
+                    } else if (hasData) {
+                      // Window closed + data saved → show green/red + tappable
+                      interactive = true;
+                      if (isSelected) {
+                        cellClass = "bg-primary text-primary-foreground border-primary shadow-sm cursor-pointer";
+                      } else if (pct !== null && pct >= 75) {
+                        cellClass = "bg-success-light text-success border-success/20 hover:border-success/50 cursor-pointer font-bold";
+                      } else {
+                        cellClass = "bg-danger-light text-danger border-danger/20 hover:border-danger/50 cursor-pointer font-bold";
+                      }
+                    } else {
+                      // Window closed, no data → neutral (class was today but no attendance taken)
+                      cellClass = "bg-muted/20 border-border/10 text-muted-foreground/50 cursor-default";
                     }
                   } else if (isFutureDay) {
                     if (isFutureBatchDay) {
                       interactive = true;
                       cellClass = "bg-muted/10 border-border/20 text-muted-foreground/40 hover:bg-warning/10 hover:border-warning/40 hover:text-warning cursor-pointer";
                     } else {
-                      cellClass = "text-muted-foreground/20 border-transparent cursor-default";
+                      // Future non-batch day — invisible (but isOffDay already handled above; this is a safety fallback)
+                      cellClass = "text-muted-foreground/10 border-transparent cursor-default";
                     }
                   } else {
                     // Past day
                     if (!hasData) {
+                      // Scheduled class, no attendance recorded
                       cellClass = "bg-muted/20 border-border/10 text-muted-foreground/40 cursor-default";
                     } else if (isSelected) {
                       cellClass = "bg-primary text-primary-foreground border-primary shadow-sm cursor-pointer";
@@ -382,17 +439,13 @@ export default function AttendanceCalendarView({
                       )}
                     >
                       <span>{day}</span>
-                      {/* Past/today with data: show % */}
-                      {hasData && !isFutureDay && !isOffDay && (
+                      {/* Past/today (window closed) with data: show % */}
+                      {hasData && !isFutureDay && !(isTodayDay && attendanceWindowOpen) && (
                         <span className="text-[9px] opacity-75">{pct}%</span>
                       )}
                       {/* Future batch day hint */}
-                      {isFutureBatchDay && !isTodayDay && (
+                      {isFutureBatchDay && (
                         <span className="text-[8px] opacity-50 leading-none">off?</span>
-                      )}
-                      {/* Off-day indicator */}
-                      {isOffDay && (
-                        <span className="text-[8px] opacity-30 leading-none">—</span>
                       )}
                     </button>
                   );
@@ -404,12 +457,11 @@ export default function AttendanceCalendarView({
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-success-light border border-success/20 inline-block" /> ≥75%</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-danger-light border border-danger/20 inline-block" /> &lt;75%</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-primary/10 border border-primary/30 inline-block" /> Today</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-muted/10 border border-transparent inline-block" /> Off day</span>
                 {canMarkDayOff && <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-warning/10 border border-warning/40 inline-block" /> Mark off</span>}
               </div>
             </div>
 
-            {/* Selected date detail */}
+            {/* Selected date detail panel */}
             {selectedDate && (
               <div className="border border-border/50 rounded-lg overflow-hidden">
                 <div className="px-3 py-2.5 bg-muted/30 border-b border-border/40 flex items-center justify-between">
