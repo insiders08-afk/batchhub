@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   CalendarCheck, Trophy, BookOpen, ExternalLink,
-  FlaskConical, Megaphone, MessageSquare, Loader2, Users
+  FlaskConical, Megaphone, MessageSquare, Loader2, Users, IndianRupee
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 

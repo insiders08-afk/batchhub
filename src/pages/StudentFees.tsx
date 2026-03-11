@@ -4,7 +4,8 @@ import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
-  IndianRupee, CheckCircle2, XCircle, Clock, AlertTriangle, Loader2, TrendingUp, CalendarDays
+  IndianRupee, CheckCircle2, XCircle, Clock, AlertTriangle,
+  Loader2, TrendingUp, CalendarDays
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -31,12 +32,11 @@ const FREQ_LABELS: Record<string, string> = {
 const FREQ_MONTHS: Record<string, number> = {
   monthly: 1, quarterly: 3, half_yearly: 6, annual: 12,
 };
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 function ordinal(n: number): string {
-  const s = ["th","st","nd","rd"];
+  const s = ["th", "st", "nd", "rd"];
   const v = n % 100;
-  return s[(v-20)%10] || s[v] || s[0];
+  return s[(v - 20) % 10] || s[v] || s[0];
 }
 
 function getCurrentDueDate(plan: FeePlan): Date | null {
@@ -45,39 +45,60 @@ function getCurrentDueDate(plan: FeePlan): Date | null {
   }
   const months = FREQ_MONTHS[plan.payment_frequency || "monthly"] ?? 1;
   const [sy, sm] = plan.start_month.split("-").map(Number);
-  const today = new Date(); today.setHours(0,0,0,0);
-  let cycleDate = new Date(sy, sm - 1, plan.cycle_day);
-  while (cycleDate < today) {
-    const next = new Date(cycleDate);
-    next.setMonth(next.getMonth() + months);
-    if (next <= today) cycleDate = next; else break;
-  }
-  return cycleDate;
+  const cycleIndex = plan.paid_cycles_count ?? 0;
+  return new Date(sy, sm - 1 + cycleIndex * months, plan.cycle_day);
 }
 
-function getFeeStatus(plan: FeePlan): "paid" | "pending" | "overdue" {
+/**
+ * upcoming  = before the cycle due date
+ * pending   = on the due date up to 7 days after
+ * overdue   = more than 7 days after due date
+ * paid      = current cycle marked paid
+ */
+function getFeeStatus(plan: FeePlan): "paid" | "pending" | "overdue" | "upcoming" {
   if (plan.paid) return "paid";
+
   const dueDate = getCurrentDueDate(plan);
   if (!dueDate) return "pending";
-  const today = new Date(); today.setHours(0,0,0,0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (today < dueDate) return "upcoming";
+
   const overdueCutoff = new Date(dueDate);
   overdueCutoff.setDate(overdueCutoff.getDate() + 7);
-  return today > overdueCutoff ? "overdue" : "pending";
+  if (today <= overdueCutoff) return "pending";
+
+  return "overdue";
 }
 
 function getDaysOverdue(plan: FeePlan): number {
   const dueDate = getCurrentDueDate(plan);
   if (!dueDate) return 0;
-  const today = new Date(); today.setHours(0,0,0,0);
-  const cutoff = new Date(dueDate); cutoff.setDate(cutoff.getDate() + 7);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const cutoff = new Date(dueDate);
+  cutoff.setDate(cutoff.getDate() + 7);
   const diff = today.getTime() - cutoff.getTime();
   return diff > 0 ? Math.ceil(diff / 86400000) : 0;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const CalendarClock = (props: any) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/>
+    <path d="M16 2v4M8 2v4M3 10h5"/>
+    <circle cx="17.5" cy="17.5" r="4.5"/>
+    <path d="M17.5 15.5v2l1.5 1"/>
+  </svg>
+);
+
 const STATUS_CONFIG = {
-  paid: { label: "Paid", color: "bg-success-light text-success border-success/20", icon: CheckCircle2 },
-  pending: { label: "Pending", color: "bg-accent-light text-accent border-accent/20", icon: Clock },
-  overdue: { label: "Overdue", color: "bg-danger-light text-danger border-danger/20", icon: XCircle },
+  paid:     { label: "Paid",     color: "bg-success-light text-success border-success/20",    icon: CheckCircle2 },
+  pending:  { label: "Pending",  color: "bg-accent-light text-accent border-accent/20",       icon: Clock },
+  overdue:  { label: "Overdue",  color: "bg-danger-light text-danger border-danger/20",       icon: XCircle },
+  upcoming: { label: "Upcoming", color: "bg-muted text-muted-foreground border-border/40",   icon: CalendarClock },
 };
 
 export default function StudentFees() {
@@ -108,7 +129,10 @@ export default function StudentFees() {
   }, []);
 
   const totalPaidAmount = useMemo(() => plans.reduce((s, p) => s + Number(p.total_paid_amount), 0), [plans]);
-  const totalDue = useMemo(() => plans.filter(p => !p.paid).reduce((s, p) => s + Number(p.amount), 0), [plans]);
+  const totalDue = useMemo(() => plans.filter(p => {
+    const s = getFeeStatus(p);
+    return s === "pending" || s === "overdue";
+  }).reduce((s, p) => s + Number(p.amount), 0), [plans]);
   const overdueCount = useMemo(() => plans.filter(p => getFeeStatus(p) === "overdue").length, [plans]);
 
   return (
@@ -155,7 +179,7 @@ export default function StudentFees() {
 
               return (
                 <motion.div key={plan.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
-                  <Card className={`p-4 shadow-card border-border/50 ${status === "overdue" ? "border-danger/30" : ""}`}>
+                  <Card className={`p-4 shadow-card border-border/50 ${status === "overdue" ? "border-danger/30" : status === "upcoming" ? "border-border/30 opacity-80" : ""}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         {/* Batch + Freq */}
@@ -175,12 +199,25 @@ export default function StudentFees() {
                           </p>
                         )}
 
-                        {/* Due / paid info */}
-                        {status !== "paid" && dueDate && (
-                          <p className={`text-xs font-medium ${status === "overdue" ? "text-danger" : "text-muted-foreground"}`}>
-                            {status === "overdue"
-                              ? `⚠ Overdue by ${daysOverdue} day${daysOverdue !== 1 ? "s" : ""} — was due ${dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}`
-                              : `Due: ${dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`}
+                        {/* Status-specific date info */}
+                        {status === "upcoming" && dueDate && (
+                          <p className="text-xs text-muted-foreground font-medium">
+                            Next due: {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                          </p>
+                        )}
+                        {status === "pending" && dueDate && (
+                          <p className="text-xs text-accent font-medium">
+                            Due: {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                          </p>
+                        )}
+                        {status === "overdue" && dueDate && (
+                          <p className="text-xs text-danger font-medium">
+                            ⚠ Overdue by {daysOverdue} day{daysOverdue !== 1 ? "s" : ""} — was due {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                          </p>
+                        )}
+                        {status === "paid" && plan.paid_date && (
+                          <p className="text-xs text-success font-medium">
+                            ✓ Paid on {new Date(plan.paid_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
                           </p>
                         )}
 
