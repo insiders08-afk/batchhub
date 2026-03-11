@@ -781,6 +781,7 @@ export default function AdminBatches() {
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="w-3.5 h-3.5 flex-shrink-0" />
                         <span className="truncate text-xs">{formatTimingDisplay(batch.schedule)}</span>
+                        {(() => { const t = parseTiming(batch.schedule); return t ? <span className="text-xs text-muted-foreground/60 flex-shrink-0">· {calcDuration(t)}</span> : null; })()}
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
