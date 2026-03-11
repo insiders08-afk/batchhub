@@ -9,34 +9,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CalendarDays, Loader2, XCircle, CheckCircle2, CalendarOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { parseBatchTiming, isAttendanceEditable } from "@/lib/batchTiming";
-
-interface AttendanceCalendarViewProps {
-  batchId: string;
-  batchName?: string;
-  instituteCode?: string;
-  role?: "admin" | "teacher";
-  schedule?: string | null;
-}
-
-interface DayAttendance {
-  present: number;
-  absent: number;
-  absentStudents: { name: string; email: string }[];
-}
+import { parseBatchTiming, isAttendanceEditable, JS_DAY_ABBREVS } from "@/lib/batchTiming";
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-// JS getDay() → name mapping
-const JS_DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-// Display headers and their JS day index
-const HEADER_COLS: { label: string; jsDay: number }[] = [
-  { label: "Su", jsDay: 0 },
-  { label: "Mo", jsDay: 1 },
-  { label: "Tu", jsDay: 2 },
-  { label: "We", jsDay: 3 },
-  { label: "Th", jsDay: 4 },
-  { label: "Fr", jsDay: 5 },
-  { label: "Sa", jsDay: 6 },
+// Display headers and their JS day index → stored abbreviation
+const HEADER_COLS: { label: string; jsDay: number; abbrev: string }[] = [
+  { label: "Su", jsDay: 0, abbrev: "Sun" },
+  { label: "Mo", jsDay: 1, abbrev: "Mon" },
+  { label: "Tu", jsDay: 2, abbrev: "Tue" },
+  { label: "We", jsDay: 3, abbrev: "Wed" },
+  { label: "Th", jsDay: 4, abbrev: "Thu" },
+  { label: "Fr", jsDay: 5, abbrev: "Fri" },
+  { label: "Sa", jsDay: 6, abbrev: "Sat" },
 ];
 
 const currentYear = new Date().getFullYear();
