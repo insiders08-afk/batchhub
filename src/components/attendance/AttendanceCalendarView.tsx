@@ -629,6 +629,18 @@ export default function AttendanceCalendarView({
           onDone={() => { setDayOffDate(null); loadMonthData(); loadDayOffDates(); }}
         />
       )}
+
+      {/* Cancel / Undo Day Off Dialog */}
+      {cancelDayOffDate && (
+        <CancelDayOffDialog
+          open={!!cancelDayOffDate}
+          onClose={() => setCancelDayOffDate(null)}
+          date={cancelDayOffDate}
+          batchId={batchId}
+          batchName={batchName}
+          onDone={() => { setCancelDayOffDate(null); loadMonthData(); loadDayOffDates(); }}
+        />
+      )}
     </Card>
   );
 }
