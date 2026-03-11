@@ -523,7 +523,7 @@ export default function AdminFees() {
     return Array.from(map.values());
   }, [filtered]);
 
-  const toggleStudent = (id: string) => {
+  const toggleExpandStudent = (id: string) => {
     setExpandedStudents(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
