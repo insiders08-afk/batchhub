@@ -391,7 +391,7 @@ export default function AttendanceAnalyticsModal({
                             <div key={day} className={cn(
                               "aspect-square flex flex-col items-center justify-center text-[10px] font-semibold rounded-md border",
                               "bg-warning/10 border-warning/30 text-warning",
-                              isToday && "ring-1 ring-primary"
+                              isToday && "ring-2 ring-primary ring-offset-1"
                             )}>
                               <span>{day}</span>
                               <span className="text-[8px] font-bold leading-none mt-0.5">Off</span>
@@ -406,7 +406,7 @@ export default function AttendanceAnalyticsModal({
                             status === true ? "bg-success-light text-success border-success/20" :
                             status === false ? "bg-danger-light text-danger border-danger/20" :
                             "bg-muted/30 border-border/20 text-muted-foreground",
-                            isToday && "ring-1 ring-primary"
+                            isToday && "ring-2 ring-primary ring-offset-1"
                           )}>
                             <span>{day}</span>
                           </div>
