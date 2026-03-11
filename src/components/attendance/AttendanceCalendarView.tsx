@@ -334,9 +334,8 @@ export default function AttendanceCalendarView({
             <div>
               {/* Column headers — dim non-scheduled columns */}
               <div className="grid grid-cols-7 gap-1 mb-1">
-                {HEADER_COLS.map(({ label, jsDay }) => {
-                  const dayName = JS_DAY_NAMES[jsDay];
-                  const isScheduled = !hasSchedule || scheduledDays.includes(dayName);
+                {HEADER_COLS.map(({ label, abbrev }) => {
+                  const isScheduled = !hasSchedule || scheduledDays.includes(abbrev);
                   return (
                     <div
                       key={label}
