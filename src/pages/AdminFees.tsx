@@ -737,7 +737,7 @@ export default function AdminFees() {
                                       <div className="flex items-center gap-1.5">
                                         <p className="text-sm font-semibold">{group.student_name}</p>
                                         {hasMultiple && (
-                                          <button onClick={() => toggleStudent(group.student_id)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                          <button onClick={() => toggleExpandStudent(group.student_id)} className="text-muted-foreground hover:text-foreground transition-colors">
                                             {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                           </button>
                                         )}
