@@ -1,20 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
-  CheckCircle2, XCircle, CalendarDays, Users, ChevronLeft,
-  Loader2, TrendingUp, Search, BarChart3
+  CheckCircle2, XCircle, CalendarDays, Users,
+  Loader2, TrendingUp, Search, BarChart3, Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import AttendanceAnalyticsModal from "@/components/attendance/AttendanceAnalyticsModal";
+import AttendanceCalendarView from "@/components/attendance/AttendanceCalendarView";
 
 interface Batch {
   id: string;
@@ -61,8 +62,9 @@ export default function TeacherAttendance() {
   const [userId, setUserId] = useState<string>("");
 
   // Student analytics dialog
-  const [selectedStudent, setSelectedStudent] = useState<StudentStats | null>(null);
-  const [loadingStudentStats, setLoadingStudentStats] = useState(false);
+  const [analyticsStudent, setAnalyticsStudent] = useState<StudentStats | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
   const todayDisplay = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
@@ -109,7 +111,6 @@ export default function TeacherAttendance() {
       }
       setStudents(profiles);
 
-      // Today's attendance
       const { data: todayAtt } = await supabase
         .from("attendance")
         .select("student_id, present")
@@ -122,7 +123,6 @@ export default function TeacherAttendance() {
       (todayAtt || []).forEach(a => { attMap[a.student_id] = a.present ? "present" : "absent"; });
       setAttendance(attMap);
 
-      // Batch history
       const { data: histData } = await supabase
         .from("attendance")
         .select("date, present, student_id")
@@ -188,25 +188,26 @@ export default function TeacherAttendance() {
   };
 
   const openStudentAnalytics = async (student: StudentProfile) => {
-    setLoadingStudentStats(true);
-    setSelectedStudent(null);
+    setAnalyticsOpen(true);
+    setAnalyticsLoading(true);
+    setAnalyticsStudent(null);
     const { data: attData } = await supabase
       .from("attendance")
       .select("date, present")
       .eq("batch_id", selectedBatchId)
       .eq("student_id", student.user_id)
       .order("date", { ascending: false })
-      .limit(100);
+      .limit(200);
     const records = attData || [];
     const presentCount = records.filter(a => a.present).length;
-    setSelectedStudent({
+    setAnalyticsStudent({
       student,
       total: records.length,
       present: presentCount,
       pct: records.length > 0 ? Math.round((presentCount / records.length) * 100) : 0,
       history: records.map(a => ({ date: a.date, present: a.present })),
     });
-    setLoadingStudentStats(false);
+    setAnalyticsLoading(false);
   };
 
   const presentCount = Object.values(attendance).filter(v => v === "present").length;
@@ -335,11 +336,11 @@ export default function TeacherAttendance() {
             </Card>
           </div>
 
-          {/* Batch History */}
-          <div className="space-y-3">
+          {/* Right panel: History + Calendar */}
+          <div className="space-y-4">
             <Card className="shadow-card border-border/50">
               <div className="p-4 border-b border-border/50 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-primary" />
+                <Clock className="w-4 h-4 text-primary" />
                 <span className="font-display font-semibold text-sm">Recent History</span>
               </div>
               {batchHistory.length === 0 ? (
@@ -373,80 +374,21 @@ export default function TeacherAttendance() {
                 </div>
               )}
             </Card>
+
+            {/* Calendar view */}
+            {selectedBatchId && <AttendanceCalendarView batchId={selectedBatchId} />}
           </div>
         </div>
       </div>
 
-      {/* Student Analytics Dialog */}
-      <Dialog open={!!selectedStudent || loadingStudentStats} onOpenChange={(open) => { if (!open) { setSelectedStudent(null); setLoadingStudentStats(false); } }}>
-        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-display flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-primary" />
-              {selectedStudent?.student.full_name || "Loading..."}
-            </DialogTitle>
-          </DialogHeader>
-          {loadingStudentStats ? (
-            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-          ) : selectedStudent ? (
-            <div className="space-y-4">
-              {/* Summary stats */}
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  { label: "Total Classes", value: selectedStudent.total },
-                  { label: "Present", value: selectedStudent.present, color: "text-success" },
-                  { label: "Attendance", value: `${selectedStudent.pct}%`, color: selectedStudent.pct >= 75 ? "text-success" : "text-danger" },
-                ].map(s => (
-                  <div key={s.label} className="bg-muted/40 rounded-lg p-3 text-center border border-border/30">
-                    <div className={`text-xl font-display font-bold ${s.color || ""}`}>{s.value}</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Progress bar */}
-              <div>
-                <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                  <span>Attendance Rate</span>
-                  <span className={selectedStudent.pct >= 75 ? "text-success font-semibold" : "text-danger font-semibold"}>
-                    {selectedStudent.pct >= 75 ? "✓ Good Standing" : "⚠ Below 75%"}
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-muted rounded-full">
-                  <div
-                    className={`h-full rounded-full transition-all ${selectedStudent.pct >= 85 ? "bg-success" : selectedStudent.pct >= 75 ? "bg-warning" : "bg-danger"}`}
-                    style={{ width: `${selectedStudent.pct}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Daily history */}
-              <div>
-                <h4 className="text-sm font-semibold mb-2">Daily Records</h4>
-                <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                  {selectedStudent.history.length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No records yet.</p>
-                  ) : (
-                    selectedStudent.history.map((h, i) => (
-                      <div key={i} className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/30">
-                        <span className="text-sm">
-                          {new Date(h.date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
-                        </span>
-                        <Badge className={h.present
-                          ? "bg-success-light text-success border-success/20 text-xs"
-                          : "bg-danger-light text-danger border-danger/20 text-xs"
-                        }>
-                          {h.present ? "Present" : "Absent"}
-                        </Badge>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : null}
-        </DialogContent>
-      </Dialog>
+      {/* Student Analytics Modal */}
+      <AttendanceAnalyticsModal
+        open={analyticsOpen}
+        onClose={() => { setAnalyticsOpen(false); setAnalyticsStudent(null); }}
+        stats={analyticsStudent}
+        loading={analyticsLoading}
+        batchId={selectedBatchId}
+      />
     </DashboardLayout>
   );
 }
