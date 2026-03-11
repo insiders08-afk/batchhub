@@ -1415,6 +1415,20 @@ export default function AdminFees() {
         <CycleStructureModal
           plan={cycleStructurePlan}
           onClose={() => setCycleStructurePlan(null)}
+          onMarkPaid={async (cycleIndex) => {
+            await handleMarkPaidForCycle(cycleStructurePlan, cycleIndex);
+            // Refresh the plan data in the modal
+            setCycleStructurePlan(prev => {
+              if (!prev) return null;
+              const cyclesToPay = cycleIndex - (prev.paid_cycles_count ?? 0);
+              return {
+                ...prev,
+                paid_cycles_count: (prev.paid_cycles_count ?? 0) + cyclesToPay,
+                total_paid_amount: Number(prev.total_paid_amount ?? 0) + Number(prev.amount) * cyclesToPay,
+                paid: true,
+              };
+            });
+          }}
         />
       )}
     </DashboardLayout>
