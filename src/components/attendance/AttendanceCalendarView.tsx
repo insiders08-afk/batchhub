@@ -148,47 +148,67 @@ function FutureDayOffDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-1">
-          <p className="text-sm text-muted-foreground">
-            Mark <span className="font-semibold text-foreground">{dateDisplay}</span> as a day off for{" "}
-            <span className="font-semibold text-foreground">{batchName || "this batch"}</span>?
-          </p>
-
-          <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
-            <input type="checkbox" id="notify-cal" checked={notify} onChange={e => setNotify(e.target.checked)} className="mt-0.5 accent-primary" />
-            <label htmlFor="notify-cal" className="text-sm cursor-pointer">
-              <span className="font-medium">Send push notification & announcement</span>
-              <p className="text-xs text-muted-foreground mt-0.5">Notify students in this batch</p>
-            </label>
-          </div>
-
-          {notify && (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Announcement Title</Label>
-                <Input value={title} onChange={e => setTitle(e.target.value)} className="h-9 text-sm" />
+          {checking ? (
+            <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : alreadyMarked ? (
+            <>
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-warning/30 bg-warning/8">
+                <CalendarOff className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-warning">Already marked as Day Off</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    <span className="font-medium text-foreground">{dateDisplay}</span> is already a day off for{" "}
+                    <span className="font-medium text-foreground">{batchName}</span>.
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Message</Label>
-                <textarea
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  rows={3}
-                  className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+              <Button variant="outline" className="w-full" onClick={onClose}>Close</Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Mark <span className="font-semibold text-foreground">{dateDisplay}</span> as a day off for{" "}
+                <span className="font-semibold text-foreground">{batchName || "this batch"}</span>?
+              </p>
+
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
+                <input type="checkbox" id="notify-cal" checked={notify} onChange={e => setNotify(e.target.checked)} className="mt-0.5 accent-primary" />
+                <label htmlFor="notify-cal" className="text-sm cursor-pointer">
+                  <span className="font-medium">Send push notification & announcement</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">Notify students in this batch</p>
+                </label>
               </div>
-            </div>
+
+              {notify && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Announcement Title</Label>
+                    <Input value={title} onChange={e => setTitle(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Message</Label>
+                    <textarea
+                      value={content}
+                      onChange={e => setContent(e.target.value)}
+                      rows={3}
+                      className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+                <Button
+                  className="flex-1 bg-warning text-white hover:bg-warning/90 border-0"
+                  onClick={handleConfirm}
+                  disabled={sending}
+                >
+                  {sending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Sending...</> : "Confirm Day Off"}
+                </Button>
+              </div>
+            </>
           )}
-
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-            <Button
-              className="flex-1 bg-warning text-white hover:bg-warning/90 border-0"
-              onClick={handleConfirm}
-              disabled={sending}
-            >
-              {sending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Sending...</> : "Confirm Day Off"}
-            </Button>
-          </div>
         </div>
       </DialogContent>
     </Dialog>
