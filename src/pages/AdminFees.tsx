@@ -1151,7 +1151,16 @@ export default function AdminFees() {
       </Dialog>
 
       {/* Fee Structure Modal */}
-      {selectedPlan && <FeeStructureModal plan={selectedPlan} onClose={() => setSelectedPlan(null)} />}
+      {selectedPlan && (
+        <FeeStructureModal
+          plan={selectedPlan}
+          onClose={() => setSelectedPlan(null)}
+          onDeleted={(id) => {
+            setPlans(prev => prev.filter(p => p.id !== id));
+            setSelectedPlan(null);
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 }
