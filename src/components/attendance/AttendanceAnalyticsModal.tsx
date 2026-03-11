@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, BarChart3, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { parseBatchTiming, JS_DAY_ABBREVS } from "@/lib/batchTiming";
 
 interface StudentRecord {
   user_id: string;
@@ -28,6 +29,7 @@ interface AttendanceAnalyticsModalProps {
   stats: StudentStats | null;
   loading: boolean;
   batchId: string;
+  schedule?: string | null;
 }
 
 type ViewMode = "summary" | "monthly";
@@ -53,7 +55,7 @@ function buildMonthlyMap(history: { date: string; present: boolean }[], year: nu
 }
 
 export default function AttendanceAnalyticsModal({
-  open, onClose, stats, loading, batchId,
+  open, onClose, stats, loading, batchId, schedule,
 }: AttendanceAnalyticsModalProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("summary");
 
@@ -68,6 +70,53 @@ export default function AttendanceAnalyticsModal({
   const [lookupResult, setLookupResult] = useState<{ date: string; present: boolean } | null | "not-found">(null);
   const [lookupLoading, setLookupLoading] = useState(false);
 
+  // Day-off announcement dates for this batch+month
+  const [dayOffDates, setDayOffDates] = useState<Set<string>>(new Set());
+
+  // Parse batch schedule
+  const batchTiming = parseBatchTiming(schedule ?? null);
+  const scheduledDays: string[] = batchTiming?.days ?? [];
+  const hasSchedule = scheduledDays.length > 0;
+
+  const isBatchScheduledDay = (date: Date): boolean => {
+    if (!hasSchedule) return true;
+    return scheduledDays.includes(JS_DAY_ABBREVS[date.getDay()]);
+  };
+
+  // Load day-off announcements for current viewed month
+  useEffect(() => {
+    if (!batchId || !open) return;
+    const m = String(calMonth + 1).padStart(2, "0");
+    const startDate = `${calYear}-${m}-01`;
+    const endDate = `${calYear}-${m}-${String(getDaysInMonth(calYear, calMonth)).padStart(2, "0")}`;
+
+    supabase
+      .from("announcements")
+      .select("created_at, title")
+      .eq("batch_id", batchId)
+      .eq("type", "day_off")
+      .gte("created_at", startDate)
+      .lte("created_at", endDate + "T23:59:59")
+      .then(({ data }) => {
+        // Extract date from title (format: "No Class — BatchName — Day, D Month YYYY")
+        const dates = new Set<string>();
+        (data || []).forEach(ann => {
+          // Try to extract date from title — look for day number patterns
+          const match = ann.title.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i);
+          if (match) {
+            const day = parseInt(match[1]);
+            const monthName = match[2];
+            const monthIdx = MONTHS.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
+            if (monthIdx !== -1) {
+              const key = `${calYear}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              dates.add(key);
+            }
+          }
+        });
+        setDayOffDates(dates);
+      });
+  }, [batchId, calMonth, calYear, open]);
+
   const last7 = stats?.history.slice(0, 7) ?? [];
 
   const monthlyMap = stats ? buildMonthlyMap(stats.history, calYear, calMonth) : {};
@@ -75,6 +124,8 @@ export default function AttendanceAnalyticsModal({
   const firstDayOfWeek = new Date(calYear, calMonth, 1).getDay();
 
   const isFutureMonth = calYear > today.getFullYear() || (calYear === today.getFullYear() && calMonth > today.getMonth());
+
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
   const handleLookup = async () => {
     if (!stats || !lookupMonth || !lookupYear) return;
@@ -107,6 +158,17 @@ export default function AttendanceAnalyticsModal({
   };
 
   const initials = stats?.student.full_name.split(" ").map(n => n[0]).join("").slice(0, 2) ?? "?";
+
+  // Header columns for monthly view
+  const HEADER_COLS = [
+    { label: "Su", abbrev: "Sun" },
+    { label: "Mo", abbrev: "Mon" },
+    { label: "Tu", abbrev: "Tue" },
+    { label: "We", abbrev: "Wed" },
+    { label: "Th", abbrev: "Thu" },
+    { label: "Fr", abbrev: "Fri" },
+    { label: "Sa", abbrev: "Sat" },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) { onClose(); setViewMode("summary"); setLookupResult(null); } }}>
@@ -286,35 +348,77 @@ export default function AttendanceAnalyticsModal({
                   <p className="text-sm text-muted-foreground text-center py-6">Cannot view future months.</p>
                 ) : (
                   <div>
+                    {/* Column headers — dim non-scheduled day columns */}
                     <div className="grid grid-cols-7 gap-1 mb-1.5">
-                      {["Su","Mo","Tu","We","Th","Fr","Sa"].map(d => (
-                        <div key={d} className="text-center text-xs text-muted-foreground font-medium py-1">{d}</div>
-                      ))}
+                      {HEADER_COLS.map(({ label, abbrev }) => {
+                        const isScheduled = !hasSchedule || scheduledDays.includes(abbrev);
+                        return (
+                          <div key={label} className={cn(
+                            "text-center text-xs font-medium py-1",
+                            isScheduled ? "text-foreground font-semibold" : "text-muted-foreground/35"
+                          )}>
+                            {label}
+                          </div>
+                        );
+                      })}
                     </div>
+
                     <div className="grid grid-cols-7 gap-1">
                       {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`e-${i}`} />)}
                       {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-                        const isToday = calYear === today.getFullYear() && calMonth === today.getMonth() && day === today.getDate();
+                        const cellDate = new Date(calYear, calMonth, day);
+                        const dateKey = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                        const isToday = dateKey === todayKey;
                         const isFutureDay = new Date(calYear, calMonth, day) > today;
                         const status = monthlyMap[day];
+                        const isOffDay = !isBatchScheduledDay(cellDate);
+                        const isDayOff = dayOffDates.has(dateKey);
+
+                        // Non-batch day: visible but de-emphasised
+                        if (isOffDay) {
+                          return (
+                            <div key={day} className={cn(
+                              "aspect-square flex flex-col items-center justify-center text-xs font-medium rounded-md border border-transparent",
+                            )}>
+                              <span className="text-muted-foreground/30">{day}</span>
+                            </div>
+                          );
+                        }
+
+                        // Day off (announced holiday on a normally scheduled day)
+                        if (isDayOff) {
+                          return (
+                            <div key={day} className={cn(
+                              "aspect-square flex flex-col items-center justify-center text-[10px] font-medium rounded-md border",
+                              "bg-muted/30 border-border/20 text-muted-foreground/50",
+                              isToday && "ring-1 ring-primary"
+                            )}>
+                              <span>{day}</span>
+                              <span className="text-[8px] text-warning/70 font-semibold leading-none mt-0.5">Off</span>
+                            </div>
+                          );
+                        }
+
                         return (
                           <div key={day} className={cn(
-                            "aspect-square flex items-center justify-center text-xs font-medium rounded-md border",
-                            isFutureDay ? "text-muted-foreground/30 border-transparent" :
+                            "aspect-square flex flex-col items-center justify-center text-xs font-medium rounded-md border",
+                            isFutureDay ? "text-muted-foreground/40 border-border/20 bg-muted/10" :
                             status === true ? "bg-success-light text-success border-success/20" :
                             status === false ? "bg-danger-light text-danger border-danger/20" :
                             "bg-muted/30 border-border/20 text-muted-foreground",
                             isToday && "ring-1 ring-primary"
                           )}>
-                            {day}
+                            <span>{day}</span>
                           </div>
                         );
                       })}
                     </div>
-                    <div className="flex gap-3 mt-3 text-xs text-muted-foreground justify-center">
+
+                    <div className="flex gap-3 mt-3 text-xs text-muted-foreground justify-center flex-wrap">
                       <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-success-light border border-success/20 inline-block" /> Present</span>
                       <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-danger-light border border-danger/20 inline-block" /> Absent</span>
                       <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-muted/30 border border-border/20 inline-block" /> Not Marked</span>
+                      <span className="flex items-center gap-1"><span className="text-warning/70 text-[9px] font-bold">Off</span> Day Off</span>
                     </div>
                   </div>
                 )}
