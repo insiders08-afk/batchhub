@@ -77,6 +77,8 @@ function FutureDayOffDialog({
   const [notify, setNotify] = useState(true);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [alreadyMarked, setAlreadyMarked] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   const dateDisplay = date
     ? dateKeyToLocalDate(date).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
@@ -84,8 +86,23 @@ function FutureDayOffDialog({
 
   useEffect(() => {
     if (open && date) {
-      setTitle(`No Class — ${batchName || "Batch"} — ${dateDisplay}`);
-      setContent(`Dear students, there will be no class for ${batchName || "this batch"} on ${dateDisplay}. Please plan accordingly.`);
+      setAlreadyMarked(false);
+      setChecking(true);
+      supabase
+        .from("announcements")
+        .select("id")
+        .eq("batch_id", batchId)
+        .eq("type", "day_off")
+        .ilike("content", `%day_off_date:${date}%`)
+        .then(({ data }) => {
+          const marked = (data?.length ?? 0) > 0;
+          setAlreadyMarked(marked);
+          setChecking(false);
+          if (!marked) {
+            setTitle(`No Class — ${batchName || "Batch"} — ${dateDisplay}`);
+            setContent(`Dear students, there will be no class for ${batchName || "this batch"} on ${dateDisplay}. Please plan accordingly.\n\nday_off_date:${date}`);
+          }
+        });
     }
   }, [open, date]);
 
@@ -96,10 +113,15 @@ function FutureDayOffDialog({
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user!.id).single();
 
+      // Embed machine-readable ISO date tag into content for reliable parsing
+      const contentWithTag = content.includes("day_off_date:")
+        ? content
+        : `${content}\n\nday_off_date:${date}`;
+
       if (notify) {
         await supabase.from("announcements").insert({
           title,
-          content,
+          content: contentWithTag,
           batch_id: batchId,
           institute_code: instituteCode,
           posted_by: user!.id,
@@ -126,47 +148,67 @@ function FutureDayOffDialog({
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-1">
-          <p className="text-sm text-muted-foreground">
-            Mark <span className="font-semibold text-foreground">{dateDisplay}</span> as a day off for{" "}
-            <span className="font-semibold text-foreground">{batchName || "this batch"}</span>?
-          </p>
-
-          <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
-            <input type="checkbox" id="notify-cal" checked={notify} onChange={e => setNotify(e.target.checked)} className="mt-0.5 accent-primary" />
-            <label htmlFor="notify-cal" className="text-sm cursor-pointer">
-              <span className="font-medium">Send push notification & announcement</span>
-              <p className="text-xs text-muted-foreground mt-0.5">Notify students in this batch</p>
-            </label>
-          </div>
-
-          {notify && (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Announcement Title</Label>
-                <Input value={title} onChange={e => setTitle(e.target.value)} className="h-9 text-sm" />
+          {checking ? (
+            <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : alreadyMarked ? (
+            <>
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-warning/30 bg-warning/8">
+                <CalendarOff className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-warning">Already marked as Day Off</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    <span className="font-medium text-foreground">{dateDisplay}</span> is already a day off for{" "}
+                    <span className="font-medium text-foreground">{batchName}</span>.
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Message</Label>
-                <textarea
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  rows={3}
-                  className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                />
+              <Button variant="outline" className="w-full" onClick={onClose}>Close</Button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Mark <span className="font-semibold text-foreground">{dateDisplay}</span> as a day off for{" "}
+                <span className="font-semibold text-foreground">{batchName || "this batch"}</span>?
+              </p>
+
+              <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
+                <input type="checkbox" id="notify-cal" checked={notify} onChange={e => setNotify(e.target.checked)} className="mt-0.5 accent-primary" />
+                <label htmlFor="notify-cal" className="text-sm cursor-pointer">
+                  <span className="font-medium">Send push notification & announcement</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">Notify students in this batch</p>
+                </label>
               </div>
-            </div>
+
+              {notify && (
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Announcement Title</Label>
+                    <Input value={title} onChange={e => setTitle(e.target.value)} className="h-9 text-sm" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Message</Label>
+                    <textarea
+                      value={content}
+                      onChange={e => setContent(e.target.value)}
+                      rows={3}
+                      className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+                <Button
+                  className="flex-1 bg-warning text-white hover:bg-warning/90 border-0"
+                  onClick={handleConfirm}
+                  disabled={sending}
+                >
+                  {sending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Sending...</> : "Confirm Day Off"}
+                </Button>
+              </div>
+            </>
           )}
-
-          <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-            <Button
-              className="flex-1 bg-warning text-white hover:bg-warning/90 border-0"
-              onClick={handleConfirm}
-              disabled={sending}
-            >
-              {sending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Sending...</> : "Confirm Day Off"}
-            </Button>
-          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -202,32 +244,34 @@ export default function AttendanceCalendarView({
 
   const canMarkDayOff = !!(role && instituteCode);
 
-  // Load day-off announcements for the viewed month
+  // Load day-off announcements for the viewed month — uses machine-readable tag day_off_date:YYYY-MM-DD
   const loadDayOffDates = useCallback(async () => {
     if (!batchId) return;
-    const m = String(calMonth + 1).padStart(2, "0");
-    const startDate = `${calYear}-${m}-01`;
-    const endDate = `${calYear}-${m}-${String(getDaysInMonth(calYear, calMonth)).padStart(2, "0")}`;
 
     const { data } = await supabase
       .from("announcements")
-      .select("title")
+      .select("content, title")
       .eq("batch_id", batchId)
       .eq("type", "day_off");
 
     if (!data) return;
     const dates = new Set<string>();
     data.forEach(ann => {
-      // Extract date from title: "No Class — BatchName — Day, D Month YYYY"
-      const match = ann.title.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
-      if (match) {
-        const day = parseInt(match[1]);
-        const monthName = match[2];
-        const year = parseInt(match[3]);
+      // Primary: machine-readable tag embedded in content
+      const tagMatch = (ann.content || "").match(/day_off_date:(\d{4}-\d{2}-\d{2})/);
+      if (tagMatch) {
+        dates.add(tagMatch[1]);
+        return;
+      }
+      // Fallback: parse from title "No Class — BatchName — Day, D Month YYYY" or "Day, D Month"
+      const titleMatch = ann.title.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+      if (titleMatch) {
+        const day = parseInt(titleMatch[1]);
+        const monthName = titleMatch[2];
+        const year = parseInt(titleMatch[3]);
         const monthIdx = MONTHS.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
         if (monthIdx !== -1) {
-          const key = `${year}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          dates.add(key);
+          dates.add(`${year}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
         }
       }
     });

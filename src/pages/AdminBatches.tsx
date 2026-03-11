@@ -358,9 +358,19 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [notify, setNotify] = useState(true);
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementContent, setAnnouncementContent] = useState("");
+  const [alreadyMarked, setAlreadyMarked] = useState(false);
+
+  // Convert a local date to ISO key YYYY-MM-DD
+  function toISOKey(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
 
   // Find the next scheduled class date for this batch.
   // Includes TODAY if: today is a scheduled day AND the class start time hasn't passed yet.
@@ -402,11 +412,28 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
   }
 
   const nextClassDate = getNextClassDate();
+  const nextClassDateKey = toISOKey(nextClassDate);
   const nextClassStr = nextClassDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
 
-  const handleOpen = () => {
-    setAnnouncementTitle(`No Class — ${batch.name} — ${nextClassStr}`);
-    setAnnouncementContent(`Dear students, there will be no class for ${batch.name} on ${nextClassStr}. Please plan accordingly.`);
+  const handleOpen = async () => {
+    setAlreadyMarked(false);
+    setChecking(true);
+    // Check if this date is already marked as day off
+    const { data } = await supabase
+      .from("announcements")
+      .select("id")
+      .eq("batch_id", batch.id)
+      .eq("type", "day_off")
+      .ilike("content", `%day_off_date:${nextClassDateKey}%`);
+    
+    const isMarked = (data?.length ?? 0) > 0;
+    setAlreadyMarked(isMarked);
+    setChecking(false);
+
+    if (!isMarked) {
+      setAnnouncementTitle(`No Class — ${batch.name} — ${nextClassStr}`);
+      setAnnouncementContent(`Dear students, there will be no class for ${batch.name} on ${nextClassStr}. Please plan accordingly.\n\nday_off_date:${nextClassDateKey}`);
+    }
     setOpen(true);
   };
 
@@ -446,9 +473,10 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
         size="sm"
         className="h-8 text-xs gap-1.5 border-border/50 hover:border-warning/50 hover:text-warning text-muted-foreground flex-1"
         onClick={handleOpen}
+        disabled={checking}
         title="Mark a future date as day off for this batch"
       >
-        <CalendarOff className="w-3 h-3" /> Day Off
+        {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <CalendarOff className="w-3 h-3" />} Day Off
       </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -459,54 +487,75 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-1">
-            <p className="text-sm text-muted-foreground">
-              You're marking <span className="font-semibold text-foreground">{batch.name}</span> as off for{" "}
-              <span className="font-semibold text-foreground">{nextClassStr}</span>{" "}
-              <span className="text-xs">(next scheduled class)</span>.
-            </p>
-
-            <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
-              <input
-                type="checkbox"
-                id="notify-dayoff"
-                checked={notify}
-                onChange={e => setNotify(e.target.checked)}
-                className="mt-0.5 accent-primary"
-              />
-              <label htmlFor="notify-dayoff" className="text-sm cursor-pointer">
-                <span className="font-medium">Send push notification & announcement to students</span>
-                <p className="text-xs text-muted-foreground mt-0.5">Students in this batch will be notified immediately</p>
-              </label>
-            </div>
-
-            {notify && (
-              <div className="space-y-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Announcement Title</Label>
-                  <Input value={announcementTitle} onChange={e => setAnnouncementTitle(e.target.value)} className="h-9 text-sm" />
+            {alreadyMarked ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-3 rounded-lg border border-warning/30 bg-warning/8">
+                  <CalendarOff className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-warning">Already marked as Day Off</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      <span className="font-medium text-foreground">{nextClassStr}</span> is already marked as a day off for{" "}
+                      <span className="font-medium text-foreground">{batch.name}</span>.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      To mark additional days off, go to the <span className="font-medium">Attendance</span> tab and tap a future class date in the calendar.
+                    </p>
+                  </div>
                 </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Message</Label>
-                  <textarea
-                    value={announcementContent}
-                    onChange={e => setAnnouncementContent(e.target.value)}
-                    rows={3}
-                    className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
+                <Button variant="outline" className="w-full" onClick={() => setOpen(false)}>Close</Button>
               </div>
-            )}
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  You're marking <span className="font-semibold text-foreground">{batch.name}</span> as off for{" "}
+                  <span className="font-semibold text-foreground">{nextClassStr}</span>{" "}
+                  <span className="text-xs">(next scheduled class)</span>.
+                </p>
 
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
-              <Button
-                className="flex-1 bg-warning text-white hover:bg-warning/90 border-0"
-                onClick={handleConfirm}
-                disabled={sending}
-              >
-                {sending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Confirming...</> : "Confirm Day Off"}
-              </Button>
-            </div>
+                <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
+                  <input
+                    type="checkbox"
+                    id="notify-dayoff"
+                    checked={notify}
+                    onChange={e => setNotify(e.target.checked)}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <label htmlFor="notify-dayoff" className="text-sm cursor-pointer">
+                    <span className="font-medium">Send push notification & announcement to students</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">Students in this batch will be notified immediately</p>
+                  </label>
+                </div>
+
+                {notify && (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Announcement Title</Label>
+                      <Input value={announcementTitle} onChange={e => setAnnouncementTitle(e.target.value)} className="h-9 text-sm" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Message</Label>
+                      <textarea
+                        value={announcementContent}
+                        onChange={e => setAnnouncementContent(e.target.value)}
+                        rows={3}
+                        className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
+                  <Button
+                    className="flex-1 bg-warning text-white hover:bg-warning/90 border-0"
+                    onClick={handleConfirm}
+                    disabled={sending}
+                  >
+                    {sending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Confirming...</> : "Confirm Day Off"}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

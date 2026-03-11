@@ -120,25 +120,36 @@ export default function AdminAttendance() {
   const selectedBatch = batches.find(b => b.id === selectedBatchId);
   const { editable: attEditable, reason: attLockReason, openTime, lockTime } = isAttendanceEditable(selectedBatch?.schedule ?? null);
 
-  // Check if today is marked as a day-off for this batch
+  // Check if today is marked as a day-off for this batch using machine-readable tag
   const [todayIsDayOff, setTodayIsDayOff] = useState(false);
   useEffect(() => {
     if (!selectedBatchId) return;
     setTodayIsDayOff(false);
     supabase
       .from("announcements")
-      .select("title")
+      .select("content, title")
       .eq("batch_id", selectedBatchId)
       .eq("type", "day_off")
       .then(({ data }) => {
         if (!data) return;
-        const todayFormatted = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
-        const todayDateStr = `${new Date().getDate()} ${new Date().toLocaleDateString("en-IN", { month: "long" })} ${new Date().getFullYear()}`;
+        const todayKey = today; // YYYY-MM-DD
         const found = data.some(ann => {
-          const t = ann.title.toLowerCase();
-          return t.includes(String(new Date().getDate())) &&
-            t.includes(new Date().toLocaleDateString("en-IN", { month: "long" }).toLowerCase()) &&
-            t.includes(String(new Date().getFullYear()));
+          // Primary: machine-readable tag
+          const tagMatch = (ann.content || "").match(/day_off_date:(\d{4}-\d{2}-\d{2})/);
+          if (tagMatch) return tagMatch[1] === todayKey;
+          // Fallback: parse from title
+          const titleMatch = ann.title.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+          if (titleMatch) {
+            const day = parseInt(titleMatch[1]);
+            const months = ["january","february","march","april","may","june","july","august","september","october","november","december"];
+            const monthIdx = months.indexOf(titleMatch[2].toLowerCase());
+            const year = parseInt(titleMatch[3]);
+            if (monthIdx !== -1) {
+              const key = `${year}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+              return key === todayKey;
+            }
+          }
+          return false;
         });
         setTodayIsDayOff(found);
       });

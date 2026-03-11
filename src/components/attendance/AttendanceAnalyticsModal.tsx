@@ -83,33 +83,29 @@ export default function AttendanceAnalyticsModal({
     return scheduledDays.includes(JS_DAY_ABBREVS[date.getDay()]);
   };
 
-  // Load day-off announcements for current viewed month
+  // Load day-off announcements — uses machine-readable tag day_off_date:YYYY-MM-DD
   useEffect(() => {
     if (!batchId || !open) return;
-    const m = String(calMonth + 1).padStart(2, "0");
-    const startDate = `${calYear}-${m}-01`;
-    const endDate = `${calYear}-${m}-${String(getDaysInMonth(calYear, calMonth)).padStart(2, "0")}`;
-
     supabase
       .from("announcements")
-      .select("created_at, title")
+      .select("content, title")
       .eq("batch_id", batchId)
       .eq("type", "day_off")
-      .gte("created_at", startDate)
-      .lte("created_at", endDate + "T23:59:59")
       .then(({ data }) => {
-        // Extract date from title (format: "No Class — BatchName — Day, D Month YYYY")
         const dates = new Set<string>();
         (data || []).forEach(ann => {
-          // Try to extract date from title — look for day number patterns
-          const match = ann.title.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)/i);
-          if (match) {
-            const day = parseInt(match[1]);
-            const monthName = match[2];
+          // Primary: machine-readable tag
+          const tagMatch = (ann.content || "").match(/day_off_date:(\d{4}-\d{2}-\d{2})/);
+          if (tagMatch) { dates.add(tagMatch[1]); return; }
+          // Fallback: parse from title "No Class — BatchName — Day, D Month YYYY"
+          const titleMatch = ann.title.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+          if (titleMatch) {
+            const day = parseInt(titleMatch[1]);
+            const monthName = titleMatch[2];
+            const year = parseInt(titleMatch[3]);
             const monthIdx = MONTHS.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
             if (monthIdx !== -1) {
-              const key = `${calYear}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-              dates.add(key);
+              dates.add(`${year}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
             }
           }
         });
