@@ -112,7 +112,17 @@ function getCurrentDueDate(plan: FeePlan): Date | null {
 }
 
 function getFeeStatus(plan: FeePlan): "paid" | "pending" | "overdue" {
-  if (plan.paid) return "paid";
+  // A plan is "paid" if paid=true AND paid_date is within the current cycle
+  if (plan.paid) {
+    if (plan.paid_date && plan.due_date) {
+      // If the current due_date is after the paid_date, the cycle has already advanced → not paid
+      const paidOn = new Date(plan.paid_date);
+      const dueDateObj = new Date(plan.due_date);
+      if (dueDateObj > paidOn) return "pending"; // next cycle started
+    } else {
+      return "paid";
+    }
+  }
   const dueDate = getCurrentDueDate(plan);
   if (!dueDate) return "pending";
   const today = new Date();
@@ -578,15 +588,27 @@ export default function AdminFees() {
   // ─── Mark Paid → advance cycle ──────────────────────────────────────────────
 
   const handleMarkPaid = async (plan: FeePlan) => {
+    // Guard: only allow marking paid if status is pending or overdue (not already paid)
+    const currentStatus = getFeeStatus(plan);
+    if (currentStatus === "paid") {
+      toast({ title: "Already paid", description: "This cycle is already marked as paid.", variant: "destructive" });
+      return;
+    }
+
     setMarkingId(plan.id);
     try {
       const today = new Date().toISOString().split("T")[0];
       const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
       const months = freq?.months ?? 1;
 
-      // Advance due_date by frequency
+      // Advance due_date to the next cycle
+      const currentDueDate = getCurrentDueDate(plan);
       let nextDue: string | null = null;
-      if (plan.due_date) {
+      if (currentDueDate) {
+        const next = new Date(currentDueDate);
+        next.setMonth(next.getMonth() + months);
+        nextDue = next.toISOString().split("T")[0];
+      } else if (plan.due_date) {
         const next = new Date(plan.due_date);
         next.setMonth(next.getMonth() + months);
         nextDue = next.toISOString().split("T")[0];
@@ -595,11 +617,11 @@ export default function AdminFees() {
       const { error } = await supabase
         .from("fees")
         .update({
-          paid: false, // reset for next cycle
+          paid: true, // mark current cycle paid
           paid_date: today,
           paid_cycles_count: (plan.paid_cycles_count ?? 0) + 1,
           total_paid_amount: (Number(plan.total_paid_amount) ?? 0) + Number(plan.amount),
-          due_date: nextDue, // advance to next cycle
+          due_date: nextDue, // advance to next cycle due date
         } as never)
         .eq("id", plan.id);
 
@@ -952,32 +974,37 @@ export default function AdminFees() {
                               </td>
 
                               {/* Action */}
-                              <td className="px-4 py-3 text-right">
-                                {!plan.paid && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 text-xs text-success hover:text-success gap-1"
-                                    disabled={markingId === plan.id}
-                                    onClick={() => handleMarkPaid(plan)}
-                                  >
-                                    {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                                    Paid
-                                  </Button>
-                                )}
-                                {status === "overdue" && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 text-xs text-danger hover:text-danger gap-1"
-                                    disabled={notifyingId === plan.id}
-                                    onClick={() => handleSendOverdueNotification(plan)}
-                                  >
-                                    {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
-                                    Notify
-                                  </Button>
-                                )}
-                              </td>
+                               <td className="px-4 py-3 text-right">
+                                 {(status === "pending" || status === "overdue") && (
+                                   <Button
+                                     size="sm"
+                                     variant="ghost"
+                                     className="h-7 text-xs text-success hover:text-success gap-1"
+                                     disabled={markingId === plan.id}
+                                     onClick={() => handleMarkPaid(plan)}
+                                   >
+                                     {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                     Mark Paid
+                                   </Button>
+                                 )}
+                                 {status === "paid" && (
+                                   <span className="text-xs text-success font-medium flex items-center justify-end gap-1">
+                                     <CheckCircle2 className="w-3.5 h-3.5" /> Paid
+                                   </span>
+                                 )}
+                                 {status === "overdue" && (
+                                   <Button
+                                     size="sm"
+                                     variant="ghost"
+                                     className="h-7 text-xs text-danger hover:text-danger gap-1 mt-1"
+                                     disabled={notifyingId === plan.id}
+                                     onClick={() => handleSendOverdueNotification(plan)}
+                                   >
+                                     {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                                     Notify
+                                   </Button>
+                                 )}
+                               </td>
                             </tr>
                           );
                         });
