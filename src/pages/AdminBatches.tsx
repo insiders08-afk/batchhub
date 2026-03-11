@@ -10,18 +10,32 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink, Loader2, UserPlus, X, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink, Loader2, UserPlus, X, CheckCircle2, CalendarOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 const courses = ["JEE", "NEET", "Foundation", "CUET", "Other"];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 1); // 1-12
+
+interface BatchTiming {
+  days: string[];
+  startHour: number;
+  startMinute: number;
+  startAmPm: "AM" | "PM";
+  endHour: number;
+  endMinute: number;
+  endAmPm: "AM" | "PM";
+}
 
 interface Batch {
   id: string;
   name: string;
   course: string;
   teacher_name: string | null;
+  teacher_id: string | null;
   schedule: string | null;
   is_active: boolean;
   institute_code: string;
@@ -40,6 +54,430 @@ interface Student {
   enrolled?: boolean;
 }
 
+function defaultTiming(): BatchTiming {
+  return { days: [], startHour: 4, startMinute: 0, startAmPm: "PM", endHour: 5, endMinute: 0, endAmPm: "PM" };
+}
+
+function timingToScheduleStr(t: BatchTiming): string {
+  return JSON.stringify(t);
+}
+
+function parseTiming(schedule: string | null): BatchTiming | null {
+  if (!schedule) return null;
+  try {
+    const p = JSON.parse(schedule);
+    if (p.days && p.startHour) return p as BatchTiming;
+  } catch { /* legacy plain text */ }
+  return null;
+}
+
+function formatTimingDisplay(schedule: string | null): string {
+  const t = parseTiming(schedule);
+  if (!t) return schedule || "";
+  const days = t.days.join(", ");
+  const fmt = (h: number, m: number, ap: string) => `${h}:${String(m).padStart(2, "0")} ${ap}`;
+  return `${days} · ${fmt(t.startHour, t.startMinute, t.startAmPm)} – ${fmt(t.endHour, t.endMinute, t.endAmPm)}`;
+}
+
+// ---- Time Picker sub-component ----
+function TimePicker({
+  label, hour, minute, amPm,
+  onHour, onMinute, onAmPm
+}: {
+  label: string;
+  hour: number; minute: number; amPm: "AM" | "PM";
+  onHour: (v: number) => void;
+  onMinute: (v: number) => void;
+  onAmPm: (v: "AM" | "PM") => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <div className="flex items-center gap-1.5">
+        {/* Hour */}
+        <div className="flex flex-col items-center">
+          <button type="button" onClick={() => onHour(hour === 12 ? 1 : hour + 1)}
+            className="text-muted-foreground hover:text-foreground text-xs px-1">▲</button>
+          <span className="font-mono text-base w-7 text-center font-semibold">{String(hour).padStart(2, "0")}</span>
+          <button type="button" onClick={() => onHour(hour === 1 ? 12 : hour - 1)}
+            className="text-muted-foreground hover:text-foreground text-xs px-1">▼</button>
+        </div>
+        <span className="text-muted-foreground font-bold">:</span>
+        {/* Minute */}
+        <div className="flex flex-col items-center">
+          <button type="button" onClick={() => onMinute(minute === 55 ? 0 : minute + 5)}
+            className="text-muted-foreground hover:text-foreground text-xs px-1">▲</button>
+          <span className="font-mono text-base w-7 text-center font-semibold">{String(minute).padStart(2, "0")}</span>
+          <button type="button" onClick={() => onMinute(minute === 0 ? 55 : minute - 5)}
+            className="text-muted-foreground hover:text-foreground text-xs px-1">▼</button>
+        </div>
+        {/* AM/PM */}
+        <div className="flex flex-col gap-0.5 ml-1">
+          {(["AM", "PM"] as const).map(ap => (
+            <button
+              key={ap}
+              type="button"
+              onClick={() => onAmPm(ap)}
+              className={cn(
+                "text-[11px] font-bold px-1.5 py-0.5 rounded",
+                amPm === ap ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >{ap}</button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---- Batch Form (Create or Edit) ----
+function BatchFormDialog({
+  open, onOpenChange, teachers, instituteCode, editBatch, onSaved
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  teachers: Teacher[];
+  instituteCode: string;
+  editBatch: Batch | null;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
+
+  const [name, setName] = useState("");
+  const [course, setCourse] = useState("");
+  const [teacherId, setTeacherId] = useState("");
+  const [teacherName, setTeacherName] = useState("");
+  const [timing, setTiming] = useState<BatchTiming>(defaultTiming());
+
+  // Populate form when editing
+  useEffect(() => {
+    if (editBatch) {
+      setName(editBatch.name);
+      setCourse(editBatch.course);
+      setTeacherId(editBatch.teacher_id || "");
+      setTeacherName(editBatch.teacher_name || "");
+      const parsed = parseTiming(editBatch.schedule);
+      setTiming(parsed || defaultTiming());
+    } else {
+      setName(""); setCourse(""); setTeacherId(""); setTeacherName("");
+      setTiming(defaultTiming());
+    }
+  }, [editBatch, open]);
+
+  const toggleDay = (d: string) => {
+    setTiming(prev => ({
+      ...prev,
+      days: prev.days.includes(d) ? prev.days.filter(x => x !== d) : [...prev.days, d]
+    }));
+  };
+
+  const handleSave = async () => {
+    if (!name.trim()) { toast({ title: "Batch name is required", variant: "destructive" }); return; }
+    if (!course) { toast({ title: "Course is required", variant: "destructive" }); return; }
+    if (!teacherId) { toast({ title: "Assigning a teacher is required", variant: "destructive" }); return; }
+    if (timing.days.length === 0) { toast({ title: "Select at least one class day", variant: "destructive" }); return; }
+
+    setSaving(true);
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const scheduleStr = timingToScheduleStr(timing);
+
+    if (editBatch) {
+      // Edit existing batch
+      const updates: Record<string, unknown> = { name, course, schedule: scheduleStr };
+
+      const { error } = await supabase.from("batches").update(updates).eq("id", editBatch.id);
+      if (error) {
+        toast({ title: "Error updating batch", description: error.message, variant: "destructive" });
+        setSaving(false); return;
+      }
+
+      // If teacher changed, send new request
+      if (teacherId !== editBatch.teacher_id) {
+        await supabase.from("batch_teacher_requests").insert({
+          batch_id: editBatch.id,
+          teacher_id: teacherId,
+          institute_code: instituteCode,
+          requested_by: user!.id,
+          batch_name: name,
+          course,
+          status: "pending",
+        });
+        toast({ title: "Batch updated!", description: `New assignment request sent to ${teacherName}.` });
+      } else {
+        toast({ title: "Batch updated successfully!" });
+      }
+    } else {
+      // Create new batch
+      const { data: batchData, error } = await supabase.from("batches").insert({
+        name, course, schedule: scheduleStr,
+        teacher_id: null, teacher_name: null,
+        institute_code: instituteCode, is_active: true,
+      }).select("id").single();
+
+      if (error) {
+        toast({ title: "Error creating batch", description: error.message, variant: "destructive" });
+        setSaving(false); return;
+      }
+
+      if (batchData && user) {
+        await supabase.from("batch_teacher_requests").insert({
+          batch_id: batchData.id,
+          teacher_id: teacherId,
+          institute_code: instituteCode,
+          requested_by: user.id,
+          batch_name: name,
+          course,
+          status: "pending",
+        });
+      }
+      toast({ title: "Batch created!", description: `Assignment request sent to ${teacherName}. They must accept to be linked.` });
+    }
+
+    onOpenChange(false);
+    onSaved();
+    setSaving(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display">{editBatch ? "Edit Batch" : "Create New Batch"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          {/* Name */}
+          <div className="space-y-1.5">
+            <Label>Batch Name <span className="text-danger">*</span></Label>
+            <Input placeholder="e.g. JEE Advanced 2025 – A" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+
+          {/* Course */}
+          <div className="space-y-1.5">
+            <Label>Course <span className="text-danger">*</span></Label>
+            <Select value={course} onValueChange={setCourse}>
+              <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
+              <SelectContent>
+                {courses.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Teacher (required) */}
+          <div className="space-y-1.5">
+            <Label>Assigned Teacher <span className="text-danger">*</span></Label>
+            <Select value={teacherId} onValueChange={v => {
+              const t = teachers.find(t => t.user_id === v);
+              setTeacherId(v);
+              setTeacherName(t?.full_name || "");
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder={teachers.length === 0 ? "No approved teachers yet" : "Select teacher"} />
+              </SelectTrigger>
+              <SelectContent>
+                {teachers.length === 0
+                  ? <SelectItem value="none" disabled>No approved teachers yet</SelectItem>
+                  : teachers.map(t => <SelectItem key={t.user_id} value={t.user_id}>{t.full_name}</SelectItem>)
+                }
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Weekly Days */}
+          <div className="space-y-2">
+            <Label>Class Days <span className="text-danger">*</span></Label>
+            <div className="flex gap-1.5 flex-wrap">
+              {WEEKDAYS.map(d => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => toggleDay(d)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all",
+                    timing.days.includes(d)
+                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                      : "bg-muted/50 text-muted-foreground border-border/50 hover:border-primary/40 hover:text-foreground"
+                  )}
+                >{d}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Timing */}
+          <div className="space-y-2">
+            <Label>Class Timing <span className="text-danger">*</span></Label>
+            <div className="flex items-start gap-6 p-3 bg-muted/30 rounded-lg border border-border/40">
+              <TimePicker
+                label="Start"
+                hour={timing.startHour} minute={timing.startMinute} amPm={timing.startAmPm}
+                onHour={v => setTiming(p => ({ ...p, startHour: v }))}
+                onMinute={v => setTiming(p => ({ ...p, startMinute: v }))}
+                onAmPm={v => setTiming(p => ({ ...p, startAmPm: v }))}
+              />
+              <div className="text-muted-foreground text-sm font-bold mt-5">to</div>
+              <TimePicker
+                label="End"
+                hour={timing.endHour} minute={timing.endMinute} amPm={timing.endAmPm}
+                onHour={v => setTiming(p => ({ ...p, endHour: v }))}
+                onMinute={v => setTiming(p => ({ ...p, endMinute: v }))}
+                onAmPm={v => setTiming(p => ({ ...p, endAmPm: v }))}
+              />
+            </div>
+          </div>
+
+          <Button
+            className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />{editBatch ? "Updating..." : "Creating..."}</> : editBatch ? "Update Batch" : "Create Batch"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---- Day Off Dialog ----
+function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; instituteCode: string; onDone: () => void }) {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [notify, setNotify] = useState(true);
+  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcementContent, setAnnouncementContent] = useState("");
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+
+  const handleOpen = () => {
+    setAnnouncementTitle(`No Class Tomorrow — ${batch.name}`);
+    setAnnouncementContent(`Dear students, there will be no class for ${batch.name} tomorrow (${tomorrowStr}). Please plan accordingly.`);
+    setOpen(true);
+  };
+
+  const handleConfirm = async () => {
+    setSending(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user!.id).single();
+
+      if (notify) {
+        await supabase.from("announcements").insert({
+          title: announcementTitle,
+          content: announcementContent,
+          batch_id: batch.id,
+          institute_code: instituteCode,
+          posted_by: user!.id,
+          posted_by_name: profile?.full_name || "Admin",
+          type: "day_off",
+          notify_push: true,
+        });
+      }
+
+      toast({ title: "✅ Day Off marked!", description: `${batch.name} is off tomorrow. ${notify ? "Announcement sent to students." : ""}` });
+      setOpen(false);
+      onDone();
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed", variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Check batch timing to see if it's past end time
+  const timing = parseTiming(batch.schedule);
+  const now = new Date();
+  let canMarkDayOff = true;
+  if (timing) {
+    const endH24 = timing.endAmPm === "PM" && timing.endHour !== 12
+      ? timing.endHour + 12
+      : timing.endAmPm === "AM" && timing.endHour === 12 ? 0 : timing.endHour;
+    const batchEndMinutes = endH24 * 60 + timing.endMinute;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    canMarkDayOff = nowMinutes >= batchEndMinutes;
+  }
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        className={cn(
+          "h-8 text-xs gap-1.5 border-border/50",
+          canMarkDayOff
+            ? "hover:border-warning/50 hover:text-warning text-muted-foreground"
+            : "opacity-40 cursor-not-allowed"
+        )}
+        onClick={canMarkDayOff ? handleOpen : undefined}
+        title={!canMarkDayOff ? "Available after batch ends" : "Mark tomorrow as day off"}
+      >
+        <CalendarOff className="w-3 h-3" /> Day Off
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <CalendarOff className="w-5 h-5 text-warning" /> Mark Day Off
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <p className="text-sm text-muted-foreground">
+              You're marking <span className="font-semibold text-foreground">{batch.name}</span> as off for{" "}
+              <span className="font-semibold text-foreground">{tomorrowStr}</span>.
+            </p>
+
+            <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
+              <input
+                type="checkbox"
+                id="notify-dayoff"
+                checked={notify}
+                onChange={e => setNotify(e.target.checked)}
+                className="mt-0.5 accent-primary"
+              />
+              <label htmlFor="notify-dayoff" className="text-sm cursor-pointer">
+                <span className="font-medium">Send push notification & announcement to students</span>
+                <p className="text-xs text-muted-foreground mt-0.5">Students in this batch will be notified immediately</p>
+              </label>
+            </div>
+
+            {notify && (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Announcement Title</Label>
+                  <Input value={announcementTitle} onChange={e => setAnnouncementTitle(e.target.value)} className="h-9 text-sm" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Message</Label>
+                  <textarea
+                    value={announcementContent}
+                    onChange={e => setAnnouncementContent(e.target.value)}
+                    rows={3}
+                    className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button
+                className="flex-1 bg-warning text-white hover:bg-warning/90 border-0"
+                onClick={handleConfirm}
+                disabled={sending}
+              >
+                {sending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Confirming...</> : "Confirm Day Off"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // ---- Enroll Students Dialog ----
 function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; instituteCode: string; onDone: () => void }) {
   const { toast } = useToast();
@@ -51,7 +489,6 @@ function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; 
 
   const loadStudents = async () => {
     setLoading(true);
-    // Get all approved students in this institute
     const { data: allStudents } = await supabase
       .from("profiles")
       .select("user_id, full_name, email")
@@ -59,30 +496,22 @@ function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; 
       .eq("role", "student")
       .in("status", ["approved", "active"]);
 
-    // Get already enrolled students in this batch
     const { data: enrolled } = await supabase
       .from("students_batches")
       .select("student_id")
       .eq("batch_id", batch.id);
 
     const enrolledIds = new Set((enrolled || []).map(e => e.student_id));
-
-    setStudents(
-      (allStudents || []).map(s => ({ ...s, enrolled: enrolledIds.has(s.user_id) }))
-    );
+    setStudents((allStudents || []).map(s => ({ ...s, enrolled: enrolledIds.has(s.user_id) })));
     setLoading(false);
   };
 
-  useEffect(() => {
-    if (open) loadStudents();
-  }, [open]);
+  useEffect(() => { if (open) loadStudents(); }, [open]);
 
   const handleEnroll = async (student: Student) => {
     setEnrolling(student.user_id);
     const { error } = await supabase.from("students_batches").insert({
-      batch_id: batch.id,
-      student_id: student.user_id,
-      institute_code: instituteCode,
+      batch_id: batch.id, student_id: student.user_id, institute_code: instituteCode,
     });
     if (error) {
       toast({ title: "Error enrolling student", description: error.message, variant: "destructive" });
@@ -96,11 +525,8 @@ function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; 
 
   const handleUnenroll = async (student: Student) => {
     setEnrolling(student.user_id);
-    const { error } = await supabase
-      .from("students_batches")
-      .delete()
-      .eq("batch_id", batch.id)
-      .eq("student_id", student.user_id);
+    const { error } = await supabase.from("students_batches").delete()
+      .eq("batch_id", batch.id).eq("student_id", student.user_id);
     if (error) {
       toast({ title: "Error removing student", description: error.message, variant: "destructive" });
     } else {
@@ -129,39 +555,25 @@ function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; 
         <DialogHeader>
           <DialogTitle className="font-display">Enroll Students — {batch.name}</DialogTitle>
         </DialogHeader>
-
-        {/* Enrolled count */}
         <div className="flex items-center gap-2 px-1">
           <CheckCircle2 className="w-4 h-4 text-success" />
           <span className="text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">{enrolled.length}</span> student{enrolled.length !== 1 ? "s" : ""} enrolled
           </span>
         </div>
-
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Search students by name or email..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="pl-9 h-9"
-          />
+          <Input placeholder="Search students..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
         </div>
-
         {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="w-5 h-5 animate-spin text-primary" />
-          </div>
+          <div className="flex items-center justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : students.length === 0 ? (
           <div className="text-center py-10 text-muted-foreground">
             <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
             <p className="text-sm font-medium">No approved students yet</p>
-            <p className="text-xs mt-1">Approve students from the Approvals page first</p>
           </div>
         ) : (
           <div className="overflow-y-auto flex-1 space-y-1 pr-1">
-            {/* Already enrolled section */}
             {enrolled.length > 0 && (
               <div className="mb-2">
                 <p className="text-xs font-semibold text-success uppercase tracking-wide mb-1 px-1">Enrolled</p>
@@ -174,21 +586,14 @@ function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; 
                       <p className="text-sm font-medium">{s.full_name}</p>
                       <p className="text-xs text-muted-foreground">{s.email}</p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="w-7 h-7 text-muted-foreground hover:text-danger"
-                      disabled={enrolling === s.user_id}
-                      onClick={() => handleUnenroll(s)}
-                    >
+                    <Button variant="ghost" size="icon" className="w-7 h-7 text-muted-foreground hover:text-danger"
+                      disabled={enrolling === s.user_id} onClick={() => handleUnenroll(s)}>
                       {enrolling === s.user_id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
                     </Button>
                   </div>
                 ))}
               </div>
             )}
-
-            {/* Not enrolled */}
             {notEnrolled.length > 0 && (
               <div>
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 px-1">Not Enrolled</p>
@@ -198,12 +603,8 @@ function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; 
                       <p className="text-sm font-medium">{s.full_name}</p>
                       <p className="text-xs text-muted-foreground">{s.email}</p>
                     </div>
-                    <Button
-                      size="sm"
-                      className="h-7 text-xs gap-1 gradient-hero text-white border-0 hover:opacity-90"
-                      disabled={enrolling === s.user_id}
-                      onClick={() => handleEnroll(s)}
-                    >
+                    <Button size="sm" className="h-7 text-xs gap-1 gradient-hero text-white border-0 hover:opacity-90"
+                      disabled={enrolling === s.user_id} onClick={() => handleEnroll(s)}>
                       {enrolling === s.user_id ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
                       Enroll
                     </Button>
@@ -211,7 +612,6 @@ function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; 
                 ))}
               </div>
             )}
-
             {filtered.length === 0 && search && (
               <p className="text-center text-sm text-muted-foreground py-6">No students match "{search}"</p>
             )}
@@ -226,33 +626,20 @@ function EnrollStudentsDialog({ batch, instituteCode, onDone }: { batch: Batch; 
 export default function AdminBatches() {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editBatch, setEditBatch] = useState<Batch | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [instituteCode, setInstituteCode] = useState("");
 
-  const [newBatch, setNewBatch] = useState({ name: "", course: "", teacherId: "", teacherName: "", schedule: "" });
-
   const fetchBatches = async (code: string) => {
-    const { data } = await supabase
-      .from("batches")
-      .select("*")
-      .eq("institute_code", code)
-      .order("created_at", { ascending: false });
-
+    const { data } = await supabase.from("batches").select("*").eq("institute_code", code).order("created_at", { ascending: false });
     if (!data) return;
-
-    const enriched = await Promise.all(
-      data.map(async (b) => {
-        const { count } = await supabase
-          .from("students_batches")
-          .select("id", { count: "exact" })
-          .eq("batch_id", b.id);
-        return { ...b, studentCount: count || 0 };
-      })
-    );
+    const enriched = await Promise.all(data.map(async (b) => {
+      const { count } = await supabase.from("students_batches").select("id", { count: "exact" }).eq("batch_id", b.id);
+      return { ...b, studentCount: count || 0 };
+    }));
     setBatches(enriched);
   };
 
@@ -261,68 +648,14 @@ export default function AdminBatches() {
       const { data: code } = await supabase.rpc("get_my_institute_code");
       if (!code) { setLoading(false); return; }
       setInstituteCode(code);
-
-      const { data: teacherData } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .eq("institute_code", code)
-        .eq("role", "teacher")
-        .in("status", ["approved", "active"]);
+      const { data: teacherData } = await supabase.from("profiles").select("user_id, full_name")
+        .eq("institute_code", code).eq("role", "teacher").in("status", ["approved", "active"]);
       setTeachers(teacherData || []);
-
       await fetchBatches(code);
       setLoading(false);
     };
     init();
   }, []);
-
-  const handleCreate = async () => {
-    if (!newBatch.name || !newBatch.course) {
-      toast({ title: "Please fill in batch name and course", variant: "destructive" });
-      return;
-    }
-    setSaving(true);
-
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // Insert batch WITHOUT teacher_id initially — teacher must accept first
-    const { data: batchData, error } = await supabase.from("batches").insert({
-      name: newBatch.name,
-      course: newBatch.course,
-      schedule: newBatch.schedule || null,
-      teacher_id: null,
-      teacher_name: null,
-      institute_code: instituteCode,
-      is_active: true,
-    }).select("id").single();
-
-    if (error) {
-      toast({ title: "Error creating batch", description: error.message, variant: "destructive" });
-      setSaving(false);
-      return;
-    }
-
-    // If a teacher was selected, send them a batch assignment request
-    if (newBatch.teacherId && batchData && user) {
-      await supabase.from("batch_teacher_requests").insert({
-        batch_id: batchData.id,
-        teacher_id: newBatch.teacherId,
-        institute_code: instituteCode,
-        requested_by: user.id,
-        batch_name: newBatch.name,
-        course: newBatch.course,
-        status: "pending",
-      });
-      toast({ title: "Batch created!", description: `Assignment request sent to ${newBatch.teacherName}. They must accept to be linked.` });
-    } else {
-      toast({ title: "Batch created successfully!" });
-    }
-
-    setDialogOpen(false);
-    setNewBatch({ name: "", course: "", teacherId: "", teacherName: "", schedule: "" });
-    await fetchBatches(instituteCode);
-    setSaving(false);
-  };
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this batch? This cannot be undone.")) return;
@@ -346,75 +679,25 @@ export default function AdminBatches() {
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search batches..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9 h-9"
-            />
+            <Input placeholder="Search batches..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2">
-                <Plus className="w-4 h-4" /> Create Batch
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle className="font-display">Create New Batch</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <div className="space-y-1.5">
-                  <Label>Batch Name</Label>
-                  <Input
-                    placeholder="e.g. JEE Advanced 2025 – A"
-                    value={newBatch.name}
-                    onChange={e => setNewBatch(p => ({ ...p, name: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Course</Label>
-                  <Select onValueChange={v => setNewBatch(p => ({ ...p, course: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select course" /></SelectTrigger>
-                    <SelectContent>
-                      {courses.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Assigned Teacher</Label>
-                  <Select onValueChange={v => {
-                    const t = teachers.find(t => t.user_id === v);
-                    setNewBatch(p => ({ ...p, teacherId: v, teacherName: t?.full_name || "" }));
-                  }}>
-                    <SelectTrigger><SelectValue placeholder="Select teacher (optional)" /></SelectTrigger>
-                    <SelectContent>
-                      {teachers.length === 0
-                        ? <SelectItem value="none" disabled>No approved teachers yet</SelectItem>
-                        : teachers.map(t => <SelectItem key={t.user_id} value={t.user_id}>{t.full_name}</SelectItem>)
-                      }
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Schedule</Label>
-                  <Input
-                    placeholder="e.g. Mon, Wed, Fri — 8:00 AM"
-                    value={newBatch.schedule}
-                    onChange={e => setNewBatch(p => ({ ...p, schedule: e.target.value }))}
-                  />
-                </div>
-                <Button
-                  className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90"
-                  onClick={handleCreate}
-                  disabled={saving}
-                >
-                  {saving ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Creating...</> : "Create Batch"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button
+            className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="w-4 h-4" /> Create Batch
+          </Button>
         </div>
+
+        {/* Create/Edit Dialog */}
+        <BatchFormDialog
+          open={createOpen || !!editBatch}
+          onOpenChange={(v) => { if (!v) { setCreateOpen(false); setEditBatch(null); } }}
+          teachers={teachers}
+          instituteCode={instituteCode}
+          editBatch={editBatch}
+          onSaved={() => fetchBatches(instituteCode)}
+        />
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
@@ -447,11 +730,15 @@ export default function AdminBatches() {
                       </div>
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="icon" className="w-7 h-7"><Pencil className="w-3 h-3" /></Button>
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        className="w-7 h-7 text-destructive hover:text-destructive"
+                        variant="ghost" size="icon" className="w-7 h-7 hover:text-primary"
+                        onClick={() => setEditBatch(batch)}
+                        title="Edit batch"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </Button>
+                      <Button
+                        variant="ghost" size="icon" className="w-7 h-7 text-destructive hover:text-destructive"
                         onClick={() => handleDelete(batch.id)}
                       >
                         <Trash2 className="w-3 h-3" />
@@ -462,12 +749,12 @@ export default function AdminBatches() {
                   <div className="space-y-2 mb-4 flex-1">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{batch.teacher_name || "No teacher assigned"}</span>
+                      <span className="truncate">{batch.teacher_name || "Awaiting teacher acceptance"}</span>
                     </div>
                     {batch.schedule && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="w-3.5 h-3.5 flex-shrink-0" />
-                        <span className="truncate">{batch.schedule}</span>
+                        <span className="truncate text-xs">{formatTimingDisplay(batch.schedule)}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -477,16 +764,15 @@ export default function AdminBatches() {
                   </div>
 
                   <div className="space-y-2">
-                    <EnrollStudentsDialog
-                      batch={batch}
-                      instituteCode={instituteCode}
-                      onDone={() => fetchBatches(instituteCode)}
-                    />
-                    <Link to={`/batch/${batch.id}`}>
-                      <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
-                        Open Batch Workspace <ExternalLink className="w-3 h-3" />
-                      </Button>
-                    </Link>
+                    <EnrollStudentsDialog batch={batch} instituteCode={instituteCode} onDone={() => fetchBatches(instituteCode)} />
+                    <div className="flex gap-2">
+                      <DayOffDialog batch={batch} instituteCode={instituteCode} onDone={() => fetchBatches(instituteCode)} />
+                      <Link to={`/batch/${batch.id}`} className="flex-1">
+                        <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
+                          Open Workspace <ExternalLink className="w-3 h-3" />
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 </Card>
               </motion.div>
