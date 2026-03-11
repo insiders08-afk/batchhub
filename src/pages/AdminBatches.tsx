@@ -80,6 +80,19 @@ function formatTimingDisplay(schedule: string | null): string {
   return `${days} · ${fmt(t.startHour, t.startMinute, t.startAmPm)} – ${fmt(t.endHour, t.endMinute, t.endAmPm)}`;
 }
 
+function calcDuration(t: BatchTiming): string {
+  const to24 = (h: number, ap: "AM" | "PM") => ap === "AM" ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+  const startMins = to24(t.startHour, t.startAmPm) * 60 + t.startMinute;
+  const endMins = to24(t.endHour, t.endAmPm) * 60 + t.endMinute;
+  const diff = endMins - startMins;
+  if (diff <= 0) return "";
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h} hr`;
+  return `${m} min`;
+}
+
 // ---- Time Picker sub-component ----
 function TimePicker({
   label, hour, minute, amPm,
