@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { JS_DAY_ABBREVS } from "@/lib/batchTiming";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
@@ -77,6 +78,19 @@ function formatTimingDisplay(schedule: string | null): string {
   const days = t.days.join(", ");
   const fmt = (h: number, m: number, ap: string) => `${h}:${String(m).padStart(2, "0")} ${ap}`;
   return `${days} · ${fmt(t.startHour, t.startMinute, t.startAmPm)} – ${fmt(t.endHour, t.endMinute, t.endAmPm)}`;
+}
+
+function calcDuration(t: BatchTiming): string {
+  const to24 = (h: number, ap: "AM" | "PM") => ap === "AM" ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+  const startMins = to24(t.startHour, t.startAmPm) * 60 + t.startMinute;
+  const endMins = to24(t.endHour, t.endAmPm) * 60 + t.endMinute;
+  const diff = endMins - startMins;
+  if (diff <= 0) return "";
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h} hr`;
+  return `${m} min`;
 }
 
 // ---- Time Picker sub-component ----
@@ -348,13 +362,41 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementContent, setAnnouncementContent] = useState("");
 
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+  // Find the next scheduled class date for this batch
+  function getNextClassDate(): Date {
+    const t = parseTiming(batch.schedule);
+    if (!t || !t.days || t.days.length === 0) {
+      // No schedule — default to tomorrow
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      return d;
+    }
+
+    const now = new Date();
+    // Start checking from tomorrow
+    const candidate = new Date(now);
+    candidate.setDate(candidate.getDate() + 1);
+
+    // Search up to 14 days ahead
+    for (let i = 0; i < 14; i++) {
+      const abbrev = JS_DAY_ABBREVS[candidate.getDay()];
+      if (t.days.includes(abbrev)) {
+        return new Date(candidate);
+      }
+      candidate.setDate(candidate.getDate() + 1);
+    }
+    // Fallback: tomorrow
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  const nextClassDate = getNextClassDate();
+  const nextClassStr = nextClassDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
 
   const handleOpen = () => {
-    setAnnouncementTitle(`No Class Tomorrow — ${batch.name}`);
-    setAnnouncementContent(`Dear students, there will be no class for ${batch.name} tomorrow (${tomorrowStr}). Please plan accordingly.`);
+    setAnnouncementTitle(`No Class — ${batch.name} — ${nextClassStr}`);
+    setAnnouncementContent(`Dear students, there will be no class for ${batch.name} on ${nextClassStr}. Please plan accordingly.`);
     setOpen(true);
   };
 
@@ -377,7 +419,7 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
         });
       }
 
-      toast({ title: "✅ Day Off marked!", description: `${batch.name} is off tomorrow. ${notify ? "Announcement sent to students." : ""}` });
+      toast({ title: "✅ Day Off marked!", description: `${batch.name} is off on ${nextClassStr}. ${notify ? "Announcement sent to students." : ""}` });
       setOpen(false);
       onDone();
     } catch (err: unknown) {
@@ -386,9 +428,6 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
       setSending(false);
     }
   };
-
-  // Day Off is always available — admin can schedule any future day off anytime
-  const canMarkDayOff = true;
 
   return (
     <>
@@ -412,7 +451,8 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
           <div className="space-y-4 pt-1">
             <p className="text-sm text-muted-foreground">
               You're marking <span className="font-semibold text-foreground">{batch.name}</span> as off for{" "}
-              <span className="font-semibold text-foreground">{tomorrowStr}</span>.
+              <span className="font-semibold text-foreground">{nextClassStr}</span>{" "}
+              <span className="text-xs">(next scheduled class)</span>.
             </p>
 
             <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
@@ -741,6 +781,7 @@ export default function AdminBatches() {
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Clock className="w-3.5 h-3.5 flex-shrink-0" />
                         <span className="truncate text-xs">{formatTimingDisplay(batch.schedule)}</span>
+                        {(() => { const t = parseTiming(batch.schedule); return t ? <span className="text-xs text-muted-foreground/60 flex-shrink-0">· {calcDuration(t)}</span> : null; })()}
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
