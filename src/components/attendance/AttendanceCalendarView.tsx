@@ -341,7 +341,7 @@ export default function AttendanceCalendarView({
                       key={label}
                       className={cn(
                         "text-center text-xs font-medium",
-                        isScheduled ? "text-muted-foreground" : "text-muted-foreground/20"
+                        isScheduled ? "text-foreground font-semibold" : "text-muted-foreground/35"
                       )}
                     >
                       {label}
