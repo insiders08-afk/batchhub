@@ -61,6 +61,73 @@ function localDateToKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+// ---- Cancel / Undo Day Off Dialog ----
+function CancelDayOffDialog({
+  open, onClose, date, batchId, batchName, onDone
+}: {
+  open: boolean;
+  onClose: () => void;
+  date: string;
+  batchId: string;
+  batchName?: string;
+  onDone: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const dateDisplay = date
+    ? dateKeyToLocalDate(date).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : "";
+
+  const handleCancel = async () => {
+    setDeleting(true);
+    try {
+      const { data } = await supabase
+        .from("announcements")
+        .select("id")
+        .eq("batch_id", batchId)
+        .eq("type", "day_off")
+        .ilike("content", `%day_off_date:${date}%`);
+      if (data && data.length > 0) {
+        await supabase.from("announcements").delete().in("id", data.map(a => a.id));
+      }
+      onDone();
+      onClose();
+    } catch {
+      // ignore
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="font-display flex items-center gap-2">
+            <CalendarOff className="w-5 h-5 text-danger" /> Cancel Day Off
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-1">
+          <p className="text-sm text-muted-foreground">
+            Remove the day-off for <span className="font-semibold text-foreground">{dateDisplay}</span> on{" "}
+            <span className="font-semibold text-foreground">{batchName || "this batch"}</span>?
+            <br /><span className="text-xs">This will delete the associated announcement.</span>
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={onClose}>Keep Off</Button>
+            <Button
+              className="flex-1 bg-danger text-white hover:bg-danger/90 border-0"
+              onClick={handleCancel}
+              disabled={deleting}
+            >
+              {deleting ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Removing...</> : "Cancel Day Off"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ---- Day Off Dialog for future dates ----
 function FutureDayOffDialog({
   open, onClose, date, batchId, batchName, instituteCode, onDone
