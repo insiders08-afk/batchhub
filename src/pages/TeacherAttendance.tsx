@@ -9,18 +9,20 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   CheckCircle2, XCircle, CalendarDays, Users,
-  Loader2, TrendingUp, Search, BarChart3, Clock
+  Loader2, Search, BarChart3, Clock, Lock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import AttendanceAnalyticsModal from "@/components/attendance/AttendanceAnalyticsModal";
 import AttendanceCalendarView from "@/components/attendance/AttendanceCalendarView";
+import { isAttendanceEditable, formatTimingDisplay } from "@/lib/batchTiming";
 
 interface Batch {
   id: string;
   name: string;
   course: string;
+  schedule: string | null;
 }
 
 interface StudentProfile {
@@ -61,7 +63,6 @@ export default function TeacherAttendance() {
   const [instituteCode, setInstituteCode] = useState<string>("");
   const [userId, setUserId] = useState<string>("");
 
-  // Student analytics dialog
   const [analyticsStudent, setAnalyticsStudent] = useState<StudentStats | null>(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
@@ -74,17 +75,11 @@ export default function TeacherAttendance() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate("/auth/teacher"); return; }
       setUserId(user.id);
-
       const { data: code } = await supabase.rpc("get_my_institute_code");
       setInstituteCode(code || "");
-
       const { data: batchData } = await supabase
-        .from("batches")
-        .select("id, name, course")
-        .eq("teacher_id", user.id)
-        .eq("is_active", true)
-        .order("name");
-
+        .from("batches").select("id, name, course, schedule")
+        .eq("teacher_id", user.id).eq("is_active", true).order("name");
       if (batchData) {
         setBatches(batchData);
         if (batchData.length > 0) setSelectedBatchId(batchData[0].id);
@@ -98,11 +93,7 @@ export default function TeacherAttendance() {
     if (!batchId) return;
     setLoadingStudents(true);
     try {
-      const { data: enrollments } = await supabase
-        .from("students_batches")
-        .select("student_id")
-        .eq("batch_id", batchId);
-
+      const { data: enrollments } = await supabase.from("students_batches").select("student_id").eq("batch_id", batchId);
       const ids = (enrollments || []).map(e => e.student_id);
       let profiles: StudentProfile[] = [];
       if (ids.length > 0) {
@@ -111,11 +102,8 @@ export default function TeacherAttendance() {
       }
       setStudents(profiles);
 
-      const { data: todayAtt } = await supabase
-        .from("attendance")
-        .select("student_id, present")
-        .eq("batch_id", batchId)
-        .eq("date", today)
+      const { data: todayAtt } = await supabase.from("attendance").select("student_id, present")
+        .eq("batch_id", batchId).eq("date", today)
         .in("student_id", ids.length > 0 ? ids : ["none"]);
 
       const attMap: Record<string, "present" | "absent"> = {};
@@ -123,12 +111,8 @@ export default function TeacherAttendance() {
       (todayAtt || []).forEach(a => { attMap[a.student_id] = a.present ? "present" : "absent"; });
       setAttendance(attMap);
 
-      const { data: histData } = await supabase
-        .from("attendance")
-        .select("date, present, student_id")
-        .eq("batch_id", batchId)
-        .order("date", { ascending: false })
-        .limit(500);
+      const { data: histData } = await supabase.from("attendance").select("date, present, student_id")
+        .eq("batch_id", batchId).order("date", { ascending: false }).limit(500);
 
       const dateMap: Record<string, { present: number; total: number }> = {};
       (histData || []).forEach(a => {
@@ -139,14 +123,8 @@ export default function TeacherAttendance() {
       });
 
       const histItems = Object.entries(dateMap)
-        .map(([date, val]) => ({
-          date,
-          present: val.present,
-          total: val.total,
-          pct: val.total > 0 ? Math.round((val.present / val.total) * 100) : 0,
-        }))
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 10);
+        .map(([date, val]) => ({ date, present: val.present, total: val.total, pct: val.total > 0 ? Math.round((val.present / val.total) * 100) : 0 }))
+        .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
 
       setBatchHistory(histItems);
     } finally {
@@ -154,31 +132,37 @@ export default function TeacherAttendance() {
     }
   }, [today]);
 
-  useEffect(() => {
-    if (selectedBatchId) loadBatchData(selectedBatchId);
-  }, [selectedBatchId, loadBatchData]);
+  useEffect(() => { if (selectedBatchId) loadBatchData(selectedBatchId); }, [selectedBatchId, loadBatchData]);
 
-  const toggle = (uid: string) =>
+  const selectedBatch = batches.find(b => b.id === selectedBatchId);
+  const { editable: attEditable, reason: attLockReason } = isAttendanceEditable(selectedBatch?.schedule ?? null);
+
+  const toggle = (uid: string) => {
+    if (!attEditable) return;
     setAttendance(prev => ({ ...prev, [uid]: prev[uid] === "present" ? "absent" : "present" }));
+  };
 
-  const markAll = (status: "present" | "absent") =>
+  const markAll = (status: "present" | "absent") => {
+    if (!attEditable) return;
     setAttendance(Object.fromEntries(students.map(s => [s.user_id, status])));
+  };
 
   const saveAttendance = async () => {
     if (!selectedBatchId || students.length === 0) return;
+    if (!attEditable) {
+      toast({ title: "Attendance locked", description: attLockReason, variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
       const records = students.map(s => ({
-        batch_id: selectedBatchId,
-        student_id: s.user_id,
-        date: today,
+        batch_id: selectedBatchId, student_id: s.user_id, date: today,
         present: attendance[s.user_id] === "present",
-        institute_code: instituteCode,
-        marked_by: userId,
+        institute_code: instituteCode, marked_by: userId,
       }));
       const { error } = await supabase.from("attendance").upsert(records, { onConflict: "batch_id,student_id,date" });
       if (error) throw error;
-      toast({ title: "✅ Attendance saved!", description: `${students.length} students recorded for ${today}.` });
+      toast({ title: "✅ Attendance saved!", description: `${students.length} students recorded.` });
       loadBatchData(selectedBatchId);
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed", variant: "destructive" });
@@ -188,22 +172,14 @@ export default function TeacherAttendance() {
   };
 
   const openStudentAnalytics = async (student: StudentProfile) => {
-    setAnalyticsOpen(true);
-    setAnalyticsLoading(true);
-    setAnalyticsStudent(null);
-    const { data: attData } = await supabase
-      .from("attendance")
-      .select("date, present")
-      .eq("batch_id", selectedBatchId)
-      .eq("student_id", student.user_id)
-      .order("date", { ascending: false })
-      .limit(200);
+    setAnalyticsOpen(true); setAnalyticsLoading(true); setAnalyticsStudent(null);
+    const { data: attData } = await supabase.from("attendance").select("date, present")
+      .eq("batch_id", selectedBatchId).eq("student_id", student.user_id)
+      .order("date", { ascending: false }).limit(200);
     const records = attData || [];
     const presentCount = records.filter(a => a.present).length;
     setAnalyticsStudent({
-      student,
-      total: records.length,
-      present: presentCount,
+      student, total: records.length, present: presentCount,
       pct: records.length > 0 ? Math.round((presentCount / records.length) * 100) : 0,
       history: records.map(a => ({ date: a.date, present: a.present })),
     });
@@ -213,7 +189,6 @@ export default function TeacherAttendance() {
   const presentCount = Object.values(attendance).filter(v => v === "present").length;
   const pct = students.length > 0 ? Math.round((presentCount / students.length) * 100) : 0;
   const filtered = students.filter(s => s.full_name.toLowerCase().includes(search.toLowerCase()));
-  const selectedBatch = batches.find(b => b.id === selectedBatchId);
 
   if (loading) return (
     <DashboardLayout title="Attendance" role="teacher">
@@ -224,7 +199,6 @@ export default function TeacherAttendance() {
   return (
     <DashboardLayout title="Attendance" role="teacher">
       <div className="space-y-5">
-        {/* Controls */}
         <div className="flex flex-col sm:flex-row gap-3">
           {batches.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">No batches assigned. Ask your admin to assign you to a batch.</p>
@@ -243,17 +217,31 @@ export default function TeacherAttendance() {
             <Input placeholder="Search students..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
           </div>
           <div className="flex gap-2 ml-auto">
-            <Button size="sm" variant="outline" onClick={() => markAll("present")} className="h-9 text-success border-success/30 hover:bg-success-light gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => markAll("present")}
+              disabled={!attEditable}
+              className={cn("h-9 gap-1.5", attEditable ? "text-success border-success/30 hover:bg-success-light" : "opacity-40 cursor-not-allowed")}>
               <CheckCircle2 className="w-3.5 h-3.5" /> All Present
             </Button>
-            <Button size="sm" variant="outline" onClick={() => markAll("absent")} className="h-9 text-danger border-danger/30 hover:bg-danger-light gap-1.5">
+            <Button size="sm" variant="outline" onClick={() => markAll("absent")}
+              disabled={!attEditable}
+              className={cn("h-9 gap-1.5", attEditable ? "text-danger border-danger/30 hover:bg-danger-light" : "opacity-40 cursor-not-allowed")}>
               <XCircle className="w-3.5 h-3.5" /> All Absent
             </Button>
           </div>
         </div>
 
+        {/* Timing + lock notice */}
+        {selectedBatch?.schedule && (
+          <div className={cn(
+            "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border",
+            attEditable ? "bg-success/5 border-success/20 text-success" : "bg-warning/5 border-warning/20 text-warning"
+          )}>
+            {attEditable ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
+            <span>{attEditable ? `Attendance open · ${formatTimingDisplay(selectedBatch.schedule)}` : attLockReason}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Today's Attendance */}
           <div className="lg:col-span-2 space-y-3">
             <div className="grid grid-cols-3 gap-3">
               {[
@@ -273,6 +261,7 @@ export default function TeacherAttendance() {
                 <CalendarDays className="w-4 h-4 text-primary" />
                 <span className="font-display font-semibold text-sm">Today — {selectedBatch?.name || "No Batch"}</span>
                 <Badge variant="secondary" className="ml-auto text-xs">{todayDisplay}</Badge>
+                {!attEditable && <Lock className="w-3.5 h-3.5 text-warning ml-1" />}
               </div>
 
               {loadingStudents ? (
@@ -285,17 +274,9 @@ export default function TeacherAttendance() {
               ) : (
                 <div className="divide-y divide-border/40 max-h-[440px] overflow-y-auto">
                   {filtered.map((s, i) => (
-                    <motion.div
-                      key={s.user_id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ delay: i * 0.02 }}
-                      className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors"
-                    >
-                      <button
-                        className="flex items-center gap-3 flex-1 text-left"
-                        onClick={() => openStudentAnalytics(s)}
-                      >
+                    <motion.div key={s.user_id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.02 }}
+                      className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
+                      <button className="flex items-center gap-3 flex-1 text-left" onClick={() => openStudentAnalytics(s)}>
                         <div className="w-8 h-8 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                           {s.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
                         </div>
@@ -307,8 +288,10 @@ export default function TeacherAttendance() {
                       </button>
                       <button
                         onClick={() => toggle(s.user_id)}
+                        disabled={!attEditable}
                         className={cn(
                           "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ml-3",
+                          !attEditable ? "opacity-50 cursor-not-allowed" : "",
                           attendance[s.user_id] === "present"
                             ? "bg-success-light text-success hover:bg-success hover:text-white"
                             : "bg-danger-light text-danger hover:bg-danger hover:text-white"
@@ -326,17 +309,19 @@ export default function TeacherAttendance() {
 
               <div className="p-4 border-t border-border/50">
                 <Button
-                  className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90"
+                  className={cn("w-full border-0", attEditable ? "gradient-hero text-white shadow-primary hover:opacity-90" : "bg-muted text-muted-foreground cursor-not-allowed")}
                   onClick={saveAttendance}
-                  disabled={saving || students.length === 0}
+                  disabled={saving || students.length === 0 || !attEditable}
                 >
-                  {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</> : "Save Attendance"}
+                  {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                    : !attEditable ? <><Lock className="w-4 h-4 mr-2" />Attendance Locked</>
+                    : "Save Attendance"}
                 </Button>
+                {!attEditable && <p className="text-xs text-muted-foreground text-center mt-1.5">{attLockReason}</p>}
               </div>
             </Card>
           </div>
 
-          {/* Right panel: History + Calendar */}
           <div className="space-y-4">
             <Card className="shadow-card border-border/50">
               <div className="p-4 border-b border-border/50 flex items-center gap-2">
@@ -354,17 +339,12 @@ export default function TeacherAttendance() {
                     <div key={i} className="px-4 py-3">
                       <div className="flex items-center justify-between mb-1.5">
                         <span className="text-sm font-medium">
-                          {new Date(h.date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                          {new Date(h.date + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
                         </span>
-                        <span className={`text-sm font-bold ${h.pct >= 85 ? "text-success" : h.pct >= 75 ? "text-warning" : "text-danger"}`}>
-                          {h.pct}%
-                        </span>
+                        <span className={`text-sm font-bold ${h.pct >= 85 ? "text-success" : h.pct >= 75 ? "text-warning" : "text-danger"}`}>{h.pct}%</span>
                       </div>
                       <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full ${h.pct >= 85 ? "bg-success" : h.pct >= 75 ? "bg-warning" : "bg-danger"}`}
-                          style={{ width: `${h.pct}%` }}
-                        />
+                        <div className={`h-full rounded-full ${h.pct >= 85 ? "bg-success" : h.pct >= 75 ? "bg-warning" : "bg-danger"}`} style={{ width: `${h.pct}%` }} />
                       </div>
                       <div className="flex gap-3 mt-1">
                         <span className="text-xs text-muted-foreground">{h.present}/{h.total} present</span>
@@ -375,13 +355,18 @@ export default function TeacherAttendance() {
               )}
             </Card>
 
-            {/* Calendar view */}
-            {selectedBatchId && <AttendanceCalendarView batchId={selectedBatchId} />}
+            {selectedBatchId && (
+              <AttendanceCalendarView
+                batchId={selectedBatchId}
+                batchName={selectedBatch?.name}
+                instituteCode={instituteCode}
+                role="teacher"
+              />
+            )}
           </div>
         </div>
       </div>
 
-      {/* Student Analytics Modal */}
       <AttendanceAnalyticsModal
         open={analyticsOpen}
         onClose={() => { setAnalyticsOpen(false); setAnalyticsStudent(null); }}
