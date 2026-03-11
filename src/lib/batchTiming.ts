@@ -1,5 +1,9 @@
 /**
  * Utility functions for batch timing — shared across attendance pages.
+ * 
+ * IMPORTANT: Days are stored as 3-letter abbreviations ("Mon","Tue","Wed"…)
+ * matching the WEEKDAYS array in AdminBatches.tsx.
+ * JS Date.getDay() → 0-6, mapped via JS_DAY_ABBREVS below.
  */
 
 export interface BatchTiming {
@@ -12,15 +16,22 @@ export interface BatchTiming {
   endAmPm: "AM" | "PM";
 }
 
-// Map JS getDay() index to day name stored in batch schedule
-const JS_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+// JS getDay() → 3-letter abbreviation (matches stored values)
+export const JS_DAY_ABBREVS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// JS getDay() → full display name (for UI messages only)
+export const JS_DAY_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** Get today's abbreviation matching stored day format */
+function todayAbbrev(d?: Date): string {
+  return JS_DAY_ABBREVS[(d ?? new Date()).getDay()];
+}
 
 export function parseBatchTiming(schedule: string | null): BatchTiming | null {
   if (!schedule) return null;
   try {
     const p = JSON.parse(schedule);
     if (p.days && p.startHour != null) return p as BatchTiming;
-  } catch { /* legacy */ }
+  } catch { /* legacy plain text */ }
   return null;
 }
 
@@ -31,14 +42,12 @@ function to24(h: number, amPm: "AM" | "PM"): number {
 
 /**
  * Returns true if the given date falls on a scheduled batch day.
- * Uses local date to avoid UTC shifts.
+ * Compares using 3-letter abbreviations ("Mon", "Tue"…).
  */
 export function isBatchDay(schedule: string | null, date?: Date): boolean {
   const t = parseBatchTiming(schedule);
   if (!t || !t.days || t.days.length === 0) return true; // no schedule = always allowed
-  const d = date ?? new Date();
-  const dayName = JS_DAY_NAMES[d.getDay()];
-  return t.days.includes(dayName);
+  return t.days.includes(todayAbbrev(date));
 }
 
 /**
@@ -50,13 +59,16 @@ export function isAttendanceEditable(schedule: string | null): { editable: boole
   const t = parseBatchTiming(schedule);
   if (!t) return { editable: true, reason: "" }; // No timing set — allow
 
-  // Check day of week first
-  const todayName = JS_DAY_NAMES[new Date().getDay()];
-  if (!t.days.includes(todayName)) {
+  // Check day of week using abbreviations
+  const todayIdx = new Date().getDay();
+  const todayAbbr = JS_DAY_ABBREVS[todayIdx];
+  const todayFull = JS_DAY_FULL[todayIdx];
+
+  if (!t.days.includes(todayAbbr)) {
     const daysStr = t.days.join(", ");
     return {
       editable: false,
-      reason: `No class today (${todayName}). This batch runs on: ${daysStr}.`,
+      reason: `No class today (${todayFull}). This batch runs on: ${daysStr}.`,
     };
   }
 

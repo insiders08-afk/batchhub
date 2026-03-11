@@ -387,31 +387,17 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
     }
   };
 
-  // Check batch timing to see if it's past end time
-  const timing = parseTiming(batch.schedule);
-  const now = new Date();
-  let canMarkDayOff = true;
-  if (timing) {
-    const endH24 = timing.endAmPm === "PM" && timing.endHour !== 12
-      ? timing.endHour + 12
-      : timing.endAmPm === "AM" && timing.endHour === 12 ? 0 : timing.endHour;
-    const batchEndMinutes = endH24 * 60 + timing.endMinute;
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    canMarkDayOff = nowMinutes >= batchEndMinutes;
-  }
+  // Day Off is always available — admin can schedule any future day off anytime
+  const canMarkDayOff = true;
 
   return (
     <>
       <Button
         variant="outline"
-        className={cn(
-          "h-8 text-xs gap-1.5 border-border/50",
-          canMarkDayOff
-            ? "hover:border-warning/50 hover:text-warning text-muted-foreground"
-            : "opacity-40 cursor-not-allowed"
-        )}
-        onClick={canMarkDayOff ? handleOpen : undefined}
-        title={!canMarkDayOff ? "Available after batch ends" : "Mark tomorrow as day off"}
+        size="sm"
+        className="h-8 text-xs gap-1.5 border-border/50 hover:border-warning/50 hover:text-warning text-muted-foreground flex-1"
+        onClick={handleOpen}
+        title="Mark a future date as day off for this batch"
       >
         <CalendarOff className="w-3 h-3" /> Day Off
       </Button>

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CalendarDays, Loader2, XCircle, CheckCircle2, CalendarOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { parseBatchTiming, isAttendanceEditable } from "@/lib/batchTiming";
+import { parseBatchTiming, isAttendanceEditable, JS_DAY_ABBREVS } from "@/lib/batchTiming";
 
 interface AttendanceCalendarViewProps {
   batchId: string;
@@ -26,17 +26,17 @@ interface DayAttendance {
 }
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-// JS getDay() → name mapping
+// Full names used for display messages only
 const JS_DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
-// Display headers and their JS day index
-const HEADER_COLS: { label: string; jsDay: number }[] = [
-  { label: "Su", jsDay: 0 },
-  { label: "Mo", jsDay: 1 },
-  { label: "Tu", jsDay: 2 },
-  { label: "We", jsDay: 3 },
-  { label: "Th", jsDay: 4 },
-  { label: "Fr", jsDay: 5 },
-  { label: "Sa", jsDay: 6 },
+// Display headers: label shown, JS day index, and stored 3-letter abbreviation
+const HEADER_COLS: { label: string; jsDay: number; abbrev: string }[] = [
+  { label: "Su", jsDay: 0, abbrev: "Sun" },
+  { label: "Mo", jsDay: 1, abbrev: "Mon" },
+  { label: "Tu", jsDay: 2, abbrev: "Tue" },
+  { label: "We", jsDay: 3, abbrev: "Wed" },
+  { label: "Th", jsDay: 4, abbrev: "Thu" },
+  { label: "Fr", jsDay: 5, abbrev: "Fri" },
+  { label: "Sa", jsDay: 6, abbrev: "Sat" },
 ];
 
 const currentYear = new Date().getFullYear();
@@ -198,10 +198,10 @@ export default function AttendanceCalendarView({
   // Is the attendance window currently open for TODAY?
   const { editable: attendanceWindowOpen } = isAttendanceEditable(schedule ?? null);
 
-  // Is a given date a scheduled batch day?
+  // Is a given date a scheduled batch day? Compare using stored 3-letter abbreviations
   const isBatchScheduledDay = (date: Date): boolean => {
     if (!hasSchedule) return true;
-    return scheduledDays.includes(JS_DAY_NAMES[date.getDay()]);
+    return scheduledDays.includes(JS_DAY_ABBREVS[date.getDay()]);
   };
 
   const canMarkDayOff = !!(role && instituteCode);
@@ -334,9 +334,8 @@ export default function AttendanceCalendarView({
             <div>
               {/* Column headers — dim non-scheduled columns */}
               <div className="grid grid-cols-7 gap-1 mb-1">
-                {HEADER_COLS.map(({ label, jsDay }) => {
-                  const dayName = JS_DAY_NAMES[jsDay];
-                  const isScheduled = !hasSchedule || scheduledDays.includes(dayName);
+                {HEADER_COLS.map(({ label, abbrev }) => {
+                  const isScheduled = !hasSchedule || scheduledDays.includes(abbrev);
                   return (
                     <div
                       key={label}
