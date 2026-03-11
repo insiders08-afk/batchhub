@@ -90,6 +90,7 @@ const App = () => (
           <Route path="/batch/:id" element={<BatchWorkspace />} />
           {/* Teacher */}
           <Route path="/teacher" element={<TeacherDashboard />} />
+          <Route path="/teacher/settings" element={<TeacherSettings />} />
           <Route path="/teacher/attendance" element={<TeacherAttendance />} />
           <Route path="/teacher/announcements" element={<TeacherAnnouncements />} />
           <Route path="/teacher/tests" element={<TeacherTests />} />
