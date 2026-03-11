@@ -397,7 +397,10 @@ export default function AttendanceCalendarView({
                     return (
                       <div
                         key={day}
-                        className="aspect-square flex flex-col items-center justify-center text-xs rounded-md border border-transparent"
+                        className={cn(
+                          "aspect-square flex flex-col items-center justify-center text-xs rounded-md border border-transparent",
+                          isTodayDay && "ring-2 ring-primary ring-offset-1"
+                        )}
                         aria-hidden="true"
                       >
                         <span className="text-muted-foreground/40">{day}</span>
