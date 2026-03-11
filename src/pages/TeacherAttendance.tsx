@@ -374,6 +374,7 @@ export default function TeacherAttendance() {
         stats={analyticsStudent}
         loading={analyticsLoading}
         batchId={selectedBatchId}
+        schedule={selectedBatch?.schedule}
       />
     </DashboardLayout>
   );
