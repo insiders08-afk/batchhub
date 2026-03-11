@@ -11,8 +11,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { parseBatchTiming, isAttendanceEditable, JS_DAY_ABBREVS } from "@/lib/batchTiming";
 
+interface AttendanceCalendarViewProps {
+  batchId: string;
+  batchName?: string;
+  instituteCode?: string;
+  role?: "admin" | "teacher";
+  schedule?: string | null;
+}
+
+interface DayAttendance {
+  present: number;
+  absent: number;
+  absentStudents: { name: string; email: string }[];
+}
+
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-// Display headers and their JS day index → stored abbreviation
+// Full names used for display messages only
+const JS_DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+// Display headers: label shown, JS day index, and stored 3-letter abbreviation
 const HEADER_COLS: { label: string; jsDay: number; abbrev: string }[] = [
   { label: "Su", jsDay: 0, abbrev: "Sun" },
   { label: "Mo", jsDay: 1, abbrev: "Mon" },
