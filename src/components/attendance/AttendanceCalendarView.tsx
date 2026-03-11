@@ -207,32 +207,34 @@ export default function AttendanceCalendarView({
 
   const canMarkDayOff = !!(role && instituteCode);
 
-  // Load day-off announcements for the viewed month
+  // Load day-off announcements for the viewed month — uses machine-readable tag day_off_date:YYYY-MM-DD
   const loadDayOffDates = useCallback(async () => {
     if (!batchId) return;
-    const m = String(calMonth + 1).padStart(2, "0");
-    const startDate = `${calYear}-${m}-01`;
-    const endDate = `${calYear}-${m}-${String(getDaysInMonth(calYear, calMonth)).padStart(2, "0")}`;
 
     const { data } = await supabase
       .from("announcements")
-      .select("title")
+      .select("content, title")
       .eq("batch_id", batchId)
       .eq("type", "day_off");
 
     if (!data) return;
     const dates = new Set<string>();
     data.forEach(ann => {
-      // Extract date from title: "No Class — BatchName — Day, D Month YYYY"
-      const match = ann.title.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
-      if (match) {
-        const day = parseInt(match[1]);
-        const monthName = match[2];
-        const year = parseInt(match[3]);
+      // Primary: machine-readable tag embedded in content
+      const tagMatch = (ann.content || "").match(/day_off_date:(\d{4}-\d{2}-\d{2})/);
+      if (tagMatch) {
+        dates.add(tagMatch[1]);
+        return;
+      }
+      // Fallback: parse from title "No Class — BatchName — Day, D Month YYYY" or "Day, D Month"
+      const titleMatch = ann.title.match(/(\d{1,2})\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})/i);
+      if (titleMatch) {
+        const day = parseInt(titleMatch[1]);
+        const monthName = titleMatch[2];
+        const year = parseInt(titleMatch[3]);
         const monthIdx = MONTHS.findIndex(m => m.toLowerCase() === monthName.toLowerCase());
         if (monthIdx !== -1) {
-          const key = `${year}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-          dates.add(key);
+          dates.add(`${year}-${String(monthIdx + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`);
         }
       }
     });
