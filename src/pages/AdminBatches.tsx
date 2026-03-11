@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { JS_DAY_ABBREVS } from "@/lib/batchTiming";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
