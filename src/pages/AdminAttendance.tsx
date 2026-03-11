@@ -352,15 +352,17 @@ export default function AdminAttendance() {
 
               <div className="p-4 border-t border-border/50">
                 <Button
-                  className={cn("w-full border-0", attEditable ? "gradient-hero text-white shadow-primary hover:opacity-90" : "bg-muted text-muted-foreground cursor-not-allowed")}
+                  className={cn("w-full border-0", !isLocked ? "gradient-hero text-white shadow-primary hover:opacity-90" : "bg-muted text-muted-foreground cursor-not-allowed")}
                   onClick={saveAttendance}
-                  disabled={saving || students.length === 0 || !attEditable}
+                  disabled={saving || students.length === 0 || isLocked}
                 >
                   {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+                    : todayIsDayOff ? <><Lock className="w-4 h-4 mr-2" />Day Off — No Attendance</>
                     : !attEditable ? <><Lock className="w-4 h-4 mr-2" />Attendance Locked</>
                     : "Save Attendance"}
                 </Button>
-                {!attEditable && <p className="text-xs text-muted-foreground text-center mt-1.5">{attLockReason}</p>}
+                {todayIsDayOff && <p className="text-xs text-warning text-center mt-1.5">Today is marked as a day off.</p>}
+                {!todayIsDayOff && !attEditable && <p className="text-xs text-muted-foreground text-center mt-1.5">{attLockReason}</p>}
               </div>
             </Card>
           </div>
