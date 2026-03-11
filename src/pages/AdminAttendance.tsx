@@ -118,7 +118,31 @@ export default function AdminAttendance() {
   useEffect(() => { if (selectedBatchId) loadBatchData(selectedBatchId); }, [selectedBatchId, loadBatchData]);
 
   const selectedBatch = batches.find(b => b.id === selectedBatchId);
-  const { editable: attEditable, reason: attLockReason } = isAttendanceEditable(selectedBatch?.schedule ?? null);
+  const { editable: attEditable, reason: attLockReason, openTime, lockTime } = isAttendanceEditable(selectedBatch?.schedule ?? null);
+
+  // Check if today is marked as a day-off for this batch
+  const [todayIsDayOff, setTodayIsDayOff] = useState(false);
+  useEffect(() => {
+    if (!selectedBatchId) return;
+    setTodayIsDayOff(false);
+    supabase
+      .from("announcements")
+      .select("title")
+      .eq("batch_id", selectedBatchId)
+      .eq("type", "day_off")
+      .then(({ data }) => {
+        if (!data) return;
+        const todayFormatted = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+        const todayDateStr = `${new Date().getDate()} ${new Date().toLocaleDateString("en-IN", { month: "long" })} ${new Date().getFullYear()}`;
+        const found = data.some(ann => {
+          const t = ann.title.toLowerCase();
+          return t.includes(String(new Date().getDate())) &&
+            t.includes(new Date().toLocaleDateString("en-IN", { month: "long" }).toLowerCase()) &&
+            t.includes(String(new Date().getFullYear()));
+        });
+        setTodayIsDayOff(found);
+      });
+  }, [selectedBatchId, today]);
 
   const toggle = (userId: string) => {
     if (!attEditable) return;
