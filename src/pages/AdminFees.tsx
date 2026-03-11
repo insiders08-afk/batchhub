@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Search, CheckCircle2, XCircle, Clock, AlertTriangle,
   TrendingUp, Plus, IndianRupee, Loader2, Layers,
-  Bell, ChevronDown, ChevronUp, FileText, CalendarDays
+  Bell, ChevronDown, ChevronUp, FileText, CalendarDays, Users
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -47,6 +48,7 @@ interface GroupedStudent {
 
 type Profile = { user_id: string; full_name: string };
 type Batch = { id: string; name: string; course: string };
+type EnrolledStudent = { student_id: string; full_name: string };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -256,11 +258,15 @@ export default function AdminFees() {
   const [selectedPlan, setSelectedPlan] = useState<FeePlan | null>(null);
   const [instituteCode, setInstituteCode] = useState("");
 
+  // Add Fee dialog state
+  const [enrolledInBatch, setEnrolledInBatch] = useState<EnrolledStudent[]>([]);
+  const [enrolledLoading, setEnrolledLoading] = useState(false);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set());
+
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
 
   const [newFee, setNewFee] = useState({
-    student_id: "",
     batch_id: "",
     annual_amount: "",
     payment_frequency: "monthly",
@@ -274,6 +280,52 @@ export default function AdminFees() {
     ? calcInstallment(parseFloat(newFee.annual_amount), newFee.payment_frequency)
     : 0;
   const freqLabel = FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.label || "";
+
+  // When batch changes in the Add Fee dialog, load enrolled students
+  const handleAddFeeBatchChange = async (batchId: string) => {
+    setNewFee(prev => ({ ...prev, batch_id: batchId }));
+    setSelectedStudentIds(new Set());
+    if (!batchId) { setEnrolledInBatch([]); return; }
+    setEnrolledLoading(true);
+    try {
+      const { data } = await supabase
+        .from("students_batches")
+        .select("student_id")
+        .eq("batch_id", batchId);
+      if (!data || data.length === 0) { setEnrolledInBatch([]); return; }
+      const ids = data.map(r => r.student_id);
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", ids)
+        .eq("status", "approved");
+      setEnrolledInBatch((profileData || []).map(p => ({ student_id: p.user_id, full_name: p.full_name })));
+    } finally {
+      setEnrolledLoading(false);
+    }
+  };
+
+  const toggleStudent = (id: string) => {
+    setSelectedStudentIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllStudents = () => {
+    if (selectedStudentIds.size === enrolledInBatch.length) {
+      setSelectedStudentIds(new Set());
+    } else {
+      setSelectedStudentIds(new Set(enrolledInBatch.map(s => s.student_id)));
+    }
+  };
+
+  const resetAddFeeDialog = () => {
+    setNewFee({ batch_id: "", annual_amount: "", payment_frequency: "monthly", cycle_day: "", start_month_month: String(currentMonth), start_month_year: String(currentYear), description: "" });
+    setSelectedStudentIds(new Set());
+    setEnrolledInBatch([]);
+  };
 
   // ─── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -330,11 +382,11 @@ export default function AdminFees() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // ─── Add Fee ────────────────────────────────────────────────────────────────
+  // ─── Add Fee (multi-student bulk) ───────────────────────────────────────────
 
   const handleAddFee = async () => {
-    if (!newFee.student_id || !newFee.batch_id || !newFee.annual_amount || !newFee.cycle_day) {
-      toast({ title: "Required fields", description: "Please fill all required fields including batch and cycle day.", variant: "destructive" });
+    if (!newFee.batch_id || !newFee.annual_amount || !newFee.cycle_day || selectedStudentIds.size === 0) {
+      toast({ title: "Required fields", description: "Select a batch, at least one student, annual amount and cycle day.", variant: "destructive" });
       return;
     }
     const cycleDay = parseInt(newFee.cycle_day);
@@ -347,12 +399,10 @@ export default function AdminFees() {
       const annual = parseFloat(newFee.annual_amount);
       const amount = calcInstallment(annual, newFee.payment_frequency);
       const startMonth = `${newFee.start_month_year}-${String(parseInt(newFee.start_month_month)).padStart(2, "0")}`;
-      // Compute first due date
       const dueDate = `${startMonth}-${String(cycleDay).padStart(2, "0")}`;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("fees") as any).insert({
-        student_id: newFee.student_id,
+      const rows = Array.from(selectedStudentIds).map(sid => ({
+        student_id: sid,
         batch_id: newFee.batch_id,
         amount,
         annual_amount: annual,
@@ -365,12 +415,14 @@ export default function AdminFees() {
         paid: false,
         paid_cycles_count: 0,
         total_paid_amount: 0,
-      });
+      }));
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("fees") as any).insert(rows);
       if (error) throw error;
-      toast({ title: "Fee plan created", description: "Fee entry created successfully." });
+      toast({ title: "Fee plans created ✓", description: `Fee structure applied to ${rows.length} student${rows.length !== 1 ? "s" : ""}.` });
       setShowAdd(false);
-      setNewFee({ student_id: "", batch_id: "", annual_amount: "", payment_frequency: "monthly", cycle_day: "", start_month_month: String(currentMonth), start_month_year: String(currentYear), description: "" });
+      resetAddFeeDialog();
       fetchData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add fee";
@@ -471,7 +523,7 @@ export default function AdminFees() {
     return Array.from(map.values());
   }, [filtered]);
 
-  const toggleStudent = (id: string) => {
+  const toggleExpandStudent = (id: string) => {
     setExpandedStudents(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -685,7 +737,7 @@ export default function AdminFees() {
                                       <div className="flex items-center gap-1.5">
                                         <p className="text-sm font-semibold">{group.student_name}</p>
                                         {hasMultiple && (
-                                          <button onClick={() => toggleStudent(group.student_id)} className="text-muted-foreground hover:text-foreground transition-colors">
+                                          <button onClick={() => toggleExpandStudent(group.student_id)} className="text-muted-foreground hover:text-foreground transition-colors">
                                             {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                           </button>
                                         )}
@@ -796,38 +848,72 @@ export default function AdminFees() {
         )}
       </div>
 
-      {/* ── Add Fee Dialog ── */}
-      <Dialog open={showAdd} onOpenChange={setShowAdd}>
+      {/* ── Add Fee Dialog (Batch-first, multi-student) ── */}
+      <Dialog open={showAdd} onOpenChange={open => { if (!open) resetAddFeeDialog(); setShowAdd(open); }}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Fee Plan</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            {/* Student */}
-            <div className="space-y-1.5">
-              <Label>Student *</Label>
-              <Select value={newFee.student_id} onValueChange={v => setNewFee({ ...newFee, student_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select student..." /></SelectTrigger>
-                <SelectContent>
-                  {students.map(s => <SelectItem key={s.user_id} value={s.user_id}>{s.full_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
 
-            {/* Batch — mandatory */}
+            {/* Step 1: Batch (mandatory, first) */}
             <div className="space-y-1.5">
-              <Label>Batch *</Label>
-              <Select value={newFee.batch_id} onValueChange={v => setNewFee({ ...newFee, batch_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Select batch..." /></SelectTrigger>
+              <Label>Batch <span className="text-danger">*</span></Label>
+              <Select value={newFee.batch_id} onValueChange={handleAddFeeBatchChange}>
+                <SelectTrigger><SelectValue placeholder="Select batch first..." /></SelectTrigger>
                 <SelectContent>
                   {batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name} — {b.course}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Step 2: Students from that batch */}
+            {newFee.batch_id && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5" />
+                    Students <span className="text-danger">*</span>
+                    {selectedStudentIds.size > 0 && (
+                      <span className="text-xs font-normal text-primary">({selectedStudentIds.size} selected)</span>
+                    )}
+                  </Label>
+                  {enrolledInBatch.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleAllStudents}
+                      className="text-xs text-primary font-medium hover:underline"
+                    >
+                      {selectedStudentIds.size === enrolledInBatch.length ? "Deselect all" : "Select all students"}
+                    </button>
+                  )}
+                </div>
+
+                {enrolledLoading ? (
+                  <div className="flex items-center gap-2 py-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Loading students...
+                  </div>
+                ) : enrolledInBatch.length === 0 ? (
+                  <p className="text-sm text-muted-foreground rounded-lg border border-dashed border-border p-3 text-center">No students enrolled in this batch yet.</p>
+                ) : (
+                  <div className="rounded-lg border border-border max-h-40 overflow-y-auto divide-y divide-border/50">
+                    {enrolledInBatch.map(s => (
+                      <label key={s.student_id} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors">
+                        <Checkbox
+                          checked={selectedStudentIds.has(s.student_id)}
+                          onCheckedChange={() => toggleStudent(s.student_id)}
+                        />
+                        <span className="text-sm font-medium">{s.full_name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Annual Amount */}
             <div className="space-y-1.5">
-              <Label>Annual Package Amount (₹) *</Label>
+              <Label>Annual Package Amount (₹) <span className="text-danger">*</span></Label>
               <Input
                 type="number"
                 placeholder="e.g. 12000"
@@ -838,7 +924,7 @@ export default function AdminFees() {
 
             {/* Payment Frequency */}
             <div className="space-y-1.5">
-              <Label>Payment Frequency *</Label>
+              <Label>Payment Frequency <span className="text-danger">*</span></Label>
               <div className="grid grid-cols-4 gap-1.5">
                 {FREQUENCY_OPTIONS.map(opt => (
                   <button key={opt.value} type="button"
@@ -863,7 +949,7 @@ export default function AdminFees() {
 
             {/* Cycle Day */}
             <div className="space-y-1.5">
-              <Label>Cycle Date (1–31) *</Label>
+              <Label>Cycle Date (1–31) <span className="text-danger">*</span></Label>
               <Input
                 type="number"
                 min={1} max={31}
@@ -872,13 +958,13 @@ export default function AdminFees() {
                 onChange={e => setNewFee({ ...newFee, cycle_day: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Fee will renew on this day each {FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months === 1 ? "month" : `${FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months} months`}
+                Fee renews on this day each {FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months === 1 ? "month" : `${FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months} months`}
               </p>
             </div>
 
             {/* Start Month */}
             <div className="space-y-1.5">
-              <Label>Starting From *</Label>
+              <Label>Starting From <span className="text-danger">*</span></Label>
               <div className="grid grid-cols-2 gap-2">
                 <Select value={newFee.start_month_month} onValueChange={v => setNewFee({ ...newFee, start_month_month: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -912,9 +998,9 @@ export default function AdminFees() {
             </div>
 
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" onClick={() => setShowAdd(false)} className="flex-1">Cancel</Button>
-              <Button onClick={handleAddFee} disabled={addLoading} className="flex-1 gradient-hero text-white border-0">
-                {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create Fee Plan"}
+              <Button variant="outline" onClick={() => { resetAddFeeDialog(); setShowAdd(false); }} className="flex-1">Cancel</Button>
+              <Button onClick={handleAddFee} disabled={addLoading || selectedStudentIds.size === 0} className="flex-1 gradient-hero text-white border-0">
+                {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : `Apply to ${selectedStudentIds.size > 0 ? selectedStudentIds.size : ""} Student${selectedStudentIds.size !== 1 ? "s" : ""}`}
               </Button>
             </div>
           </div>
