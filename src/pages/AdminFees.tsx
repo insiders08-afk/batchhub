@@ -13,7 +13,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Search, CheckCircle2, XCircle, Clock, AlertTriangle,
   TrendingUp, Plus, IndianRupee, Loader2, Layers,
-  Bell, ChevronDown, ChevronUp, FileText, CalendarDays, Users
+  Bell, ChevronDown, ChevronUp, FileText, CalendarDays, Users,
+  Trash2, Download
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
