@@ -214,7 +214,7 @@ export default function AttendanceAnalyticsModal({
                         <SelectValue placeholder="Day (opt)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">— Any day —</SelectItem>
+                        <SelectItem value="any">— Any day —</SelectItem>
                         {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
                           <SelectItem key={d} value={String(d)}>{d}</SelectItem>
                         ))}
