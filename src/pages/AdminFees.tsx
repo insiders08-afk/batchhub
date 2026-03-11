@@ -777,22 +777,36 @@ export default function AdminFees() {
   // IMPORTANT: We set paid=false + advance paid_cycles_count so that after paying,
   // the system naturally shows the next cycle as Pending once it arrives.
 
-  const handleMarkPaid = async (plan: FeePlan) => {
-    // Strict guard: if paid=true in DB, this cycle is already paid — block double-tap
-    if (plan.paid) {
+  // Mark a specific cycle number as paid (used both from table row and cycle structure modal)
+  const handleMarkPaidForCycle = async (plan: FeePlan, targetCycleIndex?: number) => {
+    // If no specific cycle given, we mark the current (next unpaid) cycle
+    const currentCycleIndex = (plan.paid_cycles_count ?? 0) + 1;
+    const cycleToMark = targetCycleIndex ?? currentCycleIndex;
+
+    // Guard: if marking the current cycle and it's already paid
+    if (!targetCycleIndex && plan.paid) {
       toast({
         title: "Already paid",
-        description: "This cycle is already marked as paid. The next cycle will be pending on its due date.",
+        description: "This cycle is already marked as paid.",
         variant: "destructive",
       });
       return;
     }
 
+    // For advance payment via cycle structure: cycleToMark must be > paid_cycles_count
+    if (cycleToMark <= (plan.paid_cycles_count ?? 0)) {
+      toast({ title: "Already paid", description: `Cycle ${cycleToMark} is already paid.`, variant: "destructive" });
+      return;
+    }
+
+    // When paying a future cycle, we must pay all cycles up to it sequentially
+    // (paid_cycles_count must increment one-by-one to maintain integrity)
+    const cyclesToPay = cycleToMark - (plan.paid_cycles_count ?? 0);
     setMarkingId(plan.id);
     try {
       const today = new Date().toISOString().split("T")[0];
-      const newPaidCyclesCount = (plan.paid_cycles_count ?? 0) + 1;
-      const newTotalPaid = Number(plan.total_paid_amount ?? 0) + Number(plan.amount);
+      const newPaidCyclesCount = (plan.paid_cycles_count ?? 0) + cyclesToPay;
+      const newTotalPaid = Number(plan.total_paid_amount ?? 0) + Number(plan.amount) * cyclesToPay;
 
       // Compute next cycle's due date based on the new paid_cycles_count
       // We temporarily update paid_cycles_count to compute next due
