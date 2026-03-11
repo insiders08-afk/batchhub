@@ -77,6 +77,8 @@ function FutureDayOffDialog({
   const [notify, setNotify] = useState(true);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [alreadyMarked, setAlreadyMarked] = useState(false);
+  const [checking, setChecking] = useState(false);
 
   const dateDisplay = date
     ? dateKeyToLocalDate(date).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
@@ -84,8 +86,23 @@ function FutureDayOffDialog({
 
   useEffect(() => {
     if (open && date) {
-      setTitle(`No Class — ${batchName || "Batch"} — ${dateDisplay}`);
-      setContent(`Dear students, there will be no class for ${batchName || "this batch"} on ${dateDisplay}. Please plan accordingly.`);
+      setAlreadyMarked(false);
+      setChecking(true);
+      supabase
+        .from("announcements")
+        .select("id")
+        .eq("batch_id", batchId)
+        .eq("type", "day_off")
+        .ilike("content", `%day_off_date:${date}%`)
+        .then(({ data }) => {
+          const marked = (data?.length ?? 0) > 0;
+          setAlreadyMarked(marked);
+          setChecking(false);
+          if (!marked) {
+            setTitle(`No Class — ${batchName || "Batch"} — ${dateDisplay}`);
+            setContent(`Dear students, there will be no class for ${batchName || "this batch"} on ${dateDisplay}. Please plan accordingly.\n\nday_off_date:${date}`);
+          }
+        });
     }
   }, [open, date]);
 
