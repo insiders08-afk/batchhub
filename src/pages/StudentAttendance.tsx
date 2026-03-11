@@ -39,7 +39,7 @@ export default function StudentAttendance() {
   const today = new Date();
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [calYear, setCalYear] = useState(today.getFullYear());
-  const [lookupDay, setLookupDay] = useState("");
+  const [lookupDay, setLookupDay] = useState("any");
   const [lookupMonth, setLookupMonth] = useState(String(today.getMonth()));
   const [lookupYear, setLookupYear] = useState(String(today.getFullYear()));
   const [lookupResult, setLookupResult] = useState<{ date: string; present: boolean } | "not-found" | null>(null);

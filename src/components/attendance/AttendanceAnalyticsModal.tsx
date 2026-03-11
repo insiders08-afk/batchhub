@@ -62,7 +62,7 @@ export default function AttendanceAnalyticsModal({
   const [calYear, setCalYear] = useState(today.getFullYear());
 
   // Date-specific lookup
-  const [lookupDay, setLookupDay] = useState("");
+  const [lookupDay, setLookupDay] = useState("any");
   const [lookupMonth, setLookupMonth] = useState(String(today.getMonth()));
   const [lookupYear, setLookupYear] = useState(String(today.getFullYear()));
   const [lookupResult, setLookupResult] = useState<{ date: string; present: boolean } | null | "not-found">(null);
