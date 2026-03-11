@@ -144,18 +144,24 @@ export default function AdminAttendance() {
       });
   }, [selectedBatchId, today]);
 
+  const isLocked = !attEditable || todayIsDayOff;
+
   const toggle = (userId: string) => {
-    if (!attEditable) return;
+    if (isLocked) return;
     setAttendance(prev => ({ ...prev, [userId]: prev[userId] === "present" ? "absent" : "present" }));
   };
 
   const markAll = (status: "present" | "absent") => {
-    if (!attEditable) return;
+    if (isLocked) return;
     setAttendance(Object.fromEntries(students.map(s => [s.user_id, status])));
   };
 
   const saveAttendance = async () => {
     if (!selectedBatchId || students.length === 0) return;
+    if (todayIsDayOff) {
+      toast({ title: "Day Off", description: "Today is marked as a day off for this batch. No attendance saved.", variant: "destructive" });
+      return;
+    }
     if (!attEditable) {
       toast({ title: "Attendance locked", description: attLockReason, variant: "destructive" });
       return;
