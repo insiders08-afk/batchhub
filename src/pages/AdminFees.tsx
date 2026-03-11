@@ -578,15 +578,27 @@ export default function AdminFees() {
   // ─── Mark Paid → advance cycle ──────────────────────────────────────────────
 
   const handleMarkPaid = async (plan: FeePlan) => {
+    // Guard: only allow marking paid if status is pending or overdue (not already paid)
+    const currentStatus = getFeeStatus(plan);
+    if (currentStatus === "paid") {
+      toast({ title: "Already paid", description: "This cycle is already marked as paid.", variant: "destructive" });
+      return;
+    }
+
     setMarkingId(plan.id);
     try {
       const today = new Date().toISOString().split("T")[0];
       const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
       const months = freq?.months ?? 1;
 
-      // Advance due_date by frequency
+      // Advance due_date to the next cycle
+      const currentDueDate = getCurrentDueDate(plan);
       let nextDue: string | null = null;
-      if (plan.due_date) {
+      if (currentDueDate) {
+        const next = new Date(currentDueDate);
+        next.setMonth(next.getMonth() + months);
+        nextDue = next.toISOString().split("T")[0];
+      } else if (plan.due_date) {
         const next = new Date(plan.due_date);
         next.setMonth(next.getMonth() + months);
         nextDue = next.toISOString().split("T")[0];
@@ -595,11 +607,11 @@ export default function AdminFees() {
       const { error } = await supabase
         .from("fees")
         .update({
-          paid: false, // reset for next cycle
+          paid: true, // mark current cycle paid
           paid_date: today,
           paid_cycles_count: (plan.paid_cycles_count ?? 0) + 1,
           total_paid_amount: (Number(plan.total_paid_amount) ?? 0) + Number(plan.amount),
-          due_date: nextDue, // advance to next cycle
+          due_date: nextDue, // advance to next cycle due date
         } as never)
         .eq("id", plan.id);
 
