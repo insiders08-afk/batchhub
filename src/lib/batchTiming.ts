@@ -12,6 +12,9 @@ export interface BatchTiming {
   endAmPm: "AM" | "PM";
 }
 
+// Map JS getDay() index to day name stored in batch schedule
+const JS_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 export function parseBatchTiming(schedule: string | null): BatchTiming | null {
   if (!schedule) return null;
   try {
@@ -27,12 +30,35 @@ function to24(h: number, amPm: "AM" | "PM"): number {
 }
 
 /**
+ * Returns true if the given date falls on a scheduled batch day.
+ * Uses local date to avoid UTC shifts.
+ */
+export function isBatchDay(schedule: string | null, date?: Date): boolean {
+  const t = parseBatchTiming(schedule);
+  if (!t || !t.days || t.days.length === 0) return true; // no schedule = always allowed
+  const d = date ?? new Date();
+  const dayName = JS_DAY_NAMES[d.getDay()];
+  return t.days.includes(dayName);
+}
+
+/**
  * Returns whether attendance can be edited right now for a given batch.
+ * Checks: (1) today is a scheduled batch day, (2) current time is within window.
  * Window: from batch start time to batch end + 2 hours.
  */
 export function isAttendanceEditable(schedule: string | null): { editable: boolean; reason: string } {
   const t = parseBatchTiming(schedule);
   if (!t) return { editable: true, reason: "" }; // No timing set — allow
+
+  // Check day of week first
+  const todayName = JS_DAY_NAMES[new Date().getDay()];
+  if (!t.days.includes(todayName)) {
+    const daysStr = t.days.join(", ");
+    return {
+      editable: false,
+      reason: `No class today (${todayName}). This batch runs on: ${daysStr}.`,
+    };
+  }
 
   const now = new Date();
   const nowMins = now.getHours() * 60 + now.getMinutes();
