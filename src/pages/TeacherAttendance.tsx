@@ -361,6 +361,7 @@ export default function TeacherAttendance() {
                 batchName={selectedBatch?.name}
                 instituteCode={instituteCode}
                 role="teacher"
+                schedule={selectedBatch?.schedule}
               />
             )}
           </div>
