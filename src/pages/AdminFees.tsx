@@ -974,32 +974,37 @@ export default function AdminFees() {
                               </td>
 
                               {/* Action */}
-                              <td className="px-4 py-3 text-right">
-                                {!plan.paid && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 text-xs text-success hover:text-success gap-1"
-                                    disabled={markingId === plan.id}
-                                    onClick={() => handleMarkPaid(plan)}
-                                  >
-                                    {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                                    Paid
-                                  </Button>
-                                )}
-                                {status === "overdue" && (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 text-xs text-danger hover:text-danger gap-1"
-                                    disabled={notifyingId === plan.id}
-                                    onClick={() => handleSendOverdueNotification(plan)}
-                                  >
-                                    {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
-                                    Notify
-                                  </Button>
-                                )}
-                              </td>
+                               <td className="px-4 py-3 text-right">
+                                 {(status === "pending" || status === "overdue") && (
+                                   <Button
+                                     size="sm"
+                                     variant="ghost"
+                                     className="h-7 text-xs text-success hover:text-success gap-1"
+                                     disabled={markingId === plan.id}
+                                     onClick={() => handleMarkPaid(plan)}
+                                   >
+                                     {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                     Mark Paid
+                                   </Button>
+                                 )}
+                                 {status === "paid" && (
+                                   <span className="text-xs text-success font-medium flex items-center justify-end gap-1">
+                                     <CheckCircle2 className="w-3.5 h-3.5" /> Paid
+                                   </span>
+                                 )}
+                                 {status === "overdue" && (
+                                   <Button
+                                     size="sm"
+                                     variant="ghost"
+                                     className="h-7 text-xs text-danger hover:text-danger gap-1 mt-1"
+                                     disabled={notifyingId === plan.id}
+                                     onClick={() => handleSendOverdueNotification(plan)}
+                                   >
+                                     {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                                     Notify
+                                   </Button>
+                                 )}
+                               </td>
                             </tr>
                           );
                         });
