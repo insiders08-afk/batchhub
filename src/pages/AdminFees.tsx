@@ -1023,7 +1023,7 @@ export default function AdminFees() {
                 <Input placeholder="Search students..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
               </div>
               <div className="flex gap-2 flex-wrap">
-                {["all", "paid", "pending", "overdue"].map(f => (
+                {["all", "paid", "pending", "overdue", "upcoming"].map(f => (
                   <Button key={f} size="sm" variant={statusFilter === f ? "default" : "outline"}
                     onClick={() => setStatusFilter(f)}
                     className={`h-9 capitalize ${statusFilter === f ? "gradient-hero text-white border-0" : ""}`}>
