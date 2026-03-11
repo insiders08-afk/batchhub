@@ -362,22 +362,33 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementContent, setAnnouncementContent] = useState("");
 
-  // Find the next scheduled class date for this batch
+  // Find the next scheduled class date for this batch.
+  // Includes TODAY if: today is a scheduled day AND the class start time hasn't passed yet.
   function getNextClassDate(): Date {
     const t = parseTiming(batch.schedule);
     if (!t || !t.days || t.days.length === 0) {
-      // No schedule — default to tomorrow
       const d = new Date();
       d.setDate(d.getDate() + 1);
       return d;
     }
 
     const now = new Date();
-    // Start checking from tomorrow
+    const todayAbbrev = JS_DAY_ABBREVS[now.getDay()];
+
+    // Check if today is a scheduled day and class hasn't started yet
+    if (t.days.includes(todayAbbrev)) {
+      const to24 = (h: number, ap: "AM" | "PM") => ap === "AM" ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+      const startH24 = to24(t.startHour, t.startAmPm);
+      const startMins = startH24 * 60 + t.startMinute;
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      if (nowMins < startMins) {
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      }
+    }
+
+    // Otherwise find next scheduled day starting from tomorrow
     const candidate = new Date(now);
     candidate.setDate(candidate.getDate() + 1);
-
-    // Search up to 14 days ahead
     for (let i = 0; i < 14; i++) {
       const abbrev = JS_DAY_ABBREVS[candidate.getDay()];
       if (t.days.includes(abbrev)) {
@@ -385,7 +396,6 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
       }
       candidate.setDate(candidate.getDate() + 1);
     }
-    // Fallback: tomorrow
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d;
