@@ -6,11 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, CheckCircle2, XCircle, Clock, CalendarDays, Loader2, Users } from "lucide-react";
+import { Search, CheckCircle2, XCircle, Clock, CalendarDays, Loader2, Users, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
+import AttendanceAnalyticsModal from "@/components/attendance/AttendanceAnalyticsModal";
+import AttendanceCalendarView from "@/components/attendance/AttendanceCalendarView";
 
 type Batch = Tables<"batches">;
 type Profile = Tables<"profiles">;
@@ -20,6 +22,14 @@ interface AttendanceHistoryItem {
   present: number;
   absent: number;
   pct: number;
+}
+
+interface StudentStats {
+  student: { user_id: string; full_name: string; email: string; phone: string | null };
+  total: number;
+  present: number;
+  pct: number;
+  history: { date: string; present: boolean }[];
 }
 
 export default function AdminAttendance() {
@@ -33,6 +43,11 @@ export default function AdminAttendance() {
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Analytics modal
+  const [analyticsStudent, setAnalyticsStudent] = useState<StudentStats | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   const today = new Date().toISOString().split("T")[0];
   const todayDisplay = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
@@ -51,12 +66,10 @@ export default function AdminAttendance() {
     fetchBatches();
   }, []);
 
-  // Load students & history when batch changes
   const loadBatchData = useCallback(async (batchId: string) => {
     if (!batchId) return;
     setLoadingStudents(true);
     try {
-      // Get enrolled student IDs
       const { data: enrollments, error: enrollErr } = await supabase
         .from("students_batches")
         .select("student_id")
@@ -76,7 +89,6 @@ export default function AdminAttendance() {
       }
       setStudents(profiles);
 
-      // Load today's existing attendance
       const studentIds = profiles.map(p => p.user_id);
       const { data: todayAtt } = await supabase
         .from("attendance")
@@ -85,13 +97,11 @@ export default function AdminAttendance() {
         .eq("date", today)
         .in("student_id", studentIds.length > 0 ? studentIds : ["none"]);
 
-      // Default all to present, override with saved values
       const attMap: Record<string, "present" | "absent"> = {};
       profiles.forEach(p => { attMap[p.user_id] = "present"; });
       (todayAtt || []).forEach(a => { attMap[a.student_id] = a.present ? "present" : "absent"; });
       setAttendance(attMap);
 
-      // Load history (last 5 unique dates)
       const { data: histData } = await supabase
         .from("attendance")
         .select("date, present")
@@ -100,7 +110,6 @@ export default function AdminAttendance() {
         .order("date", { ascending: false })
         .limit(200);
 
-      // Group by date
       const dateMap: Record<string, { present: number; total: number }> = {};
       (histData || []).forEach(a => {
         if (!dateMap[a.date]) dateMap[a.date] = { present: 0, total: 0 };
@@ -166,6 +175,29 @@ export default function AdminAttendance() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const openStudentAnalytics = async (student: Profile) => {
+    setAnalyticsOpen(true);
+    setAnalyticsLoading(true);
+    setAnalyticsStudent(null);
+    const { data: attData } = await supabase
+      .from("attendance")
+      .select("date, present")
+      .eq("batch_id", selectedBatchId)
+      .eq("student_id", student.user_id)
+      .order("date", { ascending: false })
+      .limit(200);
+    const records = attData || [];
+    const presentCount = records.filter(a => a.present).length;
+    setAnalyticsStudent({
+      student: { user_id: student.user_id, full_name: student.full_name, email: student.email, phone: student.phone },
+      total: records.length,
+      present: presentCount,
+      pct: records.length > 0 ? Math.round((presentCount / records.length) * 100) : 0,
+      history: records.map(a => ({ date: a.date, present: a.present })),
+    });
+    setAnalyticsLoading(false);
   };
 
   const presentCount = Object.values(attendance).filter(v => v === "present").length;
@@ -247,19 +279,23 @@ export default function AdminAttendance() {
                       transition={{ delay: i * 0.02 }}
                       className="flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors"
                     >
-                      <div className="flex items-center gap-3">
+                      <button
+                        className="flex items-center gap-3 flex-1 text-left"
+                        onClick={() => openStudentAnalytics(s)}
+                      >
                         <div className="w-8 h-8 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                           {s.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
                         </div>
                         <div>
-                          <p className="text-sm font-medium">{s.full_name}</p>
+                          <p className="text-sm font-medium hover:text-primary transition-colors">{s.full_name}</p>
                           <p className="text-xs text-muted-foreground">{s.phone || s.email}</p>
                         </div>
-                      </div>
+                        <BarChart3 className="w-3.5 h-3.5 text-muted-foreground ml-1 flex-shrink-0" />
+                      </button>
                       <button
                         onClick={() => toggle(s.user_id)}
                         className={cn(
-                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
+                          "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ml-3",
                           attendance[s.user_id] === "present"
                             ? "bg-success-light text-success hover:bg-success hover:text-white"
                             : "bg-danger-light text-danger hover:bg-danger hover:text-white"
@@ -287,9 +323,10 @@ export default function AdminAttendance() {
             </Card>
           </div>
 
-          {/* History */}
-          <div>
-            <Card className="shadow-card border-border/50 h-full">
+          {/* Right panel: History + Calendar */}
+          <div className="space-y-4">
+            {/* Recent History */}
+            <Card className="shadow-card border-border/50">
               <div className="p-4 border-b border-border/50 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-primary" />
                 <span className="font-display font-semibold text-sm">Recent History</span>
@@ -324,9 +361,21 @@ export default function AdminAttendance() {
                 </div>
               )}
             </Card>
+
+            {/* Calendar view */}
+            {selectedBatchId && <AttendanceCalendarView batchId={selectedBatchId} />}
           </div>
         </div>
       </div>
+
+      {/* Student Analytics Modal */}
+      <AttendanceAnalyticsModal
+        open={analyticsOpen}
+        onClose={() => { setAnalyticsOpen(false); setAnalyticsStudent(null); }}
+        stats={analyticsStudent}
+        loading={analyticsLoading}
+        batchId={selectedBatchId}
+      />
     </DashboardLayout>
   );
 }
