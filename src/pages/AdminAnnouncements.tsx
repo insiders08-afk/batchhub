@@ -51,6 +51,7 @@ export default function AdminAnnouncements() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const [form, setForm] = useState({ title: "", content: "", batchId: "all", type: "general", notifyPush: false });
 

@@ -295,6 +295,13 @@ export default function AdminAttendance() {
           );
         })()}
 
+        {todayIsDayOff && (
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-warning/30 bg-warning/8 text-warning text-sm font-semibold">
+            <Lock className="w-4 h-4 flex-shrink-0" />
+            Day Off — No Attendance today for this batch.
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-3">
             <div className="grid grid-cols-3 gap-3">
