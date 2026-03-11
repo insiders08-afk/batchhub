@@ -84,7 +84,7 @@ export default function AttendanceAnalyticsModal({
       const m = String(parseInt(lookupMonth) + 1).padStart(2, "0");
       const y = lookupYear;
       let dateStr: string;
-      if (lookupDay) {
+      if (lookupDay && lookupDay !== "any") {
         const d = String(parseInt(lookupDay)).padStart(2, "0");
         dateStr = `${y}-${m}-${d}`;
         const { data } = await supabase

@@ -99,7 +99,7 @@ export default function StudentAttendance() {
 
   const handleAccess = () => {
     setLookupResult(null);
-    if (lookupDay) {
+    if (lookupDay && lookupDay !== "any") {
       // Specific date lookup from existing records
       const m = String(parseInt(lookupMonth) + 1).padStart(2, "0");
       const d = String(parseInt(lookupDay)).padStart(2, "0");
