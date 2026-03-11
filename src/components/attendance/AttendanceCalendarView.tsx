@@ -338,6 +338,8 @@ export default function AttendanceCalendarView({
 
   const selectedDayData = selectedDate ? monthData[selectedDate] : null;
 
+  const [cancelDayOffDate, setCancelDayOffDate] = useState<string | null>(null);
+
   const handleDayClick = (day: number) => {
     const dateKey = formatDateKey(day);
     const d = new Date(calYear, calMonth, day);
@@ -345,11 +347,17 @@ export default function AttendanceCalendarView({
     if (!isBatchScheduledDay(d)) return;
 
     const isDayOff = dayOffDates.has(dateKey);
-    const isPastOrToday = dateKey <= todayKey;
     const isFuture = dateKey > todayKey;
+    const isPastOrToday = dateKey <= todayKey;
     const isToday = dateKey === todayKey;
 
-    if (isDayOff && !isFuture) return; // off days in past are non-interactive
+    // Clicking a day-off cell (past, today, or future) → offer to cancel if admin
+    if (isDayOff && canMarkDayOff) {
+      setCancelDayOffDate(dateKey);
+      return;
+    }
+
+    if (isDayOff && !isFuture) return; // non-admin, off days in past are non-interactive
 
     if (isToday) {
       const data = monthData[dateKey];
