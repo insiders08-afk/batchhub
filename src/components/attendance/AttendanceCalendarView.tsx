@@ -198,10 +198,10 @@ export default function AttendanceCalendarView({
   // Is the attendance window currently open for TODAY?
   const { editable: attendanceWindowOpen } = isAttendanceEditable(schedule ?? null);
 
-  // Is a given date a scheduled batch day?
+  // Is a given date a scheduled batch day? Compare using stored 3-letter abbreviations
   const isBatchScheduledDay = (date: Date): boolean => {
     if (!hasSchedule) return true;
-    return scheduledDays.includes(JS_DAY_NAMES[date.getDay()]);
+    return scheduledDays.includes(JS_DAY_ABBREVS[date.getDay()]);
   };
 
   const canMarkDayOff = !!(role && instituteCode);
