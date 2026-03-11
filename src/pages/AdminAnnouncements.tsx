@@ -283,6 +283,35 @@ export default function AdminAnnouncements() {
                             <Bell className="w-2.5 h-2.5" /> Alerted
                           </Badge>
                         )}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="ml-auto h-7 w-7 text-muted-foreground hover:text-danger hover:bg-danger-light"
+                              disabled={deleting === ann.id}
+                            >
+                              {deleting === ann.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete announcement?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                "{ann.title}" will be permanently deleted. This cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-danger text-white hover:bg-danger/90"
+                                onClick={() => handleDelete(ann.id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                       <p className="text-sm text-muted-foreground leading-relaxed mb-3">{ann.content}</p>
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
