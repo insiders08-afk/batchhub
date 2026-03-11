@@ -1177,14 +1177,14 @@ export default function AdminFees() {
                               {/* Action */}
                               <td className="px-4 py-3 text-right">
                                 <div className="flex flex-col items-end gap-1">
-                                  {/* Mark Paid: only show when NOT already paid */}
-                                  {!plan.paid && (
+                                  {/* Mark Paid: only show when pending or overdue (NOT upcoming) */}
+                                  {!plan.paid && (status === "pending" || status === "overdue") && (
                                     <Button
                                       size="sm"
                                       variant="ghost"
                                       className="h-7 text-xs text-success hover:text-success gap-1"
                                       disabled={markingId === plan.id}
-                                      onClick={() => handleMarkPaid(plan)}
+                                      onClick={() => handleMarkPaidForCycle(plan)}
                                     >
                                       {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                                       Mark Paid
