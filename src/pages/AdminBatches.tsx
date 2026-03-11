@@ -387,18 +387,8 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
     }
   };
 
-  // Check batch timing to see if it's past end time
-  const timing = parseTiming(batch.schedule);
-  const now = new Date();
-  let canMarkDayOff = true;
-  if (timing) {
-    const endH24 = timing.endAmPm === "PM" && timing.endHour !== 12
-      ? timing.endHour + 12
-      : timing.endAmPm === "AM" && timing.endHour === 12 ? 0 : timing.endHour;
-    const batchEndMinutes = endH24 * 60 + timing.endMinute;
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    canMarkDayOff = nowMinutes >= batchEndMinutes;
-  }
+  // Day Off is always available — admin can schedule any future day off anytime
+  const canMarkDayOff = true;
 
   return (
     <>
