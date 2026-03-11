@@ -24,6 +24,8 @@ import AdminApprovals from "./pages/AdminApprovals";
 import AdminTeam from "./pages/AdminTeam";
 import BatchWorkspace from "./pages/BatchWorkspace";
 import TeacherDashboard from "./pages/TeacherDashboard";
+import TeacherSettings from "./pages/TeacherSettings";
+import StudentSettings from "./pages/StudentSettings";
 import TeacherAttendance from "./pages/TeacherAttendance";
 import TeacherAnnouncements from "./pages/TeacherAnnouncements";
 import TeacherTests from "./pages/TeacherTests";
