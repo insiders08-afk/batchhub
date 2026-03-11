@@ -209,23 +209,32 @@ export default function AdminAttendance() {
           </div>
         </div>
 
-        {/* Timing info + lock notice */}
-        {selectedBatch?.schedule && (
-          <div className={cn(
-            "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border",
-            attEditable
-              ? "bg-success/5 border-success/20 text-success"
-              : "bg-warning/5 border-warning/20 text-warning"
-          )}>
-            {attEditable ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
-            <span>
-              {attEditable
-                ? `Attendance open · ${formatTimingDisplay(selectedBatch.schedule)}`
-                : attLockReason
-              }
-            </span>
-          </div>
-        )}
+        {/* Batch schedule info + timing lock notice */}
+        {selectedBatch?.schedule && (() => {
+          const t = (() => { try { const p = JSON.parse(selectedBatch.schedule!); return p.days?.length ? p : null; } catch { return null; } })();
+          const todayName = new Date().toLocaleDateString("en-IN", { weekday: "long" });
+          const fmt = (h: number, m: number, ap: string) => `${h}:${String(m).padStart(2, "0")} ${ap}`;
+          return (
+            <div className="space-y-1.5">
+              {t && (
+                <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-lg text-xs bg-muted/30 border border-border/40">
+                  <CalendarDays className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                  <span className="font-semibold text-foreground">{t.days.join(", ")}</span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="text-muted-foreground">{fmt(t.startHour, t.startMinute, t.startAmPm)} – {fmt(t.endHour, t.endMinute, t.endAmPm)}</span>
+                  <span className="text-muted-foreground">· Today: <span className="font-semibold text-foreground">{todayName}</span></span>
+                </div>
+              )}
+              <div className={cn(
+                "flex items-center gap-2 px-3 py-2 rounded-lg text-xs border",
+                attEditable ? "bg-success/5 border-success/20 text-success" : "bg-warning/5 border-warning/20 text-warning"
+              )}>
+                {attEditable ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
+                <span>{attEditable ? `Attendance open · ${formatTimingDisplay(selectedBatch.schedule)}` : attLockReason}</span>
+              </div>
+            </div>
+          );
+        })()}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-3">

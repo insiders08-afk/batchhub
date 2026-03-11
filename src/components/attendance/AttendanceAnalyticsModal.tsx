@@ -389,12 +389,12 @@ export default function AttendanceAnalyticsModal({
                         if (isDayOff) {
                           return (
                             <div key={day} className={cn(
-                              "aspect-square flex flex-col items-center justify-center text-[10px] font-medium rounded-md border",
-                              "bg-muted/30 border-border/20 text-muted-foreground/50",
+                              "aspect-square flex flex-col items-center justify-center text-[10px] font-semibold rounded-md border",
+                              "bg-warning/10 border-warning/30 text-warning",
                               isToday && "ring-1 ring-primary"
                             )}>
                               <span>{day}</span>
-                              <span className="text-[8px] text-warning/70 font-semibold leading-none mt-0.5">Off</span>
+                              <span className="text-[8px] font-bold leading-none mt-0.5">Off</span>
                             </div>
                           );
                         }
