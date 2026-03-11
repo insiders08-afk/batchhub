@@ -382,11 +382,11 @@ export default function AdminFees() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // ─── Add Fee ────────────────────────────────────────────────────────────────
+  // ─── Add Fee (multi-student bulk) ───────────────────────────────────────────
 
   const handleAddFee = async () => {
-    if (!newFee.student_id || !newFee.batch_id || !newFee.annual_amount || !newFee.cycle_day) {
-      toast({ title: "Required fields", description: "Please fill all required fields including batch and cycle day.", variant: "destructive" });
+    if (!newFee.batch_id || !newFee.annual_amount || !newFee.cycle_day || selectedStudentIds.size === 0) {
+      toast({ title: "Required fields", description: "Select a batch, at least one student, annual amount and cycle day.", variant: "destructive" });
       return;
     }
     const cycleDay = parseInt(newFee.cycle_day);
@@ -399,12 +399,10 @@ export default function AdminFees() {
       const annual = parseFloat(newFee.annual_amount);
       const amount = calcInstallment(annual, newFee.payment_frequency);
       const startMonth = `${newFee.start_month_year}-${String(parseInt(newFee.start_month_month)).padStart(2, "0")}`;
-      // Compute first due date
       const dueDate = `${startMonth}-${String(cycleDay).padStart(2, "0")}`;
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase.from("fees") as any).insert({
-        student_id: newFee.student_id,
+      const rows = Array.from(selectedStudentIds).map(sid => ({
+        student_id: sid,
         batch_id: newFee.batch_id,
         amount,
         annual_amount: annual,
@@ -417,12 +415,14 @@ export default function AdminFees() {
         paid: false,
         paid_cycles_count: 0,
         total_paid_amount: 0,
-      });
+      }));
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase.from("fees") as any).insert(rows);
       if (error) throw error;
-      toast({ title: "Fee plan created", description: "Fee entry created successfully." });
+      toast({ title: "Fee plans created ✓", description: `Fee structure applied to ${rows.length} student${rows.length !== 1 ? "s" : ""}.` });
       setShowAdd(false);
-      setNewFee({ student_id: "", batch_id: "", annual_amount: "", payment_frequency: "monthly", cycle_day: "", start_month_month: String(currentMonth), start_month_year: String(currentYear), description: "" });
+      resetAddFeeDialog();
       fetchData();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add fee";
