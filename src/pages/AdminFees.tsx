@@ -998,7 +998,7 @@ export default function AdminFees() {
                             variant="ghost"
                             className="h-8 text-xs text-success hover:text-success gap-1"
                             disabled={markingId === plan.id}
-                            onClick={() => handleMarkPaid(plan)}
+                             onClick={() => handleMarkPaidForCycle(plan)}
                           >
                             {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                             Paid
