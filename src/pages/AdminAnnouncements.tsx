@@ -149,6 +149,20 @@ export default function AdminAnnouncements() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    setDeleting(id);
+    try {
+      const { error } = await supabase.from("announcements").delete().eq("id", id);
+      if (error) throw error;
+      setAnnouncements(prev => prev.filter(a => a.id !== id));
+      toast({ title: "✅ Announcement deleted." });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to delete", variant: "destructive" });
+    } finally {
+      setDeleting(null);
+    }
+  };
+
   const filtered = announcements.filter(a =>
     a.title.toLowerCase().includes(search.toLowerCase()) ||
     (a.posted_by_name || "").toLowerCase().includes(search.toLowerCase())
