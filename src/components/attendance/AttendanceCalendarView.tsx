@@ -6,30 +6,50 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarDays, Loader2, XCircle, CheckCircle2, CalendarOff } from "lucide-react";
+import { CalendarDays, Loader2, XCircle, CheckCircle2, CalendarOff, BanIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { parseBatchTiming } from "@/lib/batchTiming";
 
 interface AttendanceCalendarViewProps {
   batchId: string;
   batchName?: string;
   instituteCode?: string;
   role?: "admin" | "teacher";
+  schedule?: string | null;
 }
 
 interface DayAttendance {
   present: number;
   absent: number;
   absentStudents: { name: string; email: string }[];
-  isDayOff?: boolean;
 }
 
 const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const JS_DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const currentYear = new Date().getFullYear();
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
+}
+
+// Parse a YYYY-MM-DD string into local {year, month, day}
+function parseDateKey(key: string) {
+  const [y, m, d] = key.split("-").map(Number);
+  return { year: y, month: m - 1, day: d };
+}
+
+function dateKeyToLocalDate(key: string): Date {
+  const { year, month, day } = parseDateKey(key);
+  return new Date(year, month, day);
+}
+
+function localDateToKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 // ---- Day Off Dialog for future dates ----
@@ -49,7 +69,9 @@ function FutureDayOffDialog({
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
 
-  const dateDisplay = date ? new Date(date + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : "";
+  const dateDisplay = date
+    ? dateKeyToLocalDate(date).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : "";
 
   useEffect(() => {
     if (open && date) {
@@ -142,8 +164,13 @@ function FutureDayOffDialog({
   );
 }
 
-export default function AttendanceCalendarView({ batchId, batchName, instituteCode, role }: AttendanceCalendarViewProps) {
+export default function AttendanceCalendarView({
+  batchId, batchName, instituteCode, role, schedule
+}: AttendanceCalendarViewProps) {
   const today = new Date();
+  // Use local date components to avoid UTC shift
+  const todayKey = localDateToKey(today);
+
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [calYear, setCalYear] = useState(today.getFullYear());
   const [monthData, setMonthData] = useState<Record<string, DayAttendance>>({});
@@ -152,6 +179,17 @@ export default function AttendanceCalendarView({ batchId, batchName, instituteCo
   const [dayOffDate, setDayOffDate] = useState<string | null>(null);
 
   const isFutureMonth = calYear > today.getFullYear() || (calYear === today.getFullYear() && calMonth > today.getMonth());
+
+  // Parse scheduled days from batch timing
+  const batchTiming = parseBatchTiming(schedule ?? null);
+  const scheduledDays: string[] = batchTiming?.days ?? [];
+  const hasSchedule = scheduledDays.length > 0;
+
+  // Is a given date a scheduled batch day?
+  const isBatchScheduledDay = (date: Date): boolean => {
+    if (!hasSchedule) return true;
+    return scheduledDays.includes(JS_DAY_NAMES[date.getDay()]);
+  };
 
   const loadMonthData = useCallback(async () => {
     if (!batchId || isFutureMonth) return;
@@ -208,25 +246,27 @@ export default function AttendanceCalendarView({ batchId, batchName, instituteCo
     return `${calYear}-${m}-${d}`;
   };
 
-  const todayKey = today.toISOString().split("T")[0];
-
   const selectedDayData = selectedDate ? monthData[selectedDate] : null;
   const canMarkDayOff = !!(role && instituteCode);
 
-  // For current month, show future dates dimmed but tappable (for day off)
   const isCurrentMonth = calYear === today.getFullYear() && calMonth === today.getMonth();
 
   const handleDayClick = (day: number) => {
     const dateKey = formatDateKey(day);
     const d = new Date(calYear, calMonth, day);
-    const isPast = d < today || dateKey === todayKey;
-    const isFuture = d > today && dateKey !== todayKey;
+    const isOffDay = !isBatchScheduledDay(d);
 
-    if (isPast) {
+    // Off-days are never interactive
+    if (isOffDay) return;
+
+    const isPastOrToday = dateKey <= todayKey;
+    const isFuture = dateKey > todayKey;
+
+    if (isPastOrToday) {
       const data = monthData[dateKey];
+      // Today: always tappable if data exists (after attendance save)
       if (data) setSelectedDate(selectedDate === dateKey ? null : dateKey);
     } else if (isFuture && canMarkDayOff) {
-      // Open day off dialog for future date
       setDayOffDate(dateKey);
     }
   };
@@ -238,7 +278,7 @@ export default function AttendanceCalendarView({ batchId, batchName, instituteCo
         <CalendarDays className="w-4 h-4 text-primary" />
         <span className="font-display font-semibold text-sm">Calendar</span>
         {canMarkDayOff && (
-          <span className="ml-auto text-xs text-muted-foreground">Tap future date for day off</span>
+          <span className="ml-auto text-xs text-muted-foreground">Tap future class day for day off</span>
         )}
       </div>
 
@@ -250,10 +290,9 @@ export default function AttendanceCalendarView({ batchId, batchName, instituteCo
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {MONTHS.map((m, i) => {
-                const future = calYear > today.getFullYear() || (calYear === today.getFullYear() && i > today.getMonth());
-                return <SelectItem key={i} value={String(i)} disabled={false}>{m}</SelectItem>;
-              })}
+              {MONTHS.map((m, i) => (
+                <SelectItem key={i} value={String(i)}>{m}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={String(calYear)} onValueChange={v => { setCalYear(parseInt(v)); setSelectedDate(null); }}>
@@ -282,48 +321,91 @@ export default function AttendanceCalendarView({ batchId, batchName, instituteCo
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
                   const dateKey = formatDateKey(day);
                   const d = new Date(calYear, calMonth, day);
-                  const isFutureDay = d > today && dateKey !== todayKey;
+                  const isOffDay = !isBatchScheduledDay(d);
+                  const isFutureDay = dateKey > todayKey;
                   const isTodayDay = dateKey === todayKey;
+                  const isPastDay = dateKey < todayKey;
                   const data = monthData[dateKey];
                   const isSelected = selectedDate === dateKey;
                   const hasData = !!data;
                   const pct = hasData ? Math.round((data.present / (data.present + data.absent)) * 100) : null;
-                  const isFutureDayOffable = isFutureDay && canMarkDayOff;
+                  const isFutureBatchDay = isFutureDay && !isOffDay && canMarkDayOff;
+
+                  // Determine style
+                  let cellClass = "";
+                  let interactive = false;
+
+                  if (isOffDay) {
+                    // Non-batch weekday — always dimmed, never interactive
+                    cellClass = "bg-muted/10 border-transparent text-muted-foreground/20 cursor-default";
+                  } else if (isTodayDay) {
+                    if (hasData) {
+                      // Today + attendance saved → show as blue + tappable
+                      interactive = true;
+                      cellClass = isSelected
+                        ? "bg-primary text-primary-foreground border-primary shadow-sm cursor-pointer"
+                        : "border-primary/50 bg-primary/10 text-primary font-bold cursor-pointer hover:bg-primary/20";
+                    } else {
+                      // Today, no data yet → just highlight, not tappable
+                      cellClass = "border-primary/50 bg-primary/10 text-primary font-bold cursor-default";
+                    }
+                  } else if (isFutureDay) {
+                    if (isFutureBatchDay) {
+                      interactive = true;
+                      cellClass = "bg-muted/10 border-border/20 text-muted-foreground/40 hover:bg-warning/10 hover:border-warning/40 hover:text-warning cursor-pointer";
+                    } else {
+                      cellClass = "text-muted-foreground/20 border-transparent cursor-default";
+                    }
+                  } else {
+                    // Past day
+                    if (!hasData) {
+                      cellClass = "bg-muted/20 border-border/10 text-muted-foreground/40 cursor-default";
+                    } else if (isSelected) {
+                      cellClass = "bg-primary text-primary-foreground border-primary shadow-sm cursor-pointer";
+                    } else if (pct !== null && pct >= 75) {
+                      interactive = true;
+                      cellClass = "bg-success-light text-success border-success/20 hover:border-success/50 cursor-pointer";
+                    } else {
+                      interactive = true;
+                      cellClass = "bg-danger-light text-danger border-danger/20 hover:border-danger/50 cursor-pointer";
+                    }
+                  }
 
                   return (
                     <button
                       key={day}
                       onClick={() => handleDayClick(day)}
-                      disabled={!hasData && !isFutureDayOffable && !isTodayDay}
+                      disabled={!interactive && !isSelected}
                       className={cn(
                         "aspect-square flex flex-col items-center justify-center text-xs font-medium rounded-md border transition-all",
-                        isTodayDay ? "border-primary/50 bg-primary/10 text-primary font-bold cursor-default" :
-                        isFutureDay
-                          ? isFutureDayOffable
-                            ? "bg-muted/10 border-border/20 text-muted-foreground/40 hover:bg-warning/10 hover:border-warning/40 hover:text-warning cursor-pointer"
-                            : "text-muted-foreground/20 border-transparent cursor-default"
-                          : !hasData ? "bg-muted/20 border-border/10 text-muted-foreground/40 cursor-default" :
-                          isSelected ? "bg-primary text-primary-foreground border-primary shadow-sm" :
-                          pct !== null && pct >= 75 ? "bg-success-light text-success border-success/20 hover:border-success/50 cursor-pointer" :
-                          "bg-danger-light text-danger border-danger/20 hover:border-danger/50 cursor-pointer"
+                        cellClass
                       )}
                     >
                       <span>{day}</span>
-                      {hasData && !isFutureDay && !isTodayDay && (
+                      {/* Past/today with data: show % */}
+                      {hasData && !isFutureDay && !isOffDay && (
                         <span className="text-[9px] opacity-75">{pct}%</span>
                       )}
-                      {isFutureDay && isFutureDayOffable && (
+                      {/* Future batch day hint */}
+                      {isFutureBatchDay && !isTodayDay && (
                         <span className="text-[8px] opacity-50 leading-none">off?</span>
+                      )}
+                      {/* Off-day indicator */}
+                      {isOffDay && (
+                        <span className="text-[8px] opacity-30 leading-none">—</span>
                       )}
                     </button>
                   );
                 })}
               </div>
+
+              {/* Legend */}
               <div className="flex gap-3 mt-2 text-xs text-muted-foreground justify-center flex-wrap">
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-success-light border border-success/20 inline-block" /> ≥75%</span>
                 <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-danger-light border border-danger/20 inline-block" /> &lt;75%</span>
-                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-muted/20 border border-border/10 inline-block" /> No record</span>
-                {canMarkDayOff && <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-warning/10 border border-warning/40 inline-block" /> Tap to mark off</span>}
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-primary/10 border border-primary/30 inline-block" /> Today</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-muted/10 border border-transparent inline-block" /> Off day</span>
+                {canMarkDayOff && <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-warning/10 border border-warning/40 inline-block" /> Mark off</span>}
               </div>
             </div>
 
@@ -334,7 +416,7 @@ export default function AttendanceCalendarView({ batchId, batchName, instituteCo
                   <div className="flex items-center gap-2">
                     <CalendarDays className="w-3.5 h-3.5 text-primary" />
                     <span className="text-sm font-semibold">
-                      {new Date(selectedDate + "T00:00:00").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+                      {dateKeyToLocalDate(selectedDate).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                     </span>
                   </div>
                   <div className="flex gap-2">
