@@ -394,14 +394,10 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
     <>
       <Button
         variant="outline"
-        className={cn(
-          "h-8 text-xs gap-1.5 border-border/50",
-          canMarkDayOff
-            ? "hover:border-warning/50 hover:text-warning text-muted-foreground"
-            : "opacity-40 cursor-not-allowed"
-        )}
-        onClick={canMarkDayOff ? handleOpen : undefined}
-        title={!canMarkDayOff ? "Available after batch ends" : "Mark tomorrow as day off"}
+        size="sm"
+        className="h-8 text-xs gap-1.5 border-border/50 hover:border-warning/50 hover:text-warning text-muted-foreground flex-1"
+        onClick={handleOpen}
+        title="Mark a future date as day off for this batch"
       >
         <CalendarOff className="w-3 h-3" /> Day Off
       </Button>
