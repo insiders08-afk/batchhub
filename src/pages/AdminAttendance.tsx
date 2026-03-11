@@ -346,6 +346,7 @@ export default function AdminAttendance() {
                 batchName={selectedBatch?.name}
                 instituteCode={instituteCode}
                 role="admin"
+                schedule={selectedBatch?.schedule}
               />
             )}
           </div>
