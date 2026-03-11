@@ -113,14 +113,14 @@ function buildCycles(plan: FeePlan, count = 12): CycleEntry[] {
     if (isPaidCycle) {
       status = "paid";
     } else if (dueDate > today) {
-      status = "future";
+      // Upcoming: due date is in the future
+      status = "upcoming";
     } else {
       const overdueCutoff = new Date(dueDate);
       overdueCutoff.setDate(overdueCutoff.getDate() + 7);
       status = today > overdueCutoff ? "overdue" : "pending";
     }
 
-    // For the paid date: only the most recent paid cycle carries paid_date
     const paidDate = isPaidCycle && cycleNumber === (plan.paid_cycles_count ?? 0) ? plan.paid_date : null;
 
     cycles.push({ cycleIndex: cycleNumber, startDate, endDate, dueDate, paid: isPaidCycle, paidDate, status });
@@ -130,8 +130,7 @@ function buildCycles(plan: FeePlan, count = 12): CycleEntry[] {
 
 /**
  * Get current active cycle due date.
- * "Current cycle" = the cycle whose dueDate we haven't yet paid for.
- * This is: the cycle at index = paid_cycles_count (0-indexed), i.e. the (paid_cycles_count+1)th cycle.
+ * Current cycle = cycle at index paid_cycles_count (0-indexed).
  */
 function getCurrentDueDate(plan: FeePlan): Date | null {
   if (!plan.cycle_day || !plan.start_month) {
@@ -140,19 +139,18 @@ function getCurrentDueDate(plan: FeePlan): Date | null {
   const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
   const freqMonths = freq?.months ?? 1;
   const [sy, sm] = plan.start_month.split("-").map(Number);
-  // Current cycle index = paid_cycles_count (0-indexed)
   const cycleIndex = plan.paid_cycles_count ?? 0;
   return new Date(sy, sm - 1 + cycleIndex * freqMonths, plan.cycle_day);
 }
 
 /**
- * Determine fee status for the CURRENT cycle.
- * A cycle is "paid" if paid_cycles_count covers it (i.e., the DB is the source of truth for paid cycles).
- * The current cycle is cycle index = paid_cycles_count (0-indexed).
- * If paid=true in DB, we treat current cycle as paid.
+ * Fee status for the CURRENT cycle.
+ * upcoming  = due date is in the future (before cycle day)
+ * pending   = on/within 7 days after due date
+ * overdue   = more than 7 days after due date
+ * paid      = plan.paid === true (current cycle marked paid)
  */
-function getFeeStatus(plan: FeePlan): "paid" | "pending" | "overdue" {
-  // paid=true means the current cycle (at paid_cycles_count-1) was paid and due_date points to next cycle
+function getFeeStatus(plan: FeePlan): "paid" | "pending" | "overdue" | "upcoming" {
   if (plan.paid) return "paid";
 
   const dueDate = getCurrentDueDate(plan);
@@ -160,10 +158,16 @@ function getFeeStatus(plan: FeePlan): "paid" | "pending" | "overdue" {
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  // Before the due date → Upcoming
+  if (today < dueDate) return "upcoming";
+
+  // Within 7 days of due date → Pending
   const overdueCutoff = new Date(dueDate);
   overdueCutoff.setDate(overdueCutoff.getDate() + 7);
-  if (today > overdueCutoff) return "overdue";
-  return "pending";
+  if (today <= overdueCutoff) return "pending";
+
+  return "overdue";
 }
 
 function getDaysOverdue(plan: FeePlan): number {
@@ -177,10 +181,21 @@ function getDaysOverdue(plan: FeePlan): number {
   return diff > 0 ? Math.ceil(diff / (1000 * 60 * 60 * 24)) : 0;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const CalendarClock = (props: any) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/>
+    <path d="M16 2v4M8 2v4M3 10h5"/>
+    <circle cx="17.5" cy="17.5" r="4.5"/>
+    <path d="M17.5 15.5v2l1.5 1"/>
+  </svg>
+);
+
 const STATUS_CONFIG = {
-  paid: { label: "Paid", color: "bg-success-light text-success border-success/20", icon: CheckCircle2 },
-  pending: { label: "Pending", color: "bg-accent-light text-accent border-accent/20", icon: Clock },
-  overdue: { label: "Overdue", color: "bg-danger-light text-danger border-danger/20", icon: XCircle },
+  paid:     { label: "Paid",     color: "bg-success-light text-success border-success/20",    icon: CheckCircle2 },
+  pending:  { label: "Pending",  color: "bg-accent-light text-accent border-accent/20",       icon: Clock },
+  overdue:  { label: "Overdue",  color: "bg-danger-light text-danger border-danger/20",       icon: XCircle },
+  upcoming: { label: "Upcoming", color: "bg-muted text-muted-foreground border-border/40",   icon: CalendarClock },
 };
 
 // ─── Cycle Structure Modal ────────────────────────────────────────────────────
