@@ -62,7 +62,7 @@ export default function AttendanceAnalyticsModal({
   const [calYear, setCalYear] = useState(today.getFullYear());
 
   // Date-specific lookup
-  const [lookupDay, setLookupDay] = useState("");
+  const [lookupDay, setLookupDay] = useState("any");
   const [lookupMonth, setLookupMonth] = useState(String(today.getMonth()));
   const [lookupYear, setLookupYear] = useState(String(today.getFullYear()));
   const [lookupResult, setLookupResult] = useState<{ date: string; present: boolean } | null | "not-found">(null);
@@ -84,7 +84,7 @@ export default function AttendanceAnalyticsModal({
       const m = String(parseInt(lookupMonth) + 1).padStart(2, "0");
       const y = lookupYear;
       let dateStr: string;
-      if (lookupDay) {
+      if (lookupDay && lookupDay !== "any") {
         const d = String(parseInt(lookupDay)).padStart(2, "0");
         dateStr = `${y}-${m}-${d}`;
         const { data } = await supabase
@@ -214,7 +214,7 @@ export default function AttendanceAnalyticsModal({
                         <SelectValue placeholder="Day (opt)" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">— Any day —</SelectItem>
+                        <SelectItem value="any">— Any day —</SelectItem>
                         {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
                           <SelectItem key={d} value={String(d)}>{d}</SelectItem>
                         ))}

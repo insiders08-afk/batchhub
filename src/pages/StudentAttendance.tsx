@@ -39,7 +39,7 @@ export default function StudentAttendance() {
   const today = new Date();
   const [calMonth, setCalMonth] = useState(today.getMonth());
   const [calYear, setCalYear] = useState(today.getFullYear());
-  const [lookupDay, setLookupDay] = useState("");
+  const [lookupDay, setLookupDay] = useState("any");
   const [lookupMonth, setLookupMonth] = useState(String(today.getMonth()));
   const [lookupYear, setLookupYear] = useState(String(today.getFullYear()));
   const [lookupResult, setLookupResult] = useState<{ date: string; present: boolean } | "not-found" | null>(null);
@@ -99,7 +99,7 @@ export default function StudentAttendance() {
 
   const handleAccess = () => {
     setLookupResult(null);
-    if (lookupDay) {
+    if (lookupDay && lookupDay !== "any") {
       // Specific date lookup from existing records
       const m = String(parseInt(lookupMonth) + 1).padStart(2, "0");
       const d = String(parseInt(lookupDay)).padStart(2, "0");
@@ -190,7 +190,7 @@ export default function StudentAttendance() {
                   <SelectValue placeholder="Day (opt)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">— Any day —</SelectItem>
+                  <SelectItem value="any">— Any day —</SelectItem>
                   {Array.from({ length: 31 }, (_, i) => i + 1).map(d => (
                     <SelectItem key={d} value={String(d)}>{d}</SelectItem>
                   ))}
