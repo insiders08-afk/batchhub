@@ -366,16 +366,16 @@ export default function AttendanceCalendarView({
                   const pct = hasData ? Math.round((data.present / (data.present + data.absent)) * 100) : null;
                   const isFutureBatchDay = isFutureDay && !isOffDay && canMarkDayOff;
 
-                  // ── OFF-DAY (non-scheduled weekday, past/present/future) ──
-                  // Render as a non-interactive invisible placeholder
+                  // ── OFF-DAY (non-scheduled weekday) ──
+                  // Visible but de-emphasised — not interactive
                   if (isOffDay) {
                     return (
                       <div
                         key={day}
-                        className="aspect-square flex flex-col items-center justify-center text-xs rounded-md"
+                        className="aspect-square flex flex-col items-center justify-center text-xs rounded-md border border-transparent"
                         aria-hidden="true"
                       >
-                        <span className="text-muted-foreground/10">{day}</span>
+                        <span className="text-muted-foreground/30">{day}</span>
                       </div>
                     );
                   }
