@@ -348,13 +348,41 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementContent, setAnnouncementContent] = useState("");
 
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+  // Find the next scheduled class date for this batch
+  function getNextClassDate(): Date {
+    const t = parseTiming(batch.schedule);
+    if (!t || !t.days || t.days.length === 0) {
+      // No schedule — default to tomorrow
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      return d;
+    }
+
+    const now = new Date();
+    // Start checking from tomorrow
+    const candidate = new Date(now);
+    candidate.setDate(candidate.getDate() + 1);
+
+    // Search up to 14 days ahead
+    for (let i = 0; i < 14; i++) {
+      const abbrev = JS_DAY_ABBREVS[candidate.getDay()];
+      if (t.days.includes(abbrev)) {
+        return new Date(candidate);
+      }
+      candidate.setDate(candidate.getDate() + 1);
+    }
+    // Fallback: tomorrow
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  const nextClassDate = getNextClassDate();
+  const nextClassStr = nextClassDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
 
   const handleOpen = () => {
-    setAnnouncementTitle(`No Class Tomorrow — ${batch.name}`);
-    setAnnouncementContent(`Dear students, there will be no class for ${batch.name} tomorrow (${tomorrowStr}). Please plan accordingly.`);
+    setAnnouncementTitle(`No Class — ${batch.name} — ${nextClassStr}`);
+    setAnnouncementContent(`Dear students, there will be no class for ${batch.name} on ${nextClassStr}. Please plan accordingly.`);
     setOpen(true);
   };
 
@@ -377,7 +405,7 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
         });
       }
 
-      toast({ title: "✅ Day Off marked!", description: `${batch.name} is off tomorrow. ${notify ? "Announcement sent to students." : ""}` });
+      toast({ title: "✅ Day Off marked!", description: `${batch.name} is off on ${nextClassStr}. ${notify ? "Announcement sent to students." : ""}` });
       setOpen(false);
       onDone();
     } catch (err: unknown) {
@@ -386,9 +414,6 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
       setSending(false);
     }
   };
-
-  // Day Off is always available — admin can schedule any future day off anytime
-  const canMarkDayOff = true;
 
   return (
     <>
@@ -412,7 +437,8 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
           <div className="space-y-4 pt-1">
             <p className="text-sm text-muted-foreground">
               You're marking <span className="font-semibold text-foreground">{batch.name}</span> as off for{" "}
-              <span className="font-semibold text-foreground">{tomorrowStr}</span>.
+              <span className="font-semibold text-foreground">{nextClassStr}</span>{" "}
+              <span className="text-xs">(next scheduled class)</span>.
             </p>
 
             <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
