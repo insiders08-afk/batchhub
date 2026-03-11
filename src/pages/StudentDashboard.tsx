@@ -167,7 +167,7 @@ export default function StudentDashboard() {
                 </Button>
               </Link>
               <Link to="/student/fees" className="col-span-2">
-                <Button variant="outline" className="w-full h-10 text-xs gap-1.5 border-warning/30 text-warning hover:bg-warning-light">
+                <Button variant="outline" className="w-full h-10 text-xs gap-1.5 border-warning/30 text-warning hover:bg-accent-light">
                   <IndianRupee className="w-3.5 h-3.5" /> My Fees
                 </Button>
               </Link>
