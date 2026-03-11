@@ -61,6 +61,73 @@ function localDateToKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+// ---- Cancel / Undo Day Off Dialog ----
+function CancelDayOffDialog({
+  open, onClose, date, batchId, batchName, onDone
+}: {
+  open: boolean;
+  onClose: () => void;
+  date: string;
+  batchId: string;
+  batchName?: string;
+  onDone: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const dateDisplay = date
+    ? dateKeyToLocalDate(date).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    : "";
+
+  const handleCancel = async () => {
+    setDeleting(true);
+    try {
+      const { data } = await supabase
+        .from("announcements")
+        .select("id")
+        .eq("batch_id", batchId)
+        .eq("type", "day_off")
+        .ilike("content", `%day_off_date:${date}%`);
+      if (data && data.length > 0) {
+        await supabase.from("announcements").delete().in("id", data.map(a => a.id));
+      }
+      onDone();
+      onClose();
+    } catch {
+      // ignore
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="font-display flex items-center gap-2">
+            <CalendarOff className="w-5 h-5 text-danger" /> Cancel Day Off
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 pt-1">
+          <p className="text-sm text-muted-foreground">
+            Remove the day-off for <span className="font-semibold text-foreground">{dateDisplay}</span> on{" "}
+            <span className="font-semibold text-foreground">{batchName || "this batch"}</span>?
+            <br /><span className="text-xs">This will delete the associated announcement.</span>
+          </p>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={onClose}>Keep Off</Button>
+            <Button
+              className="flex-1 bg-danger text-white hover:bg-danger/90 border-0"
+              onClick={handleCancel}
+              disabled={deleting}
+            >
+              {deleting ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Removing...</> : "Cancel Day Off"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ---- Day Off Dialog for future dates ----
 function FutureDayOffDialog({
   open, onClose, date, batchId, batchName, instituteCode, onDone
@@ -338,6 +405,8 @@ export default function AttendanceCalendarView({
 
   const selectedDayData = selectedDate ? monthData[selectedDate] : null;
 
+  const [cancelDayOffDate, setCancelDayOffDate] = useState<string | null>(null);
+
   const handleDayClick = (day: number) => {
     const dateKey = formatDateKey(day);
     const d = new Date(calYear, calMonth, day);
@@ -345,11 +414,17 @@ export default function AttendanceCalendarView({
     if (!isBatchScheduledDay(d)) return;
 
     const isDayOff = dayOffDates.has(dateKey);
-    const isPastOrToday = dateKey <= todayKey;
     const isFuture = dateKey > todayKey;
+    const isPastOrToday = dateKey <= todayKey;
     const isToday = dateKey === todayKey;
 
-    if (isDayOff && !isFuture) return; // off days in past are non-interactive
+    // Clicking a day-off cell (past, today, or future) → offer to cancel if admin
+    if (isDayOff && canMarkDayOff) {
+      setCancelDayOffDate(dateKey);
+      return;
+    }
+
+    if (isDayOff && !isFuture) return; // non-admin, off days in past are non-interactive
 
     if (isToday) {
       const data = monthData[dateKey];
@@ -454,7 +529,21 @@ export default function AttendanceCalendarView({
 
                   // ── DAY OFF (announced holiday on scheduled day) ──
                   if (isDayOff) {
-                    return (
+                    return canMarkDayOff ? (
+                      <button
+                        key={day}
+                        onClick={() => setCancelDayOffDate(formatDateKey(day))}
+                        title="Click to cancel day off"
+                        className={cn(
+                          "aspect-square flex flex-col items-center justify-center text-[10px] font-medium rounded-md border cursor-pointer transition-all",
+                          "bg-warning/8 border-warning/25 text-warning hover:bg-danger/10 hover:border-danger/40 hover:text-danger",
+                          isTodayDay && "ring-2 ring-primary ring-offset-1"
+                        )}
+                      >
+                        <span className="font-semibold">{day}</span>
+                        <span className="text-[8px] font-bold leading-none mt-0.5">Off</span>
+                      </button>
+                    ) : (
                       <div
                         key={day}
                         className={cn(
@@ -605,6 +694,18 @@ export default function AttendanceCalendarView({
           batchName={batchName}
           instituteCode={instituteCode}
           onDone={() => { setDayOffDate(null); loadMonthData(); loadDayOffDates(); }}
+        />
+      )}
+
+      {/* Cancel / Undo Day Off Dialog */}
+      {cancelDayOffDate && (
+        <CancelDayOffDialog
+          open={!!cancelDayOffDate}
+          onClose={() => setCancelDayOffDate(null)}
+          date={cancelDayOffDate}
+          batchId={batchId}
+          batchName={batchName}
+          onDone={() => { setCancelDayOffDate(null); loadMonthData(); loadDayOffDates(); }}
         />
       )}
     </Card>

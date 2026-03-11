@@ -280,11 +280,11 @@ export default function AdminAttendance() {
                   {attEditable ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
                   {attEditable ? (
                     <span>
-                      Attendance open · Opens at <span className="font-semibold">{openTime}</span> (class start time) · Locks at <span className="font-semibold">{lockTime}</span> <span className="opacity-70">(+2 hrs editing)</span>
+                      Attendance opens at <span className="font-semibold">{openTime}</span> (class start time). Locks at <span className="font-semibold">{lockTime}</span>
                     </span>
                   ) : openTime && lockTime ? (
                     <span>
-                      {attLockReason} · Opens at <span className="font-semibold">{openTime}</span> · Locks at <span className="font-semibold">{lockTime}</span> <span className="opacity-70">(+2 hrs editing)</span>
+                      {attLockReason} · Attendance opens at <span className="font-semibold">{openTime}</span> (class start time). Locks at <span className="font-semibold">{lockTime}</span>
                     </span>
                   ) : (
                     <span>{attLockReason}</span>
@@ -294,6 +294,13 @@ export default function AdminAttendance() {
             </div>
           );
         })()}
+
+        {todayIsDayOff && (
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-warning/30 bg-warning/8 text-warning text-sm font-semibold">
+            <Lock className="w-4 h-4 flex-shrink-0" />
+            Day Off — No Attendance today for this batch.
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-3">

@@ -7,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Megaphone, Clock, Users, Loader2, Bell } from "lucide-react";
+import { Plus, Search, Megaphone, Clock, Users, Loader2, Bell, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -50,6 +51,7 @@ export default function AdminAnnouncements() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [posting, setPosting] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const [form, setForm] = useState({ title: "", content: "", batchId: "all", type: "general", notifyPush: false });
 
@@ -144,6 +146,20 @@ export default function AdminAnnouncements() {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to post", variant: "destructive" });
     } finally {
       setPosting(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeleting(id);
+    try {
+      const { error } = await supabase.from("announcements").delete().eq("id", id);
+      if (error) throw error;
+      setAnnouncements(prev => prev.filter(a => a.id !== id));
+      toast({ title: "✅ Announcement deleted." });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to delete", variant: "destructive" });
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -267,6 +283,35 @@ export default function AdminAnnouncements() {
                             <Bell className="w-2.5 h-2.5" /> Alerted
                           </Badge>
                         )}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="ml-auto h-7 w-7 text-muted-foreground hover:text-danger hover:bg-danger-light"
+                              disabled={deleting === ann.id}
+                            >
+                              {deleting === ann.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete announcement?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                "{ann.title}" will be permanently deleted. This cannot be undone.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                className="bg-danger text-white hover:bg-danger/90"
+                                onClick={() => handleDelete(ann.id)}
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                       <p className="text-sm text-muted-foreground leading-relaxed mb-3">{ann.content}</p>
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
