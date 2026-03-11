@@ -141,7 +141,63 @@ const STATUS_CONFIG = {
 
 // ─── Fee Structure Modal ──────────────────────────────────────────────────────
 
-function FeeStructureModal({ plan, onClose }: { plan: FeePlan; onClose: () => void }) {
+function buildFeeReport(plan: FeePlan): string {
+  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+  const startLabel = plan.start_month
+    ? (() => { const [y, m] = plan.start_month!.split("-").map(Number); return `${plan.cycle_day}${ordinal(plan.cycle_day!)} ${MONTHS[m-1]} ${y}`; })()
+    : "—";
+  const status = getFeeStatus(plan);
+  const dueDate = getCurrentDueDate(plan);
+
+  const lines = [
+    "═══════════════════════════════════════",
+    "        FEE STRUCTURE REPORT",
+    "═══════════════════════════════════════",
+    `Student      : ${plan.student_name}`,
+    `Batch        : ${plan.batch_name || "—"}`,
+    "───────────────────────────────────────",
+    `Annual Pkg   : ₹${Number(plan.annual_amount || 0).toLocaleString("en-IN")}`,
+    `${(freq?.label || "Installment").padEnd(13)}: ₹${Number(plan.amount).toLocaleString("en-IN")}`,
+    `Frequency    : ${freq?.label || "—"}`,
+    "───────────────────────────────────────",
+    `Cycle Day    : ${plan.cycle_day ? `${plan.cycle_day}${ordinal(plan.cycle_day)} of every ${freq?.months === 1 ? "month" : `${freq?.months} months`}` : "—"}`,
+    `Started From : ${startLabel}`,
+    "───────────────────────────────────────",
+    `Cycles Paid  : ${plan.paid_cycles_count}`,
+    `Total Paid   : ₹${Number(plan.total_paid_amount).toLocaleString("en-IN")}`,
+    `Status       : ${status.toUpperCase()}`,
+    ...(dueDate ? [`Due Date     : ${dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`] : []),
+    ...(plan.paid_date ? [`Last Paid On : ${new Date(plan.paid_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`] : []),
+    "═══════════════════════════════════════",
+    `Generated on : ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`,
+  ];
+  return lines.join("\n");
+}
+
+function downloadFeeReport(plan: FeePlan) {
+  const content = buildFeeReport(plan);
+  const blob = new Blob([content], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `fee-report_${(plan.student_name || "student").replace(/\s+/g, "_")}_${plan.batch_name || "batch"}.txt`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function FeeStructureModal({
+  plan,
+  onClose,
+  onDeleted,
+}: {
+  plan: FeePlan;
+  onClose: () => void;
+  onDeleted: (id: string) => void;
+}) {
+  const { toast } = useToast();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
   const status = getFeeStatus(plan);
   const dueDate = getCurrentDueDate(plan);
@@ -155,6 +211,72 @@ function FeeStructureModal({ plan, onClose }: { plan: FeePlan; onClose: () => vo
         return `${plan.cycle_day}${ordinal(plan.cycle_day!)} ${MONTHS[m-1]} ${y}`;
       })()
     : "—";
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("fees").delete().eq("id", plan.id);
+      if (error) throw error;
+      toast({ title: "Fee plan deleted", description: `Fee structure for ${plan.student_name} removed.` });
+      onDeleted(plan.id);
+      onClose();
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to delete", variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  if (showDeleteConfirm) {
+    return (
+      <Dialog open onOpenChange={() => setShowDeleteConfirm(false)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-danger flex items-center gap-2">
+              <Trash2 className="w-4 h-4" /> Delete Fee Structure?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-danger-light border border-danger/20 p-3 text-sm">
+              <p className="font-semibold text-danger mb-1">This action is permanent.</p>
+              <p className="text-muted-foreground">All fee history for <strong>{plan.student_name}</strong> under <strong>{plan.batch_name}</strong> will be deleted and cannot be recovered.</p>
+            </div>
+
+            {/* Summary before delete */}
+            <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
+              <p className="font-medium">Fee summary</p>
+              <p className="text-muted-foreground">Annual: ₹{Number(plan.annual_amount || 0).toLocaleString("en-IN")} · {freq?.label} ₹{Number(plan.amount).toLocaleString("en-IN")}</p>
+              <p className="text-muted-foreground">{plan.paid_cycles_count} cycles paid · ₹{Number(plan.total_paid_amount).toLocaleString("en-IN")} total collected</p>
+            </div>
+
+            {/* Download before deleting */}
+            <Button
+              variant="outline"
+              className="w-full gap-2 border-primary/40 text-primary hover:bg-primary/5"
+              onClick={() => downloadFeeReport(plan)}
+            >
+              <Download className="w-4 h-4" /> Download Fee Report Before Deleting
+            </Button>
+
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="flex-1">
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1 gap-1.5"
+                disabled={deleting}
+                onClick={handleDelete}
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                Yes, Delete
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={() => onClose()}>
@@ -225,6 +347,26 @@ function FeeStructureModal({ plan, onClose }: { plan: FeePlan; onClose: () => vo
                 ✓ Paid on {new Date(plan.paid_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
               </p>
             )}
+          </div>
+
+          {/* Actions: Download + Delete */}
+          <div className="flex gap-2 pt-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 border-primary/40 text-primary hover:bg-primary/5"
+              onClick={() => downloadFeeReport(plan)}
+            >
+              <Download className="w-3.5 h-3.5" /> Download Report
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 gap-1.5 border-danger/40 text-danger hover:bg-danger-light"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete Plan
+            </Button>
           </div>
         </div>
       </DialogContent>
