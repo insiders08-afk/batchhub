@@ -97,6 +97,7 @@ const App = () => (
           <Route path="/teacher/homework" element={<TeacherHomework />} />
           {/* Student */}
           <Route path="/student" element={<StudentDashboard />} />
+          <Route path="/student/settings" element={<StudentSettings />} />
           <Route path="/student/attendance" element={<StudentAttendance />} />
           <Route path="/student/tests" element={<StudentTests />} />
           <Route path="/student/homework" element={<StudentHomework />} />
