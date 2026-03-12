@@ -309,7 +309,8 @@ export default function AttendanceCalendarView({
     return scheduledDays.includes(JS_DAY_ABBREVS[date.getDay()]);
   };
 
-  const canMarkDayOff = !!(role && instituteCode);
+  // Only admins can mark/cancel day-offs. Teachers get read-only calendar.
+  const canMarkDayOff = !!(role === "admin" && instituteCode);
 
   // Load day-off announcements for the viewed month — uses machine-readable tag day_off_date:YYYY-MM-DD
   const loadDayOffDates = useCallback(async () => {
