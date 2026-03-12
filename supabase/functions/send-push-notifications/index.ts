@@ -309,12 +309,97 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", { status: 405, headers: corsHeaders });
+  }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseUrl    = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey     = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
-    const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+    const vapidPrivateKey= Deno.env.get("VAPID_PRIVATE_KEY");
+    const internalSecret = Deno.env.get("PUSH_INTERNAL_SECRET");
+
+    // ── Auth gate ──────────────────────────────────────────────────────────
+    // Accepts: (A) x-internal-secret header from DB trigger
+    //          (B) Valid Supabase JWT from an authenticated user
+    const providedSecret = req.headers.get("x-internal-secret");
+    const authHeader     = req.headers.get("Authorization");
+
+    let isAuthenticated = false;
+
+    // Path A — DB trigger internal call
+    if (internalSecret && providedSecret === internalSecret) {
+      isAuthenticated = true;
+    }
+
+    // Path B — JWT from a real user (admin/teacher)
+    if (!isAuthenticated && authHeader?.startsWith("Bearer ")) {
+      const token = authHeader.replace("Bearer ", "");
+      const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+        global: { headers: { Authorization: authHeader } },
+        auth:   { autoRefreshToken: false, persistSession: false },
+      });
+      const { data, error } = await userClient.auth.getClaims(token);
+      if (!error && data?.claims?.sub) {
+        isAuthenticated = true;
+      }
+    }
+
+    // Graceful fallback: if PUSH_INTERNAL_SECRET not yet set, allow anon-key calls
+    // from the DB trigger (remove this block once secret is configured in vault).
+    if (!isAuthenticated && !internalSecret && authHeader?.startsWith("Bearer ")) {
+      isAuthenticated = true; // anon key used by DB trigger before secret is configured
+    }
+
+    if (!isAuthenticated) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Rate limiting (IP-based) ───────────────────────────────────────────
+    const clientIp    = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const windowStart = new Date(); windowStart.setSeconds(0, 0);
+    const windowEnd   = new Date(windowStart.getTime() + 60000);
+
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    try {
+      const { data: rlData } = await admin
+        .from("rate_limits")
+        .select("id, request_count")
+        .eq("identifier", clientIp)
+        .eq("action", "push")
+        .gte("window_start", windowStart.toISOString())
+        .maybeSingle();
+
+      if (rlData && rlData.request_count >= RATE_LIMIT_IP_RPM) {
+        return new Response(
+          JSON.stringify({ error: "Too many requests. Please slow down." }),
+          {
+            status: 429,
+            headers: {
+              ...corsHeaders,
+              "Content-Type":          "application/json",
+              "X-RateLimit-Limit":     String(RATE_LIMIT_IP_RPM),
+              "X-RateLimit-Remaining": "0",
+              "X-RateLimit-Reset":     String(Math.floor(windowEnd.getTime() / 1000)),
+              "Retry-After":           "60",
+            },
+          }
+        );
+      }
+
+      if (rlData) {
+        await admin.from("rate_limits").update({ request_count: rlData.request_count + 1 }).eq("id", rlData.id);
+      } else {
+        await admin.from("rate_limits").insert({ identifier: clientIp, action: "push", window_start: windowStart.toISOString(), request_count: 1 });
+      }
+    } catch { /* rate limit table may not exist yet – fail open */ }
 
     if (!vapidPublicKey || !vapidPrivateKey) {
       return new Response(
