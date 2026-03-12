@@ -598,10 +598,10 @@ export default function Index() {
             <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors">Terms</a>
             <a href="#" className="hover:text-foreground transition-colors">Contact</a>
-            <Link to="/auth/superadmin" className="hover:text-foreground transition-colors opacity-60 hover:opacity-100">
+            <Link to="/auth/superadmin" className="hover:text-foreground transition-colors">
               City Partner Login
             </Link>
-            <Link to="/apply/city-partner" className="hover:text-foreground transition-colors opacity-60 hover:opacity-100">
+            <Link to="/apply/city-partner" className="hover:text-foreground transition-colors">
               Become a City Partner
             </Link>
           </div>
