@@ -277,6 +277,9 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Debug: log first 20 chars of public key so we can compare with what client registered
+    console.log("[push] VAPID public key prefix:", vapidPublicKey.substring(0, 20));
+
     const bodyJson = await req.json();
     const {
       institute_code,
