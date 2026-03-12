@@ -88,7 +88,8 @@ async function signVapidJwt(
   const header = { typ: "JWT", alg: "ES256" };
   const claims = {
     aud: audience,
-    exp: now + 12 * 3600, // 12 hour expiry
+    iat: now,
+    exp: now + 43200, // 12 hour expiry (FCM requires exp < 24h from now)
     sub: subject,
   };
 
