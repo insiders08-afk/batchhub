@@ -427,7 +427,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    const admin = createClient(supabaseUrl, serviceKey);
     let userIds: string[] | null = null;
 
     // Rule engine: resolve target users
