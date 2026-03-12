@@ -37,12 +37,30 @@ export default function AdminAuth() {
 
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [rememberMe, setRememberMe] = useState(true);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
 
   const handleRegChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setRegForm({ ...regForm, [e.target.name]: e.target.value });
 
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setForgotSent(true);
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to send reset email", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // When we go to pending/rejected, fetch the super admin's phone for that city
   const fetchSuperAdminPhone = async (city: string) => {
