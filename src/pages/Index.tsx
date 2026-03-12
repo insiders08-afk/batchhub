@@ -234,8 +234,8 @@ export default function Index() {
               <span className="text-sm text-muted-foreground mr-1">Try a demo:</span>
               {[
               { label: "Admin Demo", to: "/demo/admin", color: "bg-primary-light text-primary border-primary/20 hover:bg-primary/10" },
-              { label: "Teacher Demo", to: "/demo/teacher", color: "bg-success-light text-success border-success/20 hover:bg-success/10" },
-              { label: "Student Demo", to: "/demo/student", color: "bg-accent-light text-accent border-accent/20 hover:bg-accent/10" },
+              { label: "Teacher Demo", to: "/demo/teacher", color: "bg-success-light text-[hsl(142,60%,28%)] border-success/20 hover:bg-success/10" },
+              { label: "Student Demo", to: "/demo/student", color: "bg-accent-light text-[hsl(35,98%,30%)] border-accent/20 hover:bg-accent/10" },
               { label: "Parent Demo", to: "/demo/parent", color: "bg-muted text-foreground border-border/40 hover:bg-muted/70" }].
               map((d) =>
               <Link key={d.to} to={d.to}>
@@ -598,10 +598,10 @@ export default function Index() {
             <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors">Terms</a>
             <a href="#" className="hover:text-foreground transition-colors">Contact</a>
-            <Link to="/auth/superadmin" className="hover:text-foreground transition-colors opacity-60 hover:opacity-100">
+            <Link to="/auth/superadmin" className="hover:text-foreground transition-colors">
               City Partner Login
             </Link>
-            <Link to="/apply/city-partner" className="hover:text-foreground transition-colors opacity-60 hover:opacity-100">
+            <Link to="/apply/city-partner" className="hover:text-foreground transition-colors">
               Become a City Partner
             </Link>
           </div>
