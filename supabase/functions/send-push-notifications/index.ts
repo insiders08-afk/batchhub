@@ -66,35 +66,48 @@ async function signVapidJwt(
   vapidPrivateKeyB64u: string
 ): Promise<{ authorization: string; vapidPublicKey: string }> {
   // Import via JWK — handle both base64url and standard base64 key formats
-  // Normalize: convert standard base64 → base64url before decoding
+  // The private key secret is stored as PKCS8 DER base64 (138 bytes decoded, 184 chars encoded)
   const normalize = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "").trim();
 
   let privBytes = b64uDecode(normalize(vapidPrivateKeyB64u));
-  console.log("[vapid] raw private key length:", privBytes.length);
 
-  // Strip PKCS8/SEC1 header if present — raw P-256 private key is always 32 bytes
-  // PKCS8 EC PrivateKeyInfo structure has key at offset 36 (after header)
-  if (privBytes.length === 67) {
-    // Standard PKCS8 P-256: header is 35 bytes, raw key at offset 35
+  // Extract raw 32-byte EC private key from various formats:
+  // - 32 bytes: already raw
+  // - 67 bytes: compact PKCS8, raw key at offset 35
+  // - 121 bytes: SEC1 ECPrivateKey, raw key at offset 7
+  // - 138 bytes: full PKCS8 DER for P-256, raw key at offset 36
+  if (privBytes.length === 138) {
+    // Full PKCS8: 30 81 87 02 01 00 30 13 [algId 21B] 04 6D 30 6B 02 01 01 04 20 [32B key]
+    // Offsets:    0         3        24           45   47  49    52    55   57
+    // Exact: version(3)+algId(21)+outerOctetHdr(2)+innerSeq(2)+innerVer(3)+innerOctetHdr(2) = 33? No.
+    // Parse: 30 81 87 (3) + 02 01 00 (3) = 6; 30 13 (2) + 9-byte OID + 2 + 8-byte OID (21 total) = 6+21=27
+    // Then: 04 6D (2) = 29; 30 6B (2) = 31; 02 01 01 (3) = 34; 04 20 (2) = 36; KEY starts at 36
+    privBytes = privBytes.slice(36, 68);
+  } else if (privBytes.length === 67) {
+    // Compact PKCS8: key at offset 35
     privBytes = privBytes.slice(35, 67);
+  } else if (privBytes.length === 121) {
+    // SEC1 format: key at offset 7
+    privBytes = privBytes.slice(7, 39);
   } else if (privBytes.length > 32) {
-    // Generic: take last 32 bytes
-    privBytes = privBytes.slice(privBytes.length - 32);
+    // Fallback: scan for 04 20 marker which precedes the 32-byte raw key in PKCS8
+    let keyOffset = -1;
+    for (let i = 0; i < privBytes.length - 33; i++) {
+      if (privBytes[i] === 0x04 && privBytes[i + 1] === 0x20) {
+        keyOffset = i + 2;
+        break;
+      }
+    }
+    privBytes = keyOffset > 0 ? privBytes.slice(keyOffset, keyOffset + 32) : privBytes.slice(privBytes.length - 32);
   }
 
   const pubBytes = b64uDecode(normalize(vapidPublicKeyB64u));
-  console.log("[vapid] public key length:", pubBytes.length, "first byte:", pubBytes[0]);
-
   // VAPID public key is 65-byte uncompressed point: 0x04 | x(32) | y(32)
-  // Some keys are stored as 64-byte (without 0x04 prefix)
-  let xStart = 1;
-  if (pubBytes.length === 64) xStart = 0;
+  let xStart = pubBytes[0] === 0x04 ? 1 : 0;
 
   const x = b64uEncode(pubBytes.slice(xStart, xStart + 32));
   const y = b64uEncode(pubBytes.slice(xStart + 32, xStart + 64));
   const d = b64uEncode(privBytes);
-
-  console.log("[vapid] x len:", x.length, "y len:", y.length, "d len:", d.length);
 
   const cryptoKey = await crypto.subtle.importKey(
     "jwk",
