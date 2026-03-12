@@ -48,6 +48,7 @@ import OwnerAuth from "./pages/auth/OwnerAuth";
 import OwnerDashboard from "./pages/OwnerDashboard";
 import CityPartnerApply from "./pages/CityPartnerApply";
 import Install from "./pages/Install";
+import ResetPassword from "./pages/ResetPassword";
 
 const queryClient = new QueryClient();
 
@@ -60,6 +61,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/role-select" element={<RoleSelection />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           {/* Demo routes — pure fake data, no DB */}
           <Route path="/demo/admin" element={<AdminDemo />} />
           <Route path="/demo/teacher" element={<TeacherDemo />} />
