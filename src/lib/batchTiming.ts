@@ -103,7 +103,7 @@ export function isAttendanceEditable(schedule: string | null): {
   if (nowMins < startMins) {
     return {
       editable: false,
-      reason: `Attendance opens at ${openTime} (class start time). Locks at ${lockTime} (+2 hrs editing).`,
+      reason: `Attendance opens at ${openTime} (class start time). Locks at ${lockTime}.`,
       openTime,
       lockTime,
     };
@@ -111,7 +111,7 @@ export function isAttendanceEditable(schedule: string | null): {
   if (nowMins > cutoffMins) {
     return {
       editable: false,
-      reason: `Attendance window closed at ${lockTime} (2 hrs after class end).`,
+      reason: `Attendance window closed at ${lockTime}.`,
       openTime,
       lockTime,
     };
