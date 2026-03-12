@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Building2, Lock, Loader2, Save, Mail, IdCard, GraduationCap } from "lucide-react";
+import { User, Building2, Lock, Loader2, Save, Mail, IdCard, GraduationCap, Hash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,6 +33,8 @@ export default function StudentSettings() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editName, setEditName] = useState("");
+  const [studentId, setStudentId] = useState("");
   const [batchCount, setBatchCount] = useState(0);
 
   useEffect(() => {
@@ -46,15 +48,17 @@ export default function StudentSettings() {
       if (!user) return;
       setUserId(user.id);
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
+      const [profileRes, requestRes, batchRes] = await Promise.all([
+        supabase.from("profiles").select("*").eq("user_id", user.id).single(),
+        supabase.from("pending_requests").select("extra_data").eq("user_id", user.id).eq("role", "student").maybeSingle(),
+        supabase.from("students_batches").select("id", { count: "exact" }).eq("student_id", user.id),
+      ]);
 
-      if (profile) {
+      if (profileRes.data) {
+        const profile = profileRes.data;
         setProfileId(profile.id);
         setFullName(profile.full_name);
+        setEditName(profile.full_name);
         setEmail(profile.email);
         setPhone(profile.phone || "");
         setEditPhone(profile.phone || "");
@@ -70,11 +74,12 @@ export default function StudentSettings() {
         }
       }
 
-      const { count } = await supabase
-        .from("students_batches")
-        .select("id", { count: "exact" })
-        .eq("student_id", user.id);
-      setBatchCount(count || 0);
+      if (requestRes.data?.extra_data) {
+        const extra = requestRes.data.extra_data as Record<string, string>;
+        setStudentId(extra.studentId || "");
+      }
+
+      setBatchCount(batchRes.count || 0);
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load", variant: "destructive" });
     } finally {
@@ -86,20 +91,27 @@ export default function StudentSettings() {
     if (!profileId) return;
     setSaving(true);
     try {
+      const updates: Record<string, string> = {};
+      if (editPhone !== phone) updates.phone = editPhone;
+      if (editName !== fullName) updates.full_name = editName;
+
       const { error } = await supabase
         .from("profiles")
-        .update({ phone: editPhone })
+        .update(updates)
         .eq("id", profileId);
 
       if (error) throw error;
       setPhone(editPhone);
-      toast({ title: "✅ Phone number updated!" });
+      setFullName(editName);
+      toast({ title: "✅ Profile updated!" });
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to save", variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
+
+  const hasChanges = editPhone !== phone || editName !== fullName;
 
   if (loading) {
     return (
@@ -130,53 +142,63 @@ export default function StudentSettings() {
           {/* Student ID badge */}
           <div className="mb-5 p-3 rounded-xl bg-primary-light border border-primary/20 flex items-center gap-3">
             <div className="w-10 h-10 rounded-full gradient-hero flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-              {fullName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+              {editName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold text-sm truncate">{fullName}</p>
               <p className="text-xs text-muted-foreground">Student · {batchCount} batch{batchCount !== 1 ? "es" : ""}</p>
             </div>
-            <div className="text-right flex-shrink-0">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Student ID</p>
-              <p className="text-xs font-mono font-semibold text-primary">{userId.slice(0, 8).toUpperCase()}</p>
-            </div>
+            {studentId && (
+              <div className="text-right flex-shrink-0">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Student ID</p>
+                <p className="text-xs font-mono font-semibold text-primary">{studentId}</p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <ReadOnlyField label="Full Name" value={fullName} icon={<User className="w-3.5 h-3.5" />} />
+            {/* Full Name — editable */}
+            <div className="space-y-1.5">
+              <Label>Full Name <span className="text-primary text-xs">(editable)</span></Label>
+              <Input
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                placeholder="Enter full name"
+              />
+            </div>
+
             <ReadOnlyField label="Email Address" value={email} icon={<Mail className="w-3.5 h-3.5" />} />
 
             {/* Phone — editable */}
-            <div className="space-y-1.5 sm:col-span-2">
+            <div className="space-y-1.5">
               <Label>Phone Number <span className="text-primary text-xs">(editable)</span></Label>
-              <div className="flex gap-2">
-                <Input
-                  value={editPhone}
-                  onChange={e => setEditPhone(e.target.value)}
-                  placeholder="Enter phone number"
-                  className="flex-1"
-                />
-                <Button
-                  onClick={handleSave}
-                  disabled={saving || editPhone === phone}
-                  className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2 flex-shrink-0"
-                >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save
-                </Button>
-              </div>
+              <Input
+                value={editPhone}
+                onChange={e => setEditPhone(e.target.value)}
+                placeholder="Enter phone number"
+              />
             </div>
 
-            <ReadOnlyField
-              label="Student ID (full)"
-              value={userId}
-              icon={<IdCard className="w-3.5 h-3.5" />}
-              mono
-            />
+            {studentId ? (
+              <ReadOnlyField label="Student ID / Roll No." value={studentId} icon={<Hash className="w-3.5 h-3.5" />} />
+            ) : (
+              <ReadOnlyField label="System ID" value={userId.slice(0, 8).toUpperCase()} icon={<IdCard className="w-3.5 h-3.5" />} mono />
+            )}
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <Button
+              onClick={handleSave}
+              disabled={saving || !hasChanges}
+              className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save Changes
+            </Button>
           </div>
 
           <p className="mt-3 text-xs text-muted-foreground">
-            To update your name or email, contact your institute admin.
+            To update your email, contact your institute admin.
           </p>
         </Card>
 
