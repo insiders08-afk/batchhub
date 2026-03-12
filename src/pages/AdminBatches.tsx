@@ -762,6 +762,7 @@ export default function AdminBatches() {
     <DashboardLayout title="Batches">
       <div className="space-y-5">
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+
           <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input placeholder="Search batches..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
