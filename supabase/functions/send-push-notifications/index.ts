@@ -65,33 +65,46 @@ async function signVapidJwt(
   vapidPublicKeyB64u: string,
   vapidPrivateKeyB64u: string
 ): Promise<{ authorization: string; vapidPublicKey: string }> {
-  // Import private key — try raw 32-byte first, then PKCS8
+  // Import private key — decode from base64url, strip any PKCS8 header
   let privateKeyBytes = b64uDecode(vapidPrivateKeyB64u);
-
-  // If it looks like PKCS8 (longer than 32 bytes), strip the header
   if (privateKeyBytes.length > 32) {
-    // PKCS8 P-256 EC private key: 36-byte header, then 32-byte key
+    // Strip PKCS8 header — raw P-256 private key is always 32 bytes
     privateKeyBytes = privateKeyBytes.slice(privateKeyBytes.length - 32);
   }
 
-  // Build PKCS8 DER wrapper for P-256 EC private key
-  // SEQUENCE { SEQUENCE { OID ecPublicKey, OID P-256 }, OCTET STRING { SEQUENCE { INTEGER 1, OCTET STRING key } } }
-  const pkcs8Header = new Uint8Array([
-    0x30, 0x41,             // SEQUENCE (65 bytes)
-    0x02, 0x01, 0x00,       // INTEGER 0 (version)
-    0x30, 0x13,             // SEQUENCE (19 bytes)
-    0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, // OID 1.2.840.10045.2.1 (ecPublicKey)
-    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, // OID 1.2.840.10045.3.1.7 (P-256)
-    0x04, 0x27,             // OCTET STRING (39 bytes)
-    0x30, 0x25,             // SEQUENCE (37 bytes)
-    0x02, 0x01, 0x01,       // INTEGER 1
-    0x04, 0x20,             // OCTET STRING (32 bytes)
-    ...privateKeyBytes,     // private key bytes
+  // Build PKCS8 DER wrapper for P-256 EC private key dynamically
+  // ECPrivateKey = SEQUENCE { version INTEGER(1), privateKey OCTET STRING(32 bytes) }
+  // ecPrivateKeyDer = 0x30 0x25 0x02 0x01 0x01 0x04 0x20 <32 bytes>
+  const ecPrivDer = new Uint8Array(39);
+  ecPrivDer[0] = 0x30; ecPrivDer[1] = 0x25; // SEQUENCE 37
+  ecPrivDer[2] = 0x02; ecPrivDer[3] = 0x01; ecPrivDer[4] = 0x01; // version = 1
+  ecPrivDer[5] = 0x04; ecPrivDer[6] = 0x20; // OCTET STRING 32
+  ecPrivDer.set(privateKeyBytes, 7);
+
+  // AlgorithmIdentifier = SEQUENCE { OID id-ecPublicKey, OID secp256r1 }
+  const algId = new Uint8Array([
+    0x30, 0x13,
+    0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01, // ecPublicKey
+    0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07, // P-256
   ]);
+
+  // PrivateKeyInfo = SEQUENCE { version INTEGER(0), algId, OCTET STRING { ecPrivDer } }
+  const octetString = new Uint8Array(2 + ecPrivDer.length);
+  octetString[0] = 0x04; octetString[1] = ecPrivDer.length;
+  octetString.set(ecPrivDer, 2);
+
+  const innerLen = 3 + algId.length + octetString.length; // version(3) + algId + octetString
+  const pkcs8 = new Uint8Array(4 + innerLen);
+  pkcs8[0] = 0x30;
+  pkcs8[1] = 0x82; pkcs8[2] = (innerLen >> 8) & 0xff; pkcs8[3] = innerLen & 0xff;
+  // version INTEGER(0)
+  pkcs8[4] = 0x02; pkcs8[5] = 0x01; pkcs8[6] = 0x00;
+  pkcs8.set(algId, 7);
+  pkcs8.set(octetString, 7 + algId.length);
 
   const cryptoKey = await crypto.subtle.importKey(
     "pkcs8",
-    pkcs8Header.buffer,
+    pkcs8.buffer,
     { name: "ECDSA", namedCurve: "P-256" },
     false,
     ["sign"]
