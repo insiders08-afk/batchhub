@@ -25,10 +25,21 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Convert PKCS8 private key to raw 32-byte format if needed
+    // PKCS8 P-256 keys have a 36-byte header; raw key starts at byte 36
+    let rawPrivateKey = vapidPrivateKey;
+    try {
+      const decoded = base64UrlDecode(vapidPrivateKey);
+      if (decoded.length > 32) {
+        // Strip PKCS8 header — raw private key is the last 32 bytes
+        rawPrivateKey = base64UrlEncode(decoded.slice(decoded.length - 32));
+      }
+    } catch { /* use as-is */ }
+
     webpush.setVapidDetails(
       "mailto:admin@batchhub.app",
       vapidPublicKey,
-      vapidPrivateKey
+      rawPrivateKey
     );
 
     const body = await req.json();
