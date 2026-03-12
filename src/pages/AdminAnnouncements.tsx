@@ -128,15 +128,29 @@ export default function AdminAnnouncements() {
       if (error) throw error;
 
       // Trigger push notifications if requested
+      // Rule engine: if batch scoped → push only to that batch's students; else institute-wide
       if (form.notifyPush) {
-        supabase.functions.invoke("send-push-notifications", {
-          body: {
-            institute_code: instituteCode.data,
-            title: form.title.trim(),
-            body: form.content.trim(),
-            url: "/student/announcements",
-          },
-        }).catch(() => {/* non-critical */});
+        const pushPayload: Record<string, unknown> = {
+          institute_code: instituteCode.data,
+          title: form.title.trim(),
+          body: form.content.trim(),
+          url: "/student/announcements",
+        };
+        if (form.batchId !== "all") {
+          pushPayload.batch_id = form.batchId;
+        }
+        fetch(
+          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/send-push-notifications`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+              "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify(pushPayload),
+          }
+        ).catch(() => {/* non-critical */});
       }
 
       toast({ title: form.notifyPush ? "✅ Announcement posted with phone alert!" : "✅ Announcement posted!" });
