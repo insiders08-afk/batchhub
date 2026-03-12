@@ -274,7 +274,7 @@ export default function TeacherAttendance() {
           </div>
         </div>
 
-        {/* Batch schedule info + lock/day-off notice */}
+        {/* Batch schedule info + status notice */}
         {selectedBatch?.schedule && (() => {
           const t = (() => { try { const p = JSON.parse(selectedBatch.schedule!); return p.days?.length ? p : null; } catch { return null; } })();
           const todayName = new Date().toLocaleDateString("en-IN", { weekday: "long" });
@@ -290,11 +290,11 @@ export default function TeacherAttendance() {
                   <span className="text-muted-foreground">· Today: <span className="font-semibold text-foreground">{todayName}</span></span>
                 </div>
               )}
-              {/* Day-off override has priority */}
+              {/* Day-off always wins — overrides timing notice for the entire day */}
               {todayIsDayOff ? (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs border bg-warning/8 border-warning/25 text-warning">
                   <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>Attendance locked — Today is a marked Day Off for this batch.</span>
+                  <span className="font-semibold">Window closed — Day Off for this batch today.</span>
                 </div>
               ) : (
                 <div className={cn(
@@ -303,13 +303,7 @@ export default function TeacherAttendance() {
                 )}>
                   {attEditable ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> : <Lock className="w-3.5 h-3.5 flex-shrink-0" />}
                   {attEditable ? (
-                    <span>
-                      Attendance opens at <span className="font-semibold">{openTime}</span> (class start time). Locks at <span className="font-semibold">{lockTime}</span>
-                    </span>
-                  ) : openTime && lockTime ? (
-                    <span>
-                      {attLockReason} · Attendance opens at <span className="font-semibold">{openTime}</span> (class start time). Locks at <span className="font-semibold">{lockTime}</span>
-                    </span>
+                    <span>Attendance opens at <span className="font-semibold">{openTime}</span> (class start time). Locks at <span className="font-semibold">{lockTime}</span></span>
                   ) : (
                     <span>{attLockReason}</span>
                   )}
