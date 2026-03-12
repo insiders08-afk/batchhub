@@ -104,9 +104,14 @@ async function signVapidJwt(
   );
 
   const jwt = `${signingInput}.${b64uEncode(new Uint8Array(signature))}`;
+  const authHeader = `vapid t=${jwt},k=${vapidPublicKeyB64u}`;
+
+  console.log("[push] JWT aud:", audience);
+  console.log("[push] JWT sub:", subject);
+  console.log("[push] vapid k= prefix:", vapidPublicKeyB64u.substring(0, 20));
 
   return {
-    authorization: `vapid t=${jwt},k=${vapidPublicKeyB64u}`,
+    authorization: authHeader,
     vapidPublicKey: vapidPublicKeyB64u,
   };
 }
