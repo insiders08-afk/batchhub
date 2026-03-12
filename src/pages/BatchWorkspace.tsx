@@ -13,11 +13,13 @@ import { Switch } from "@/components/ui/switch";
 import {
   MessageSquare, Megaphone, CalendarCheck, FlaskConical,
   BookOpen, Trophy, ArrowLeft, Send, Plus, CheckCircle2,
-  XCircle, Clock, Users, Loader2, Star, Bell
+  XCircle, Clock, Users, Loader2, Star, Bell, Paperclip,
+  FileText, Image, X, Download
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sendPushNotification, getBatchStudentIds } from "@/lib/pushNotifications";
 
 interface BatchInfo {
   id: string;
@@ -34,6 +36,9 @@ interface ChatMessage {
   sender_role: string;
   message: string;
   created_at: string;
+  file_url?: string | null;
+  file_name?: string | null;
+  file_type?: string | null;
   isSelf?: boolean;
 }
 
@@ -63,11 +68,14 @@ interface TestScore {
   student_id: string;
 }
 
+const MAX_FILE_SIZE_MB = 10;
+
 export default function BatchWorkspace() {
   const { id: batchId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [batch, setBatch] = useState<BatchInfo | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string>("");
@@ -80,6 +88,8 @@ export default function BatchWorkspace() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   // Attendance
   const [students, setStudents] = useState<Student[]>([]);
@@ -225,18 +235,76 @@ export default function BatchWorkspace() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // ─── File upload helper ─────────────────────────────────────────────────────
+  const uploadChatFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
+    if (!currentUserId) return null;
+    const ext = file.name.split(".").pop() || "bin";
+    const path = `${currentUserId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const { error } = await supabase.storage
+      .from("chat-files")
+      .upload(path, file, { contentType: file.type, upsert: false });
+    if (error) { console.error("[upload]", error); return null; }
+    const { data: { publicUrl } } = supabase.storage.from("chat-files").getPublicUrl(path);
+    return { url: publicUrl, name: file.name, type: file.type };
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+      toast({ title: `File too large (max ${MAX_FILE_SIZE_MB} MB)`, variant: "destructive" });
+      return;
+    }
+    setAttachedFile(file);
+    e.target.value = "";
+  };
+
   const sendMessage = async () => {
-    if (!chatInput.trim() || !batch) return;
+    if ((!chatInput.trim() && !attachedFile) || !batch) return;
     setSendingMsg(true);
+
+    let fileData: { url: string; name: string; type: string } | null = null;
+    if (attachedFile) {
+      setUploadingFile(true);
+      fileData = await uploadChatFile(attachedFile);
+      setUploadingFile(false);
+      if (!fileData) {
+        toast({ title: "File upload failed", variant: "destructive" });
+        setSendingMsg(false);
+        return;
+      }
+    }
+
     const { error } = await supabase.from("batch_messages").insert({
       batch_id: batchId!,
       institute_code: batch.institute_code,
       sender_id: currentUserId,
       sender_name: currentUserName,
       sender_role: currentUserRole,
-      message: chatInput.trim(),
-    });
-    if (!error) setChatInput("");
+      message: chatInput.trim() || (fileData ? fileData.name : ""),
+      file_url: fileData?.url ?? null,
+      file_name: fileData?.name ?? null,
+      file_type: fileData?.type ?? null,
+    } as any);
+
+    if (!error) {
+      setChatInput("");
+      setAttachedFile(null);
+
+      // ─── Push rule: teacher message → notify all students in batch ───────
+      if ((currentUserRole === "teacher" || currentUserRole === "admin") && batch) {
+        const studentIds = await getBatchStudentIds(batchId!);
+        if (studentIds.length > 0) {
+          sendPushNotification({
+            institute_code: batch.institute_code,
+            title: `${currentUserName} (${batch.name})`,
+            body: chatInput.trim() || `📎 ${fileData?.name || "File shared"}`,
+            url: `/batch/${batchId}`,
+            target_user_ids: studentIds,
+          });
+        }
+      }
+    }
     setSendingMsg(false);
   };
 
@@ -245,7 +313,6 @@ export default function BatchWorkspace() {
     setSavingAttendance(true);
     const today = new Date().toISOString().split("T")[0];
 
-    // Upsert attendance for each student
     const rows = students.map(s => ({
       batch_id: batchId!,
       institute_code: batch.institute_code,
@@ -270,7 +337,6 @@ export default function BatchWorkspace() {
   const postAnnouncement = async () => {
     if (!newAnn.title || !newAnn.content || !batch) return;
     setSavingAnn(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase.from("announcements").insert({
       batch_id: batchId!,
       institute_code: batch.institute_code,
@@ -284,6 +350,16 @@ export default function BatchWorkspace() {
     if (error) {
       toast({ title: "Error posting announcement", variant: "destructive" });
     } else {
+      // ─── Push rule: announcement with notify toggle → batch students ─────
+      if (newAnn.notifyPush) {
+        sendPushNotification({
+          institute_code: batch.institute_code,
+          title: newAnn.title,
+          body: newAnn.content,
+          url: `/batch/${batchId}`,
+          batch_id: batchId!, // scoped to this batch's students
+        });
+      }
       toast({ title: newAnn.notifyPush ? "Announcement posted with phone alert!" : "Announcement posted!" });
       setAnnDialog(false);
       setNewAnn({ title: "", content: "", type: "general", notifyPush: false });
@@ -323,6 +399,9 @@ export default function BatchWorkspace() {
     if (hours < 24) return `${hours}h ago`;
     return `${Math.floor(hours / 24)}d ago`;
   };
+
+  const isImage = (type: string | null | undefined) => type?.startsWith("image/");
+  const isPDF = (type: string | null | undefined) => type === "application/pdf";
 
   if (loading) {
     return (
@@ -390,7 +469,7 @@ export default function BatchWorkspace() {
         </div>
 
         <div className="flex-1 overflow-hidden">
-          {/* Chat */}
+          {/* ── Chat ── */}
           <TabsContent value="chat" className="h-full flex flex-col m-0 data-[state=inactive]:hidden">
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && (
@@ -431,7 +510,37 @@ export default function BatchWorkspace() {
                         ? "gradient-hero text-white rounded-tr-sm"
                         : "bg-card border border-border/60 rounded-tl-sm"
                     )}>
-                      {msg.message}
+                      {/* File attachment */}
+                      {msg.file_url && (
+                        <div className="mb-1.5">
+                          {isImage(msg.file_type) ? (
+                            <a href={msg.file_url} target="_blank" rel="noopener noreferrer">
+                              <img
+                                src={msg.file_url}
+                                alt={msg.file_name || "image"}
+                                className="max-w-[200px] max-h-[160px] rounded-lg object-cover border border-white/20"
+                              />
+                            </a>
+                          ) : (
+                            <a
+                              href={msg.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn(
+                                "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium",
+                                msg.isSelf ? "bg-white/20 text-white" : "bg-muted text-foreground"
+                              )}
+                            >
+                              {isPDF(msg.file_type) ? <FileText className="w-4 h-4 flex-shrink-0" /> : <Download className="w-4 h-4 flex-shrink-0" />}
+                              <span className="truncate max-w-[140px]">{msg.file_name || "Download file"}</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {/* Text */}
+                      {msg.message && msg.message !== msg.file_name && (
+                        <span>{msg.message}</span>
+                      )}
                     </div>
                     <span className="text-xs text-muted-foreground">
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -441,7 +550,52 @@ export default function BatchWorkspace() {
               ))}
               <div ref={chatEndRef} />
             </div>
-            <div className="border-t border-border/50 p-3 bg-card flex gap-2">
+
+            {/* Attached file preview */}
+            {attachedFile && (
+              <div className="px-3 py-2 bg-muted/50 border-t border-border/40 flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-0 bg-card border border-border/50 rounded-lg px-3 py-1.5">
+                  {attachedFile.type.startsWith("image/") ? (
+                    <Image className="w-4 h-4 text-primary flex-shrink-0" />
+                  ) : (
+                    <FileText className="w-4 h-4 text-primary flex-shrink-0" />
+                  )}
+                  <span className="text-xs truncate text-foreground">{attachedFile.name}</span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                    {(attachedFile.size / 1024 / 1024).toFixed(1)} MB
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-7 h-7 text-muted-foreground hover:text-danger flex-shrink-0"
+                  onClick={() => setAttachedFile(null)}
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+
+            {/* Chat input */}
+            <div className="border-t border-border/50 p-3 bg-card flex gap-2 items-end">
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.zip"
+                onChange={handleFileSelect}
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="w-9 h-9 text-muted-foreground hover:text-primary flex-shrink-0"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sendingMsg}
+                title="Attach file"
+              >
+                <Paperclip className="w-4 h-4" />
+              </Button>
               <Input
                 placeholder="Type a message..."
                 value={chatInput}
@@ -452,7 +606,7 @@ export default function BatchWorkspace() {
               <Button
                 onClick={sendMessage}
                 size="icon"
-                disabled={sendingMsg || !chatInput.trim()}
+                disabled={sendingMsg || (!chatInput.trim() && !attachedFile)}
                 className="w-9 h-9 gradient-hero text-white border-0 hover:opacity-90 flex-shrink-0"
               >
                 {sendingMsg ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
@@ -460,7 +614,7 @@ export default function BatchWorkspace() {
             </div>
           </TabsContent>
 
-          {/* Announcements */}
+          {/* ── Announcements ── */}
           <TabsContent value="announcements" className="h-full overflow-y-auto m-0 p-4 data-[state=inactive]:hidden">
             <div className="max-w-2xl space-y-4">
               {(currentUserRole === "teacher" || currentUserRole === "admin") && (
@@ -489,7 +643,7 @@ export default function BatchWorkspace() {
                           <Bell className="w-4 h-4 text-accent" />
                           <div>
                             <p className="text-sm font-medium">Alert students on phone</p>
-                            <p className="text-xs text-muted-foreground">Send a mobile notification for this announcement</p>
+                            <p className="text-xs text-muted-foreground">Send a mobile push notification</p>
                           </div>
                         </div>
                         <Switch
@@ -520,7 +674,7 @@ export default function BatchWorkspace() {
                              {ann.type && <Badge variant="secondary" className="text-xs">{ann.type}</Badge>}
                              {ann.notify_push && (
                                <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
-                                 <Bell className="w-2.5 h-2.5" /> Important
+                                 <Bell className="w-2.5 h-2.5" /> Alerted
                                </Badge>
                              )}
                            </div>
@@ -538,7 +692,7 @@ export default function BatchWorkspace() {
             </div>
           </TabsContent>
 
-          {/* Attendance */}
+          {/* ── Attendance ── */}
           <TabsContent value="attendance" className="h-full overflow-y-auto m-0 p-4 data-[state=inactive]:hidden">
             <div className="max-w-xl space-y-4">
               <div className="grid grid-cols-3 gap-3">
@@ -614,7 +768,7 @@ export default function BatchWorkspace() {
             </div>
           </TabsContent>
 
-          {/* Tests */}
+          {/* ── Tests ── */}
           <TabsContent value="tests" className="h-full overflow-y-auto m-0 p-4 data-[state=inactive]:hidden">
             <div className="max-w-2xl space-y-4">
               <div className="flex justify-between items-center">
@@ -702,7 +856,7 @@ export default function BatchWorkspace() {
             </div>
           </TabsContent>
 
-          {/* Rankings */}
+          {/* ── Rankings ── */}
           <TabsContent value="rankings" className="h-full overflow-y-auto m-0 p-4 data-[state=inactive]:hidden">
             <div className="max-w-md space-y-4">
               <Card className="shadow-card border-border/50 overflow-hidden">
@@ -716,7 +870,6 @@ export default function BatchWorkspace() {
                 {tests.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground text-sm">No test scores yet to rank.</div>
                 ) : (() => {
-                  // Aggregate scores by student
                   const byStudent: Record<string, { name: string; total: number; count: number }> = {};
                   tests.forEach(t => {
                     const s = students.find(s => s.user_id === t.student_id);

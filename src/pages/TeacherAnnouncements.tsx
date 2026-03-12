@@ -116,6 +116,30 @@ export default function TeacherAnnouncements() {
         notify_push: form.notifyPush,
       } as any);
       if (error) throw error;
+
+      // Push notification rule engine: batch-scoped or all-institute
+      if (form.notifyPush) {
+        const pushPayload: Record<string, unknown> = {
+          institute_code: code!,
+          title: form.title.trim(),
+          body: form.content.trim(),
+          url: "/student/announcements",
+        };
+        if (form.batchId !== "all") pushPayload.batch_id = form.batchId;
+        fetch(
+          `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/send-push-notifications`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+              "apikey": import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify(pushPayload),
+          }
+        ).catch(() => {/* non-critical */});
+      }
+
       toast({ title: form.notifyPush ? "✅ Announcement posted with phone alert!" : "✅ Announcement posted!" });
       setForm({ title: "", content: "", batchId: "all", type: "general", notifyPush: false });
       setDialogOpen(false);

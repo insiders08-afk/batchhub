@@ -147,6 +147,9 @@ export type Database = {
         Row: {
           batch_id: string
           created_at: string
+          file_name: string | null
+          file_type: string | null
+          file_url: string | null
           id: string
           institute_code: string
           message: string
@@ -157,6 +160,9 @@ export type Database = {
         Insert: {
           batch_id: string
           created_at?: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           institute_code: string
           message: string
@@ -167,6 +173,9 @@ export type Database = {
         Update: {
           batch_id?: string
           created_at?: string
+          file_name?: string | null
+          file_type?: string | null
+          file_url?: string | null
           id?: string
           institute_code?: string
           message?: string
