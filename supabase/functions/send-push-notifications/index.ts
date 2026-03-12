@@ -316,10 +316,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Debug: log first 20 chars of public key so we can compare with what client registered
-    console.log("[push] VAPID public key prefix:", vapidPublicKey.substring(0, 20));
-    console.log("[push] VAPID private key length:", vapidPrivateKey.length);
-    console.log("[push] VAPID private key prefix:", vapidPrivateKey.substring(0, 10));
+    console.log("[push] Loaded VAPID keys, sending notifications...");
 
     const bodyJson = await req.json();
     const {
