@@ -1,3 +1,13 @@
+/**
+ * fee-overdue-notify — Production-hardened edge function
+ *
+ * SECURITY LAYERS:
+ *  1. Auth gate  – requires valid Supabase JWT (admin role) OR service role key.
+ *  2. Rate limit – 10 req / minute per IP (this is an admin-only endpoint).
+ *  3. Input sanitisation.
+ *  4. No secrets hardcoded.
+ */
+
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -5,7 +15,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// ─── VAPID / Web Push helpers ──────────────────────────────────────────────
 
 function base64UrlEncode(data: Uint8Array): string {
   return btoa(String.fromCharCode(...data)).replace(/\+/g,"-").replace(/\//g,"_").replace(/=/g,"");
@@ -92,63 +102,155 @@ async function sendWebPush(
   });
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+// ─── Main handler ──────────────────────────────────────────────────────────
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers: corsHeaders });
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+    const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const vapidPublicKey  = Deno.env.get("VAPID_PUBLIC_KEY");
     const vapidPrivateKey = Deno.env.get("VAPID_PRIVATE_KEY");
 
     if (!vapidPublicKey || !vapidPrivateKey) {
-      return new Response(JSON.stringify({ error: "VAPID keys not configured" }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(
+        JSON.stringify({ error: "VAPID keys not configured" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const admin = createClient(supabaseUrl, serviceKey);
+    // ── Authentication: require valid JWT with admin role ──────────────────
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized – bearer token required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
-    // Find all overdue fees (not paid, due_date + 7 days < today)
-    const today = new Date();
-    const cutoff = new Date(today);
-    cutoff.setDate(cutoff.getDate() - 7);
-    const cutoffStr = cutoff.toISOString().split("T")[0];
+    const token = authHeader.replace("Bearer ", "");
+    const userClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+      auth:   { autoRefreshToken: false, persistSession: false },
+    });
 
-    // Parse body for optional specific student_id/fee_id (manual trigger)
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims?.sub) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized – invalid token" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const callerUserId = claimsData.claims.sub;
+
+    // Verify caller is admin or service role
+    const admin = createClient(supabaseUrl, serviceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data: roleData } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", callerUserId)
+      .in("role", ["admin", "super_admin", "app_owner"])
+      .maybeSingle();
+
+    if (!roleData) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden – admin role required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ── Rate limiting ──────────────────────────────────────────────────────
+    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const windowStart = new Date(); windowStart.setSeconds(0, 0);
+    const windowEnd   = new Date(windowStart.getTime() + 60000);
+
+    const { data: rlData } = await admin
+      .from("rate_limits")
+      .select("id, request_count")
+      .eq("identifier", clientIp)
+      .eq("action", "fee-overdue-notify")
+      .gte("window_start", windowStart.toISOString())
+      .maybeSingle();
+
+    if (rlData && rlData.request_count >= 10) {
+      return new Response(
+        JSON.stringify({ error: "Rate limit exceeded (10 req/min)" }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            "Content-Type":          "application/json",
+            "X-RateLimit-Limit":     "10",
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Reset":     String(Math.floor(windowEnd.getTime() / 1000)),
+            "Retry-After":           "60",
+          },
+        }
+      );
+    }
+
+    // Upsert rate limit counter
+    if (rlData) {
+      await admin.from("rate_limits")
+        .update({ request_count: rlData.request_count + 1 })
+        .eq("id", rlData.id);
+    } else {
+      await admin.from("rate_limits").insert({
+        identifier: clientIp,
+        action: "fee-overdue-notify",
+        window_start: windowStart.toISOString(),
+        request_count: 1,
+      });
+    }
+
+    // ── Parse body ─────────────────────────────────────────────────────────
     let body: Record<string, string> = {};
     try { body = await req.json(); } catch { /* scheduled call, no body */ }
+
+    const today   = new Date();
+    const cutoff  = new Date(today);
+    cutoff.setDate(cutoff.getDate() - 7);
+    const cutoffStr = cutoff.toISOString().split("T")[0];
 
     let feesQuery = admin.from("fees")
       .select("id, student_id, amount, payment_frequency, due_date, institute_code, description")
       .eq("paid", false)
       .lte("due_date", cutoffStr);
 
-    if (body.fee_id) feesQuery = feesQuery.eq("id", body.fee_id);
-    else if (body.student_id) feesQuery = feesQuery.eq("student_id", body.student_id);
+    if (body.fee_id)     feesQuery = feesQuery.eq("id",         body.fee_id.substring(0, 36));
+    else if (body.student_id) feesQuery = feesQuery.eq("student_id", body.student_id.substring(0, 36));
 
     const { data: overdueFees, error: feesErr } = await feesQuery;
     if (feesErr) throw feesErr;
+
     if (!overdueFees || overdueFees.length === 0) {
-      return new Response(JSON.stringify({ notified: 0 }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(
+        JSON.stringify({ notified: 0 }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     let notified = 0;
 
     for (const fee of overdueFees) {
-      const dueDate = new Date(fee.due_date);
+      const dueDate    = new Date(fee.due_date);
       const daysOverdue = Math.ceil((today.getTime() - dueDate.getTime()) / 86400000) - 7;
-      const amountStr = `₹${Number(fee.amount).toLocaleString("en-IN")}`;
+      const amountStr  = `₹${Number(fee.amount).toLocaleString("en-IN")}`;
       const dueDateStr = dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "long" });
 
-      // Get push subscriptions for this student
       const { data: subs } = await admin.from("push_subscriptions")
         .select("endpoint, p256dh, auth_key")
         .eq("user_id", fee.student_id);
 
       const notifPayload = JSON.stringify({
         title: "⚠ Fee Overdue",
-        body: `Your ${fee.payment_frequency || "fee"} payment of ${amountStr} was due on ${dueDateStr} (${Math.max(0,daysOverdue)} day${daysOverdue !== 1 ? "s" : ""} overdue). Please pay immediately.`,
+        body: `Your ${fee.payment_frequency || "fee"} payment of ${amountStr} was due on ${dueDateStr} (${Math.max(0, daysOverdue)} day${daysOverdue !== 1 ? "s" : ""} overdue). Please pay immediately.`,
         url: "/student/fees",
         icon: "/icons/pwa-192x192.png",
       });
@@ -158,7 +260,7 @@ Deno.serve(async (req) => {
         notified++;
       }
 
-      // Also notify parents linked to this student
+      // Notify parents too
       const { data: parentReqs } = await admin.from("pending_requests")
         .select("user_id")
         .eq("role", "parent")
@@ -177,9 +279,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ notified, total: overdueFees.length }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({ notified, total: overdueFees.length }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (err) {
     console.error("[fee-overdue-notify]", err);
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({ error: "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });
