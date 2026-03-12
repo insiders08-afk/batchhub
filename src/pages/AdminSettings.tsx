@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Bell, Users, Loader2, Save, Lock, Mail } from "lucide-react";
+import { Building2, Bell, Users, Loader2, Save, Lock, Mail, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
@@ -31,7 +31,14 @@ export default function AdminSettings() {
   const [team, setTeam] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [instituteName, setInstituteName] = useState("");
+
+  // Admin personal profile
+  const [profileId, setProfileId] = useState("");
+  const [adminFullName, setAdminFullName] = useState("");
+  const [editAdminName, setEditAdminName] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -40,6 +47,7 @@ export default function AdminSettings() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const { data: { user } } = await supabase.auth.getUser();
       const { data: codeData } = await supabase.rpc("get_my_institute_code");
       const myInstCode = codeData as string | null;
 
@@ -48,23 +56,24 @@ export default function AdminSettings() {
         return;
       }
 
-      const { data: inst, error: instErr } = await supabase
-        .from("institutes")
-        .select("*")
-        .eq("institute_code", myInstCode)
-        .maybeSingle();
+      const [instRes, profilesRes, myProfileRes] = await Promise.all([
+        supabase.from("institutes").select("*").eq("institute_code", myInstCode).maybeSingle(),
+        supabase.from("profiles").select("*").eq("institute_code", myInstCode).eq("role", "admin"),
+        user ? supabase.from("profiles").select("*").eq("user_id", user.id).single() : Promise.resolve({ data: null }),
+      ]);
 
-      if (instErr) throw instErr;
-      if (inst) {
-        setInstitute(inst);
-        setInstituteName(inst.institute_name);
+      if (instRes.data) {
+        setInstitute(instRes.data);
+        setInstituteName(instRes.data.institute_name);
+      }
+      setTeam(profilesRes.data || []);
 
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("institute_code", myInstCode)
-          .eq("role", "admin");
-        setTeam(profiles || []);
+      if (myProfileRes.data) {
+        const p = myProfileRes.data;
+        setProfileId(p.id);
+        setAdminFullName(p.full_name);
+        setEditAdminName(p.full_name);
+        setAdminEmail(p.email);
       }
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load", variant: "destructive" });
@@ -73,7 +82,7 @@ export default function AdminSettings() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSaveInstitute = async () => {
     if (!institute) return;
     setSaving(true);
     try {
@@ -81,7 +90,6 @@ export default function AdminSettings() {
         .from("institutes")
         .update({ institute_name: instituteName })
         .eq("id", institute.id);
-
       if (error) throw error;
       toast({ title: "✅ Institute name updated!" });
       fetchData();
@@ -89,6 +97,24 @@ export default function AdminSettings() {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to save", variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!profileId) return;
+    setSavingProfile(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ full_name: editAdminName })
+        .eq("id", profileId);
+      if (error) throw error;
+      setAdminFullName(editAdminName);
+      toast({ title: "✅ Name updated!" });
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to save", variant: "destructive" });
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -115,6 +141,57 @@ export default function AdminSettings() {
     <DashboardLayout title="Settings">
       <div className="space-y-5 max-w-2xl">
 
+        {/* Admin Personal Profile */}
+        <Card className="p-5 shadow-card border-border/50">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-9 h-9 rounded-xl bg-success-light flex items-center justify-center">
+              <User className="w-4 h-4 text-success" />
+            </div>
+            <div>
+              <h3 className="font-display font-semibold">My Profile</h3>
+              <p className="text-xs text-muted-foreground">Your personal account details</p>
+            </div>
+          </div>
+
+          {/* Admin badge */}
+          <div className="mb-4 p-3 rounded-xl bg-primary-light border border-primary/20 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full gradient-hero flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+              {editAdminName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold text-sm truncate">{adminFullName}</p>
+              <p className="text-xs text-muted-foreground">Admin</p>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Institute</p>
+              <p className="text-xs font-mono font-semibold text-primary">{institute?.institute_code || "—"}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Full Name <span className="text-primary text-xs">(editable)</span></Label>
+              <Input
+                value={editAdminName}
+                onChange={e => setEditAdminName(e.target.value)}
+                placeholder="Enter your name"
+              />
+            </div>
+            <ReadOnlyField label="Email Address" value={adminEmail} icon={<Mail className="w-3.5 h-3.5" />} />
+          </div>
+
+          <div className="mt-4">
+            <Button
+              className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2"
+              onClick={handleSaveProfile}
+              disabled={savingProfile || editAdminName === adminFullName}
+            >
+              {savingProfile ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><Save className="w-4 h-4" />Save Name</>}
+            </Button>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">To update your email, contact Super Admin.</p>
+        </Card>
+
         {/* Institute Profile */}
         <Card className="p-5 shadow-card border-border/50">
           <div className="flex items-center gap-3 mb-5">
@@ -128,7 +205,6 @@ export default function AdminSettings() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Only editable field */}
             <div className="space-y-1.5 sm:col-span-2">
               <Label>Institute Name <span className="text-primary text-xs">(editable)</span></Label>
               <Input
@@ -137,8 +213,6 @@ export default function AdminSettings() {
                 placeholder="Enter institute name"
               />
             </div>
-
-            {/* Read-only fields */}
             <ReadOnlyField label="City" value={institute?.city || ""} />
             <ReadOnlyField label="Contact Email" value={institute?.email || ""} icon={<Mail className="w-3.5 h-3.5" />} />
             <ReadOnlyField label="Contact Phone" value={institute?.phone || ""} />
@@ -164,7 +238,7 @@ export default function AdminSettings() {
           <div className="mt-4 flex flex-col sm:flex-row gap-3">
             <Button
               className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-2"
-              onClick={handleSave}
+              onClick={handleSaveInstitute}
               disabled={saving || instituteName === institute?.institute_name}
             >
               {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><Save className="w-4 h-4" />Save Name</>}

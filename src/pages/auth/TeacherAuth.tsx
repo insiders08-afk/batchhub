@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, BookOpen, Eye, EyeOff, Loader2, XCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Zap, BookOpen, Eye, EyeOff, Loader2, XCircle, CheckCircle2, KeyRound } from "lucide-react";
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-type Screen = "register" | "login";
+type Screen = "register" | "login" | "forgot";
 type PendingStatus = "pending" | "rejected" | "approved";
 
 export default function TeacherAuth() {
@@ -31,11 +31,29 @@ export default function TeacherAuth() {
   });
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [rememberMe, setRememberMe] = useState(true);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value });
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setForgotSent(true);
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to send reset email", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -288,6 +306,35 @@ export default function TeacherAuth() {
                     {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</> : "Submit for Admin Approval"}
                   </Button>
                 </form>
+              ) : screen === "forgot" ? (
+                <div className="space-y-4">
+                  {forgotSent ? (
+                    <div className="text-center py-4 space-y-3">
+                      <div className="w-14 h-14 rounded-full bg-success-light flex items-center justify-center mx-auto">
+                        <CheckCircle2 className="w-7 h-7 text-success" />
+                      </div>
+                      <p className="font-semibold">Reset email sent!</p>
+                      <p className="text-sm text-muted-foreground">Check your inbox for the password reset link.</p>
+                      <button className="text-sm text-primary hover:underline" onClick={() => { setForgotSent(false); setScreen("login"); }}>
+                        Back to Sign In
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleForgotPassword} className="space-y-4">
+                      <p className="text-sm text-muted-foreground">Enter your registered email and we'll send a reset link.</p>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="forgotEmail">Email Address *</Label>
+                        <Input id="forgotEmail" type="email" placeholder="teacher@email.com" required value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} />
+                      </div>
+                      <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-success to-emerald-400 text-white border-0 hover:opacity-90 h-11 font-semibold">
+                        {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><KeyRound className="w-4 h-4 mr-2" />Send Reset Link</>}
+                      </Button>
+                      <button type="button" className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={() => setScreen("login")}>
+                        ← Back to Sign In
+                      </button>
+                    </form>
+                  )}
+                </div>
               ) : (
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-1.5">
@@ -295,7 +342,12 @@ export default function TeacherAuth() {
                     <Input id="loginEmail" name="email" type="email" placeholder="teacher@email.com" required onChange={handleLoginChange} value={loginForm.email} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="loginPassword">Password *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="loginPassword">Password *</Label>
+                      <button type="button" className="text-xs text-primary hover:underline" onClick={() => setScreen("forgot")}>
+                        Forgot password?
+                      </button>
+                    </div>
                     <div className="relative">
                       <Input
                         id="loginPassword" name="password"
