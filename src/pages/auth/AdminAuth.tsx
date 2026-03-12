@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2, Eye, EyeOff, Phone } from "lucide-react";
+import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2, Eye, EyeOff, Phone, KeyRound } from "lucide-react";
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { INDIA_CITIES } from "../CityPartnerApply";
 
-type Screen = "register" | "login" | "pending" | "rejected";
+type Screen = "register" | "login" | "pending" | "rejected" | "forgot";
 
 export default function AdminAuth() {
   const navigate = useNavigate();
