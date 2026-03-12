@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, BookOpen, Eye, EyeOff, Loader2, XCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Zap, BookOpen, Eye, EyeOff, Loader2, XCircle, CheckCircle2, KeyRound } from "lucide-react";
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-type Screen = "register" | "login";
+type Screen = "register" | "login" | "forgot";
 type PendingStatus = "pending" | "rejected" | "approved";
 
 export default function TeacherAuth() {
