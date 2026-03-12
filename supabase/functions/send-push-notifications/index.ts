@@ -65,16 +65,36 @@ async function signVapidJwt(
   vapidPublicKeyB64u: string,
   vapidPrivateKeyB64u: string
 ): Promise<{ authorization: string; vapidPublicKey: string }> {
-  // Import via JWK — simplest and most reliable in Deno WebCrypto
-  // VAPID public key is 65-byte uncompressed EC point: 0x04 | x(32) | y(32)
-  let privBytes = b64uDecode(vapidPrivateKeyB64u);
-  // Strip PKCS8/SEC1 header if present — raw key is 32 bytes
-  if (privBytes.length > 32) privBytes = privBytes.slice(privBytes.length - 32);
+  // Import via JWK — handle both base64url and standard base64 key formats
+  // Normalize: convert standard base64 → base64url before decoding
+  const normalize = (s: string) => s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "").trim();
 
-  const pubBytes = b64uDecode(vapidPublicKeyB64u); // 65 bytes: 0x04 | x | y
-  const x = b64uEncode(pubBytes.slice(1, 33));
-  const y = b64uEncode(pubBytes.slice(33, 65));
+  let privBytes = b64uDecode(normalize(vapidPrivateKeyB64u));
+  console.log("[vapid] raw private key length:", privBytes.length);
+
+  // Strip PKCS8/SEC1 header if present — raw P-256 private key is always 32 bytes
+  // PKCS8 EC PrivateKeyInfo structure has key at offset 36 (after header)
+  if (privBytes.length === 67) {
+    // Standard PKCS8 P-256: header is 35 bytes, raw key at offset 35
+    privBytes = privBytes.slice(35, 67);
+  } else if (privBytes.length > 32) {
+    // Generic: take last 32 bytes
+    privBytes = privBytes.slice(privBytes.length - 32);
+  }
+
+  const pubBytes = b64uDecode(normalize(vapidPublicKeyB64u));
+  console.log("[vapid] public key length:", pubBytes.length, "first byte:", pubBytes[0]);
+
+  // VAPID public key is 65-byte uncompressed point: 0x04 | x(32) | y(32)
+  // Some keys are stored as 64-byte (without 0x04 prefix)
+  let xStart = 1;
+  if (pubBytes.length === 64) xStart = 0;
+
+  const x = b64uEncode(pubBytes.slice(xStart, xStart + 32));
+  const y = b64uEncode(pubBytes.slice(xStart + 32, xStart + 64));
   const d = b64uEncode(privBytes);
+
+  console.log("[vapid] x len:", x.length, "y len:", y.length, "d len:", d.length);
 
   const cryptoKey = await crypto.subtle.importKey(
     "jwk",
