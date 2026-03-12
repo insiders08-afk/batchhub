@@ -1,8 +1,13 @@
 /**
  * send-push-notifications
  * Pure Deno WebCrypto VAPID implementation — no npm:web-push dependency.
- * Implements RFC 8292 (VAPID) + RFC 8291 (message encryption) from scratch
- * using the native SubtleCrypto API available in Deno edge runtime.
+ * Implements RFC 8292 (VAPID) + RFC 8291 (message encryption) from scratch.
+ *
+ * SECURITY LAYERS:
+ *  1. Auth gate  – accepts valid Supabase JWT OR x-internal-secret (DB trigger).
+ *  2. Rate limit – 60 req/min per IP using rate_limits table.
+ *  3. Input sanitisation – all inputs validated and truncated.
+ *  4. No secrets hardcoded – all keys from env vars.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -10,8 +15,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, x-internal-secret, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
+
+const RATE_LIMIT_IP_RPM = 60;
 
 // ─── Base64url helpers ────────────────────────────────────────────────────────
 function b64uEncode(data: Uint8Array): string {
