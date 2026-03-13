@@ -289,23 +289,18 @@ export default function AdminAttendance() {
           );
         })()}
 
-        {todayIsDayOff && (
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-warning/30 bg-warning/8 text-warning text-sm font-semibold">
-            <Lock className="w-4 h-4 flex-shrink-0" />
-            Day Off — No Attendance today for this batch.
-          </div>
-        )}
+        {/* Intentionally removed: duplicate day-off banner was redundant with the schedule status notice above */}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-3">
             <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Present", value: presentCount, color: "success" },
-                { label: "Absent", value: students.length - presentCount, color: "danger" },
-                { label: "Attendance %", value: `${pct}%`, color: pct >= 75 ? "success" : "danger" },
+                { label: "Present", value: todayIsDayOff ? "—" : presentCount, color: "success" },
+                { label: "Absent", value: todayIsDayOff ? "—" : students.length - presentCount, color: "danger" },
+                { label: "Attendance %", value: todayIsDayOff ? "—" : `${pct}%`, color: pct >= 75 ? "success" : "danger" },
               ].map(s => (
                 <Card key={s.label} className="p-4 text-center shadow-card border-border/50">
-                  <div className={`text-2xl font-display font-bold ${s.color === "success" ? "text-success" : "text-danger"}`}>{s.value}</div>
+                  <div className={`text-2xl font-display font-bold ${s.value === "—" ? "text-muted-foreground" : s.color === "success" ? "text-success" : "text-danger"}`}>{s.value}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
                 </Card>
               ))}
@@ -418,6 +413,25 @@ export default function AdminAttendance() {
                 instituteCode={instituteCode}
                 role="admin"
                 schedule={selectedBatch?.schedule}
+                onDayOffChange={() => {
+                  // Re-check day-off status for today when calendar changes
+                  setTodayIsDayOff(false);
+                  supabase
+                    .from("announcements")
+                    .select("content, title")
+                    .eq("batch_id", selectedBatchId)
+                    .eq("type", "day_off")
+                    .then(({ data }) => {
+                      if (!data) return;
+                      const todayKey = today;
+                      const found = data.some(ann => {
+                        const tagMatch = (ann.content || "").match(/day_off_date:(\d{4}-\d{2}-\d{2})/);
+                        if (tagMatch) return tagMatch[1] === todayKey;
+                        return false;
+                      });
+                      setTodayIsDayOff(found);
+                    });
+                }}
               />
             )}
           </div>

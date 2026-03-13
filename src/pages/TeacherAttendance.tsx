@@ -313,24 +313,18 @@ export default function TeacherAttendance() {
           );
         })()}
 
-        {/* Day-off banner */}
-        {todayIsDayOff && (
-          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-warning/30 bg-warning/8 text-warning text-sm font-semibold">
-            <Lock className="w-4 h-4 flex-shrink-0" />
-            Day Off — No Attendance today for this batch.
-          </div>
-        )}
+        {/* Duplicate day-off banner removed — the schedule notice above is sufficient */}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Present", value: presentCount, color: "text-success" },
-                { label: "Absent", value: students.length - presentCount, color: "text-danger" },
-                { label: "Rate", value: `${pct}%`, color: pct >= 75 ? "text-success" : "text-danger" },
+                { label: "Present", value: todayIsDayOff ? "—" : presentCount, color: "text-success" },
+                { label: "Absent", value: todayIsDayOff ? "—" : students.length - presentCount, color: "text-danger" },
+                { label: "Rate", value: todayIsDayOff ? "—" : `${pct}%`, color: pct >= 75 ? "text-success" : "text-danger" },
               ].map(s => (
                 <Card key={s.label} className="p-4 text-center shadow-card border-border/50">
-                  <div className={`text-2xl font-display font-bold ${s.color}`}>{s.value}</div>
+                  <div className={`text-2xl font-display font-bold ${s.value === "—" ? "text-muted-foreground" : s.color}`}>{s.value}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
                 </Card>
               ))}
@@ -444,6 +438,22 @@ export default function TeacherAttendance() {
                 instituteCode={instituteCode}
                 role="teacher"
                 schedule={selectedBatch?.schedule}
+                onDayOffChange={() => {
+                  setTodayIsDayOff(false);
+                  supabase
+                    .from("announcements")
+                    .select("content")
+                    .eq("batch_id", selectedBatchId)
+                    .eq("type", "day_off")
+                    .then(({ data }) => {
+                      if (!data) return;
+                      const todayKey = today;
+                      setTodayIsDayOff(data.some(ann => {
+                        const tagMatch = (ann.content || "").match(/day_off_date:(\d{4}-\d{2}-\d{2})/);
+                        return tagMatch ? tagMatch[1] === todayKey : false;
+                      }));
+                    });
+                }}
               />
             )}
           </div>

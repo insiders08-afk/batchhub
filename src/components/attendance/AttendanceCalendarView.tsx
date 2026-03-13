@@ -17,6 +17,7 @@ interface AttendanceCalendarViewProps {
   instituteCode?: string;
   role?: "admin" | "teacher";
   schedule?: string | null;
+  onDayOffChange?: () => void;
 }
 
 interface DayAttendance {
@@ -283,7 +284,7 @@ function FutureDayOffDialog({
 }
 
 export default function AttendanceCalendarView({
-  batchId, batchName, instituteCode, role, schedule
+  batchId, batchName, instituteCode, role, schedule, onDayOffChange
 }: AttendanceCalendarViewProps) {
   const today = new Date();
   const todayKey = localDateToKey(today);
@@ -694,7 +695,7 @@ export default function AttendanceCalendarView({
           batchId={batchId}
           batchName={batchName}
           instituteCode={instituteCode}
-          onDone={() => { setDayOffDate(null); loadMonthData(); loadDayOffDates(); }}
+          onDone={() => { setDayOffDate(null); loadMonthData(); loadDayOffDates(); onDayOffChange?.(); }}
         />
       )}
 
@@ -706,7 +707,7 @@ export default function AttendanceCalendarView({
           date={cancelDayOffDate}
           batchId={batchId}
           batchName={batchName}
-          onDone={() => { setCancelDayOffDate(null); loadMonthData(); loadDayOffDates(); }}
+          onDone={() => { setCancelDayOffDate(null); loadMonthData(); loadDayOffDates(); onDayOffChange?.(); }}
         />
       )}
     </Card>

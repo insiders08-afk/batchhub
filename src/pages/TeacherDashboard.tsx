@@ -273,7 +273,16 @@ export default function TeacherDashboard() {
                   </div>
                   <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{b.studentCount} students</span>
-                    {b.schedule && <span className="text-xs">{b.schedule}</span>}
+                  {b.schedule && (() => {
+                    try {
+                      const t = JSON.parse(b.schedule);
+                      if (t?.days?.length) {
+                        const fmt = (h: number, m: number, ap: string) => `${h}:${String(m).padStart(2,"0")} ${ap}`;
+                        return <span className="text-xs">{t.days.join(", ")} · {fmt(t.startHour, t.startMinute, t.startAmPm)}–{fmt(t.endHour, t.endMinute, t.endAmPm)}</span>;
+                      }
+                    } catch { /* ignore */ }
+                    return <span className="text-xs">{b.schedule}</span>;
+                  })()}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Link to={`/batch/${b.id}`}>
