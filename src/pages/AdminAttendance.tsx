@@ -413,6 +413,25 @@ export default function AdminAttendance() {
                 instituteCode={instituteCode}
                 role="admin"
                 schedule={selectedBatch?.schedule}
+                onDayOffChange={() => {
+                  // Re-check day-off status for today when calendar changes
+                  setTodayIsDayOff(false);
+                  supabase
+                    .from("announcements")
+                    .select("content, title")
+                    .eq("batch_id", selectedBatchId)
+                    .eq("type", "day_off")
+                    .then(({ data }) => {
+                      if (!data) return;
+                      const todayKey = today;
+                      const found = data.some(ann => {
+                        const tagMatch = (ann.content || "").match(/day_off_date:(\d{4}-\d{2}-\d{2})/);
+                        if (tagMatch) return tagMatch[1] === todayKey;
+                        return false;
+                      });
+                      setTodayIsDayOff(found);
+                    });
+                }}
               />
             )}
           </div>

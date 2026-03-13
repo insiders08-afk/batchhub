@@ -17,6 +17,7 @@ interface AttendanceCalendarViewProps {
   instituteCode?: string;
   role?: "admin" | "teacher";
   schedule?: string | null;
+  onDayOffChange?: () => void;
 }
 
 interface DayAttendance {
