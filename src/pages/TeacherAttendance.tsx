@@ -438,6 +438,22 @@ export default function TeacherAttendance() {
                 instituteCode={instituteCode}
                 role="teacher"
                 schedule={selectedBatch?.schedule}
+                onDayOffChange={() => {
+                  setTodayIsDayOff(false);
+                  supabase
+                    .from("announcements")
+                    .select("content")
+                    .eq("batch_id", selectedBatchId)
+                    .eq("type", "day_off")
+                    .then(({ data }) => {
+                      if (!data) return;
+                      const todayKey = today;
+                      setTodayIsDayOff(data.some(ann => {
+                        const tagMatch = (ann.content || "").match(/day_off_date:(\d{4}-\d{2}-\d{2})/);
+                        return tagMatch ? tagMatch[1] === todayKey : false;
+                      }));
+                    });
+                }}
               />
             )}
           </div>
