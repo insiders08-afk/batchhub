@@ -209,6 +209,16 @@ export default function StudentDashboard() {
                         <Badge variant="secondary" className="text-xs">{b.course}</Badge>
                         <span className="text-xs text-muted-foreground">{b.teacher_name || "Teacher TBD"}</span>
                       </div>
+                      {b.schedule && (() => {
+                        try {
+                          const t = JSON.parse(b.schedule!);
+                          if (t?.days?.length) {
+                            const fmt = (h: number, m: number, ap: string) => `${h}:${String(m).padStart(2,"0")} ${ap}`;
+                            return <p className="text-xs text-muted-foreground mt-0.5">{t.days.join(", ")} · {fmt(t.startHour, t.startMinute, t.startAmPm)}–{fmt(t.endHour, t.endMinute, t.endAmPm)}</p>;
+                          }
+                        } catch { /* ignore */ }
+                        return null;
+                      })()}
                     </div>
                     <span className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
                       <Users className="w-3.5 h-3.5" />{b.studentCount}
