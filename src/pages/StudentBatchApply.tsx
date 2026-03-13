@@ -177,7 +177,7 @@ export default function StudentBatchApply() {
                     {b.schedule && (
                       <p className="flex items-center gap-1.5">
                         <Clock className="w-3 h-3" />
-                        {b.schedule}
+                        {formatTimingDisplay(b.schedule)}
                       </p>
                     )}
                   </div>
