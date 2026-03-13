@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { BookOpen, Users, Clock, CheckCircle2, XCircle, Loader2, Hourglass } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatTimingDisplay } from "@/lib/batchTiming";
 
 interface BatchWithStatus {
   id: string;
