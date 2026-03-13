@@ -284,7 +284,7 @@ function FutureDayOffDialog({
 }
 
 export default function AttendanceCalendarView({
-  batchId, batchName, instituteCode, role, schedule
+  batchId, batchName, instituteCode, role, schedule, onDayOffChange
 }: AttendanceCalendarViewProps) {
   const today = new Date();
   const todayKey = localDateToKey(today);
