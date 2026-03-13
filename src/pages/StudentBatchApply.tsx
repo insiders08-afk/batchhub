@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { BookOpen, Users, Clock, CheckCircle2, XCircle, Loader2, Hourglass } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { formatTimingDisplay } from "@/lib/batchTiming";
 
 interface BatchWithStatus {
   id: string;
@@ -176,7 +177,7 @@ export default function StudentBatchApply() {
                     {b.schedule && (
                       <p className="flex items-center gap-1.5">
                         <Clock className="w-3 h-3" />
-                        {b.schedule}
+                        {formatTimingDisplay(b.schedule)}
                       </p>
                     )}
                   </div>
