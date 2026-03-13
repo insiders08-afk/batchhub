@@ -695,7 +695,7 @@ export default function AttendanceCalendarView({
           batchId={batchId}
           batchName={batchName}
           instituteCode={instituteCode}
-          onDone={() => { setDayOffDate(null); loadMonthData(); loadDayOffDates(); }}
+          onDone={() => { setDayOffDate(null); loadMonthData(); loadDayOffDates(); onDayOffChange?.(); }}
         />
       )}
 
@@ -707,7 +707,7 @@ export default function AttendanceCalendarView({
           date={cancelDayOffDate}
           batchId={batchId}
           batchName={batchName}
-          onDone={() => { setCancelDayOffDate(null); loadMonthData(); loadDayOffDates(); }}
+          onDone={() => { setCancelDayOffDate(null); loadMonthData(); loadDayOffDates(); onDayOffChange?.(); }}
         />
       )}
     </Card>
