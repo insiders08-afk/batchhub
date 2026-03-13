@@ -16,6 +16,7 @@ interface Batch {
   name: string;
   teacher_name: string | null;
   course: string;
+  schedule?: string | null;
   studentCount?: number;
 }
 
