@@ -71,7 +71,7 @@ export default function StudentDashboard() {
       if (batchIds.length > 0) {
         const { data: batchData } = await supabase
           .from("batches")
-          .select("id, name, teacher_name, course")
+          .select("id, name, teacher_name, course, schedule")
           .in("id", batchIds);
 
         if (batchData) {
