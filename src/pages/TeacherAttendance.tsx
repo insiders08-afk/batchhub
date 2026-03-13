@@ -317,14 +317,14 @@ export default function TeacherAttendance() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Present", value: presentCount, color: "text-success" },
-                { label: "Absent", value: students.length - presentCount, color: "text-danger" },
-                { label: "Rate", value: `${pct}%`, color: pct >= 75 ? "text-success" : "text-danger" },
+                { label: "Present", value: todayIsDayOff ? "—" : presentCount, color: "text-success" },
+                { label: "Absent", value: todayIsDayOff ? "—" : students.length - presentCount, color: "text-danger" },
+                { label: "Rate", value: todayIsDayOff ? "—" : `${pct}%`, color: pct >= 75 ? "text-success" : "text-danger" },
               ].map(s => (
                 <Card key={s.label} className="p-4 text-center shadow-card border-border/50">
-                  <div className={`text-2xl font-display font-bold ${s.color}`}>{s.value}</div>
+                  <div className={`text-2xl font-display font-bold ${s.value === "—" ? "text-muted-foreground" : s.color}`}>{s.value}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
                 </Card>
               ))}

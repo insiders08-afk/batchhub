@@ -293,14 +293,14 @@ export default function AdminAttendance() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2 space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3">
               {[
-                { label: "Present", value: presentCount, color: "success" },
-                { label: "Absent", value: students.length - presentCount, color: "danger" },
-                { label: "Attendance %", value: `${pct}%`, color: pct >= 75 ? "success" : "danger" },
+                { label: "Present", value: todayIsDayOff ? "—" : presentCount, color: "success" },
+                { label: "Absent", value: todayIsDayOff ? "—" : students.length - presentCount, color: "danger" },
+                { label: "Attendance %", value: todayIsDayOff ? "—" : `${pct}%`, color: pct >= 75 ? "success" : "danger" },
               ].map(s => (
                 <Card key={s.label} className="p-4 text-center shadow-card border-border/50">
-                  <div className={`text-2xl font-display font-bold ${s.color === "success" ? "text-success" : "text-danger"}`}>{s.value}</div>
+                  <div className={`text-2xl font-display font-bold ${s.color === "success" ? "text-success" : s.value === "—" ? "text-muted-foreground" : "text-danger"}`}>{s.value}</div>
                   <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
                 </Card>
               ))}
