@@ -213,10 +213,13 @@ export default function StudentDashboard() {
                       <Users className="w-3.5 h-3.5" />{b.studentCount}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{b.studentCount}</span>
-                    {b.teacher_name && <span className="text-xs">👨‍🏫 {b.teacher_name}</span>}
-                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link to={`/batch/${b.id}`}>
+                      <Button className="w-full h-8 text-xs gap-1.5 gradient-hero text-white border-0 hover:opacity-90">
+                        <MessageSquare className="w-3 h-3" /> Batch Chat
+                      </Button>
+                    </Link>
+                    <Link to="/student/tests">
                       <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-accent border-accent/30 hover:bg-accent-light">
                         <Trophy className="w-3 h-3" /> Rankings
                       </Button>
