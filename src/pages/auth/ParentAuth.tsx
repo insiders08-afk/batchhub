@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, UserCircle, Eye, EyeOff, Loader2, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Zap, UserCircle, Eye, EyeOff, Loader2, CheckCircle2, XCircle, KeyRound } from "lucide-react";
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { validatePassword, validatePhone, normalizeInstituteCode } from "@/lib/validation";
 
-type Screen = "register" | "login";
+type Screen = "register" | "login" | "forgot";
 
 export default function ParentAuth() {
   const navigate = useNavigate();
@@ -25,27 +25,44 @@ export default function ParentAuth() {
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [showRegPassword, setShowRegPassword] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
 
   const [form, setForm] = useState({
     parentName: "", parentId: "", studentId: "",
     instituteId: "", relation: "", phone: "", email: "", password: "",
   });
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
-  const [rememberMe, setRememberMe] = useState(true);
+  // LIMIT-10 fix: removed misleading "remember me" checkbox; session persistence is
+  // handled by Supabase's persistSession:true in the client config (always on).
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value });
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setLoginForm({ ...loginForm, [e.target.name]: e.target.value });
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setForgotSent(true);
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to send reset email", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // LIMIT-09: Validate password strength
     const pwErr = validatePassword(form.password);
     if (pwErr) { toast({ title: "Weak Password", description: pwErr, variant: "destructive" }); return; }
 
-    // LIMIT-12: Validate phone
     const phErr = validatePhone(form.phone);
     if (phErr) { toast({ title: "Invalid Phone", description: phErr, variant: "destructive" }); return; }
 
@@ -125,13 +142,6 @@ export default function ParentAuth() {
         email: loginForm.email, password: loginForm.password,
       });
       if (error) throw error;
-      if (rememberMe) {
-        localStorage.setItem("batchhub_remember_me", "true");
-        sessionStorage.removeItem("batchhub_session_only");
-      } else {
-        localStorage.removeItem("batchhub_remember_me");
-        sessionStorage.setItem("batchhub_session_only", "true");
-      }
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -142,6 +152,7 @@ export default function ParentAuth() {
 
       if (!profile) {
         toast({ title: "Account not found", description: "No parent account linked to this email.", variant: "destructive" });
+        await supabase.auth.signOut();
         return;
       }
 
@@ -276,6 +287,35 @@ export default function ParentAuth() {
                     {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Submitting...</> : "Submit for Admin Approval"}
                   </Button>
                 </form>
+              ) : screen === "forgot" ? (
+                <div className="space-y-4">
+                  {forgotSent ? (
+                    <div className="text-center py-4 space-y-3">
+                      <div className="w-14 h-14 rounded-full bg-success-light flex items-center justify-center mx-auto">
+                        <CheckCircle2 className="w-7 h-7 text-success" />
+                      </div>
+                      <p className="font-semibold">Reset email sent!</p>
+                      <p className="text-sm text-muted-foreground">Check your inbox for the password reset link.</p>
+                      <button className="text-sm text-primary hover:underline" onClick={() => { setForgotSent(false); setScreen("login"); }}>
+                        Back to Sign In
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleForgotPassword} className="space-y-4">
+                      <p className="text-sm text-muted-foreground">Enter your registered email and we'll send a reset link.</p>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="forgotEmail">Email Address *</Label>
+                        <Input id="forgotEmail" type="email" placeholder="parent@email.com" required value={forgotEmail} onChange={e => setForgotEmail(e.target.value)} />
+                      </div>
+                      <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-violet-500 to-purple-600 text-white border-0 hover:opacity-90 h-11 font-semibold">
+                        {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Sending...</> : <><KeyRound className="w-4 h-4 mr-2" />Send Reset Link</>}
+                      </Button>
+                      <button type="button" className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors" onClick={() => setScreen("login")}>
+                        ← Back to Sign In
+                      </button>
+                    </form>
+                  )}
+                </div>
               ) : (
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-1.5">
@@ -283,7 +323,12 @@ export default function ParentAuth() {
                     <Input id="loginEmail" name="email" type="email" placeholder="parent@email.com" required onChange={handleLoginChange} value={loginForm.email} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="loginPassword">Password *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="loginPassword">Password *</Label>
+                      <button type="button" className="text-xs text-primary hover:underline" onClick={() => setScreen("forgot")}>
+                        Forgot password?
+                      </button>
+                    </div>
                     <div className="relative">
                       <Input
                         id="loginPassword" name="password"
@@ -298,16 +343,6 @@ export default function ParentAuth() {
                       </button>
                     </div>
                   </div>
-                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={rememberMe}
-                      onChange={(e) => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 accent-primary rounded"
-                    />
-                    <span className="text-sm text-muted-foreground">Keep me signed in</span>
-                    {!rememberMe && <span className="text-xs text-muted-foreground/60 ml-auto">(session only)</span>}
-                  </label>
                   <Button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-violet-500 to-purple-600 text-white border-0 hover:opacity-90 h-11 font-semibold">
                     {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing in...</> : "Sign In"}
                   </Button>
@@ -341,6 +376,7 @@ function PendingApprovalScreen({
         .from("profiles")
         .select("status")
         .eq("user_id", userId)
+        .eq("role", "parent")
         .maybeSingle();
 
       if (data?.status === "approved" || data?.status === "active") {
@@ -353,7 +389,6 @@ function PendingApprovalScreen({
       }
     };
 
-    // Check immediately, then every 5 seconds
     checkStatus();
     intervalRef.current = setInterval(checkStatus, 5000);
 
@@ -387,11 +422,11 @@ function PendingApprovalScreen({
       <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
         <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="text-center max-w-sm">
           <div className="w-20 h-20 rounded-full bg-danger-light flex items-center justify-center mx-auto mb-6">
-            <span className="text-4xl">✗</span>
+            <XCircle className="w-10 h-10 text-danger" />
           </div>
-          <h2 className="text-2xl font-display font-bold mb-2 text-danger">Request Rejected</h2>
-          <p className="text-muted-foreground mb-6">Your parent access request was not approved. Please contact your institute admin directly.</p>
-          <Button onClick={handleBackHome} variant="outline">Back to Home</Button>
+          <h2 className="text-2xl font-display font-bold mb-2">Request Rejected</h2>
+          <p className="text-muted-foreground mb-6">Your parent account request was not approved. Please contact the institute admin.</p>
+          <Button variant="outline" onClick={handleBackHome}>Back to Home</Button>
         </motion.div>
       </div>
     );
@@ -403,32 +438,20 @@ function PendingApprovalScreen({
         <div className="relative w-20 h-20 mx-auto mb-6">
           <div className="absolute inset-0 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 opacity-20 animate-ping" />
           <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg">
-            <UserCircle className="w-8 h-8 text-white" />
+            <Loader2 className="w-8 h-8 text-white animate-spin" />
           </div>
         </div>
-        <h2 className="text-2xl font-display font-bold mb-2">Request Submitted!</h2>
+        <h2 className="text-2xl font-display font-bold mb-2">Waiting for Approval</h2>
         <p className="text-muted-foreground mb-4">
-          Hi <span className="font-semibold text-foreground">{name}</span>, your parent access request for student{" "}
-          <span className="font-semibold text-foreground">{studentId}</span> at{" "}
-          <span className="font-semibold text-foreground">{instituteId}</span> has been sent to the admin.
+          Hi <span className="font-semibold text-foreground">{name}</span>, your request for{" "}
+          <span className="font-semibold text-foreground">{instituteId}</span> is pending admin review.
         </p>
-        <div className="bg-card border border-border/50 rounded-xl p-5 text-left space-y-3 mb-6 shadow-card">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-success-light flex items-center justify-center text-success text-xs font-bold">1</div>
-            <p className="text-sm text-foreground">Your details have been submitted ✓</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
-              <div className="w-2 h-2 rounded-full bg-violet-500 animate-pulse" />
-            </div>
-            <p className="text-sm text-muted-foreground">Admin verifying student ID and parent link... <span className="text-xs">(auto-checking every 5s)</span></p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">3</div>
-            <p className="text-sm text-muted-foreground">Admin assigns your Parent ID and grants access</p>
-          </div>
-        </div>
-        <p className="text-xs text-muted-foreground mb-4">You'll be automatically redirected when approved. No need to refresh!</p>
+        {studentId && (
+          <p className="text-sm text-muted-foreground mb-6">
+            Linked student ID: <span className="font-medium text-foreground">{studentId}</span>
+          </p>
+        )}
+        <p className="text-xs text-muted-foreground mb-6">This page auto-refreshes every 5 seconds. You'll be redirected once approved.</p>
         <Button variant="outline" size="sm" onClick={handleBackHome}>Back to Home</Button>
       </motion.div>
     </div>
