@@ -1,19 +1,151 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2, Eye, EyeOff, Phone, KeyRound } from "lucide-react";
+import { ArrowLeft, Zap, Shield, CheckCircle2, Clock, XCircle, Loader2, Eye, EyeOff, Phone, KeyRound, Search, ChevronDown } from "lucide-react";
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { INDIA_CITIES } from "@/lib/constants";
-import { validateInstituteCode, validatePassword, validatePhone, normalizeInstituteCode } from "@/lib/validation";
+import { validatePassword, validatePhone } from "@/lib/validation";
 
 type Screen = "register" | "login" | "pending" | "rejected" | "forgot";
 
+// ─── City Combobox ──────────────────────────────────────────────────────────
+function CityCombobox({ value, onChange }: { value: string; onChange: (city: string) => void }) {
+  const [query, setQuery] = useState(value);
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // Cities list without "Other" — we allow free entry natively
+  const cities = INDIA_CITIES.filter(c => c !== "Other");
+
+  const filtered = query.trim().length === 0
+    ? cities
+    : cities.filter(c => c.toLowerCase().includes(query.trim().toLowerCase()));
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        // If user typed something not in list → treat as custom city
+        if (query.trim() && !cities.includes(query.trim())) {
+          onChange(query.trim());
+        } else if (!query.trim()) {
+          onChange("");
+        }
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [query, cities, onChange]);
+
+  const select = (city: string) => {
+    setQuery(city);
+    onChange(city);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          value={query}
+          placeholder="Type or select your city..."
+          onChange={e => { setQuery(e.target.value); onChange(e.target.value); setOpen(true); }}
+          onFocus={() => setOpen(true)}
+          className="flex h-10 w-full rounded-md border border-input bg-background pl-8 pr-8 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          autoComplete="off"
+        />
+        <ChevronDown className={`absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none transition-transform ${open ? "rotate-180" : ""}`} />
+      </div>
+
+      <AnimatePresence>
+        {open && (
+          <motion.ul
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.12 }}
+            className="absolute z-50 mt-1 w-full max-h-48 overflow-y-auto rounded-md border border-border bg-popover shadow-lg text-sm"
+          >
+            {/* Custom entry if typed value not in list */}
+            {query.trim() && !cities.includes(query.trim()) && (
+              <li
+                className="px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground text-muted-foreground italic border-b border-border/50"
+                onMouseDown={() => select(query.trim())}
+              >
+                ➕ Use "{query.trim()}" (custom city)
+              </li>
+            )}
+            {filtered.length === 0 && !query.trim() && (
+              <li className="px-3 py-2 text-muted-foreground">No cities found</li>
+            )}
+            {filtered.map(city => (
+              <li
+                key={city}
+                onMouseDown={() => select(city)}
+                className={`px-3 py-2 cursor-pointer hover:bg-accent hover:text-accent-foreground ${value === city ? "bg-primary/10 font-medium text-primary" : ""}`}
+              >
+                {city}
+              </li>
+            ))}
+          </motion.ul>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Institute Code Input (uppercase-only, A-Z 0-9 hyphen) ──────────────────
+function InstituteCodeInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const handleKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Allow: backspace, delete, arrows, tab, home, end
+    const allowed = ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End"];
+    if (allowed.includes(e.key)) return;
+    // Allow uppercase letters, digits, and a single ASCII hyphen (U+002D)
+    if (/^[A-Z0-9\-]$/.test(e.key)) return;
+    // Block everything else (including lowercase, special chars, long dashes)
+    e.preventDefault();
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Strip anything that's not A-Z, 0-9, or plain hyphen; auto-uppercase
+    const cleaned = e.target.value.toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+    onChange(cleaned);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").toUpperCase().replace(/[^A-Z0-9\-]/g, "");
+    onChange((value + pasted).slice(0, 20));
+  };
+
+  return (
+    <Input
+      id="instituteId"
+      name="instituteId"
+      placeholder="e.g. APEX-KOTA-001"
+      required
+      value={value}
+      onKeyDown={handleKey}
+      onChange={handleChange}
+      onPaste={handlePaste}
+      maxLength={20}
+      spellCheck={false}
+      autoCapitalize="characters"
+      className="font-mono tracking-wider"
+    />
+  );
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────────
 export default function AdminAuth() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -31,7 +163,6 @@ export default function AdminAuth() {
     instituteId: "",
     govtRegistrationNo: "",
     city: "",
-    customCity: "",
     email: "",
     phone: "",
     password: "",
@@ -42,7 +173,7 @@ export default function AdminAuth() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
 
-  const handleRegChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const handleRegChange = (e: React.ChangeEvent<HTMLInputElement>) =>
     setRegForm({ ...regForm, [e.target.name]: e.target.value });
 
   const handleLoginChange = (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -64,17 +195,27 @@ export default function AdminAuth() {
     }
   };
 
-  // When we go to pending/rejected, fetch the super admin's phone for that city
+  // Fetch the super admin phone for a city, fall back to Bareilly if not found
   const fetchSuperAdminPhone = async (city: string) => {
     if (!city) return;
     try {
+      // Try exact city match first
       const { data } = await supabase
         .from("super_admin_applications")
-        .select("phone, full_name")
+        .select("phone")
         .eq("city", city)
         .eq("status", "approved")
         .maybeSingle();
-      if (data?.phone) setSuperAdminPhone(data.phone);
+      if (data?.phone) { setSuperAdminPhone(data.phone); return; }
+
+      // Fallback: Bareilly super admin
+      const { data: fallback } = await supabase
+        .from("super_admin_applications")
+        .select("phone")
+        .eq("city", "Bareilly")
+        .eq("status", "approved")
+        .maybeSingle();
+      if (fallback?.phone) setSuperAdminPhone(fallback.phone);
     } catch {
       // silently ignore
     }
@@ -82,16 +223,16 @@ export default function AdminAuth() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    const effectiveCity = regForm.city === "Other" ? regForm.customCity.trim() : regForm.city;
+    const effectiveCity = regForm.city.trim();
     if (!effectiveCity) {
-      toast({ title: "City required", description: "Please select or enter your city.", variant: "destructive" });
+      toast({ title: "City required", description: "Please select or type your city.", variant: "destructive" });
       return;
     }
 
-    // LIMIT-05: Validate institute code format
-    const codeError = validateInstituteCode(regForm.instituteId);
-    if (codeError) {
-      toast({ title: "Invalid Institute Code", description: codeError, variant: "destructive" });
+    // Institute code: already enforced by input, but double-check
+    const code = regForm.instituteId.trim();
+    if (!code || code.length < 3) {
+      toast({ title: "Invalid Institute Code", description: "Must be at least 3 characters (A–Z, 0–9, hyphen).", variant: "destructive" });
       return;
     }
 
@@ -109,23 +250,21 @@ export default function AdminAuth() {
       return;
     }
 
-    const normalizedCode = normalizeInstituteCode(regForm.instituteId);
-
     setLoading(true);
     try {
       // BUG-02: Check institute_code uniqueness before signup
       const { data: existingInstitute } = await supabase
         .from("institutes")
         .select("id")
-        .eq("institute_code", normalizedCode)
+        .eq("institute_code", code)
         .maybeSingle();
       if (existingInstitute) {
-        toast({ title: "Code already taken", description: `Institute code "${normalizedCode}" is already in use. Please choose a different one.`, variant: "destructive" });
+        toast({ title: "Code already taken", description: `Institute code "${code}" is already in use. Please choose a different one.`, variant: "destructive" });
         setLoading(false);
         return;
       }
 
-      // LIMIT-01/02: Warn if city has no SuperAdmin yet
+      // Check if city has a super admin; if not, request goes to Bareilly
       const { data: cityAdmin } = await supabase
         .from("user_roles")
         .select("id")
@@ -146,7 +285,7 @@ export default function AdminAuth() {
         owner_user_id: userId,
         owner_name: regForm.ownerName,
         institute_name: regForm.instituteName,
-        institute_code: normalizedCode,
+        institute_code: code,
         govt_registration_no: regForm.govtRegistrationNo,
         city: effectiveCity,
         email: regForm.email,
@@ -162,7 +301,7 @@ export default function AdminAuth() {
         email: regForm.email,
         phone: regForm.phone,
         role: "admin",
-        institute_code: normalizedCode,
+        institute_code: code,
         status: "pending",
       });
       if (profError) throw profError;
@@ -173,7 +312,10 @@ export default function AdminAuth() {
       setStep("pending");
 
       if (!cityAdmin) {
-        toast({ title: "Note: No City Partner yet", description: `Your city (${effectiveCity}) does not have a BatchHub City Partner yet. Your approval may be delayed until one is assigned.` });
+        toast({
+          title: "No City Partner for your city yet",
+          description: `Your request will be forwarded to our Bareilly office for review. You'll be notified once approved.`,
+        });
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
@@ -192,8 +334,6 @@ export default function AdminAuth() {
         password: loginForm.password,
       });
       if (error) throw error;
-      // Remember me: mark session as active in sessionStorage (cleared on app close)
-      // Index.tsx checks this flag — if missing on next open, signs out
       if (rememberMe) {
         localStorage.setItem("batchhub_remember_me", "true");
         sessionStorage.removeItem("batchhub_session_only");
@@ -277,7 +417,7 @@ export default function AdminAuth() {
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground text-xs font-bold">4</div>
               <p className="text-sm text-muted-foreground">
-                Once approved, try <strong>signing in again</strong> to access your dashboard. If rejected, you'll see the reason on the login screen.
+                Once approved, try <strong>signing in again</strong> to access your dashboard.
               </p>
             </div>
           </div>
@@ -386,50 +526,70 @@ export default function AdminAuth() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
+                    {/* Institute Code */}
                     <div className="space-y-1.5">
                       <Label htmlFor="instituteId">Institute ID / Code *</Label>
-                      <Input id="instituteId" name="instituteId" placeholder="e.g. APEX-KOTA-001" required onChange={handleRegChange} value={regForm.instituteId} />
+                      <InstituteCodeInput
+                        value={regForm.instituteId}
+                        onChange={v => setRegForm(f => ({ ...f, instituteId: v }))}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Capital letters A–Z, digits 0–9 and hyphens (-) only. <span className="text-danger font-medium">Cannot be changed later.</span>
+                      </p>
                     </div>
+
+                    {/* City Combobox */}
                     <div className="space-y-1.5">
-                      <Label htmlFor="city">City *</Label>
-                      <select
-                        id="city"
-                        name="city"
+                      <Label>City *</Label>
+                      <CityCombobox
                         value={regForm.city}
-                        onChange={handleRegChange}
-                        required
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      >
-                        <option value="">Select city</option>
-                        {INDIA_CITIES.map(city => <option key={city} value={city}>{city}</option>)}
-                      </select>
+                        onChange={city => setRegForm(f => ({ ...f, city }))}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Type to search or enter any city name. <span className="text-danger font-medium">Cannot be changed later.</span>
+                      </p>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground -mt-2">Institute ID: letters, numbers & hyphens only (auto-uppercased).</p>
-                  {regForm.city === "Other" && (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="customCity">Enter your city name *</Label>
-                      <Input id="customCity" name="customCity" placeholder="e.g. Siliguri" required onChange={handleRegChange} value={regForm.customCity} />
-                    </div>
-                  )}
 
+                  {/* Govt Registration */}
                   <div className="space-y-1.5">
                     <Label htmlFor="govtRegistrationNo">Government Registration / Trust No. *</Label>
-                    <Input id="govtRegistrationNo" name="govtRegistrationNo" placeholder="e.g. MH/2015/0012345" required onChange={handleRegChange} value={regForm.govtRegistrationNo} />
-                    <p className="text-xs text-muted-foreground">Your government-issued institute registration number for real-world verification.</p>
+                    <Input
+                      id="govtRegistrationNo"
+                      name="govtRegistrationNo"
+                      placeholder="e.g. MH/2015/0012345"
+                      required
+                      onChange={handleRegChange}
+                      value={regForm.govtRegistrationNo}
+                    />
+                    <div className="space-y-0.5">
+                      <p className="text-xs text-muted-foreground">
+                        Your government-issued institute registration / trust number for real-world verification.
+                      </p>
+                      <p className="text-xs text-accent-foreground font-medium bg-accent/10 rounded px-2 py-1 mt-1">
+                        💡 Don't have one yet? Enter any placeholder (e.g. <span className="font-mono">TBD-001</span>) — you can update it anytime from your Admin Settings.
+                      </p>
+                    </div>
                   </div>
-
-                  {/* BUG-03 fix: Removed non-functional fake upload UI. Document upload will be added when Supabase Storage is configured. */}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label htmlFor="email">Email *</Label>
                       <Input id="email" name="email" type="email" placeholder="owner@apex.com" required onChange={handleRegChange} value={regForm.email} />
+                      <p className="text-xs text-muted-foreground/70">Cannot be changed later.</p>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="phone">Mobile Number *</Label>
                       <Input id="phone" name="phone" type="tel" placeholder="9876543210" required onChange={handleRegChange} value={regForm.phone} />
                     </div>
+                  </div>
+
+                  {/* Editable fields note */}
+                  <div className="p-3 bg-muted/60 rounded-lg border border-border/40">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      <span className="font-semibold text-foreground">You can edit later:</span> Institute name, Owner's full name, Government registration number, and Mobile number — from your Admin Settings.<br />
+                      <span className="font-semibold text-foreground">Cannot be changed:</span> Institute code, City, and Email address.
+                    </p>
                   </div>
 
                   <div className="space-y-1.5">
