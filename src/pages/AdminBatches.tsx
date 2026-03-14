@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink, Loader2, UserPlus, X, CheckCircle2, CalendarOff } from "lucide-react";
+import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink, Loader2, UserPlus, X, CheckCircle2, CalendarOff, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
