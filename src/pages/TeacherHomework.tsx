@@ -254,6 +254,11 @@ export default function TeacherHomework() {
                         <Badge className="text-xs bg-primary-light text-primary border-primary/20">
                           {getBatchName(hw.batch_id)}
                         </Badge>
+                        {submissionCounts[hw.id] > 0 && (
+                          <Badge className="text-xs bg-success-light text-success border-success/20 gap-1">
+                            ✅ {submissionCounts[hw.id]} submitted
+                          </Badge>
+                        )}
                       </div>
                       {hw.description && <p className="text-sm text-muted-foreground mb-2">{hw.description}</p>}
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
