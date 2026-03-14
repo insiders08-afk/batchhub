@@ -361,9 +361,217 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
   const [checking, setChecking] = useState(false);
   const [notify, setNotify] = useState(true);
   const [announcementTitle, setAnnouncementTitle] = useState("");
-  // Only the human-readable body — the day_off_date tag is appended separately on save
+  // Only the human-readable body — the day_off_date tag is always appended on save, never editable
   const [messageBody, setMessageBody] = useState("");
   const [alreadyMarked, setAlreadyMarked] = useState(false);
+
+  // Convert a local date to ISO key YYYY-MM-DD
+  function toISOKey(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  // Find the next scheduled class date for this batch.
+  // Includes TODAY if: today is a scheduled day AND the class start time hasn't passed yet.
+  function getNextClassDate(): Date {
+    const t = parseTiming(batch.schedule);
+    if (!t || !t.days || t.days.length === 0) {
+      const d = new Date();
+      d.setDate(d.getDate() + 1);
+      return d;
+    }
+
+    const now = new Date();
+    const todayAbbrev = JS_DAY_ABBREVS[now.getDay()];
+
+    // Check if today is a scheduled day and class hasn't started yet
+    if (t.days.includes(todayAbbrev)) {
+      const to24 = (h: number, ap: "AM" | "PM") => ap === "AM" ? (h === 12 ? 0 : h) : (h === 12 ? 12 : h + 12);
+      const startH24 = to24(t.startHour, t.startAmPm);
+      const startMins = startH24 * 60 + t.startMinute;
+      const nowMins = now.getHours() * 60 + now.getMinutes();
+      if (nowMins < startMins) {
+        return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      }
+    }
+
+    // Otherwise find next scheduled day starting from tomorrow
+    const candidate = new Date(now);
+    candidate.setDate(candidate.getDate() + 1);
+    for (let i = 0; i < 14; i++) {
+      const abbrev = JS_DAY_ABBREVS[candidate.getDay()];
+      if (t.days.includes(abbrev)) {
+        return new Date(candidate);
+      }
+      candidate.setDate(candidate.getDate() + 1);
+    }
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+
+  const nextClassDate = getNextClassDate();
+  const nextClassDateKey = toISOKey(nextClassDate);
+  const lockedTag = `day_off_date:${nextClassDateKey}`;
+  const nextClassStr = nextClassDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+
+  const handleOpen = async () => {
+    setAlreadyMarked(false);
+    setChecking(true);
+    const { data } = await supabase
+      .from("announcements")
+      .select("id")
+      .eq("batch_id", batch.id)
+      .eq("type", "day_off")
+      .ilike("content", `%day_off_date:${nextClassDateKey}%`);
+
+    const isMarked = (data?.length ?? 0) > 0;
+    setAlreadyMarked(isMarked);
+    setChecking(false);
+
+    if (!isMarked) {
+      setAnnouncementTitle(`No Class — ${batch.name} — ${nextClassStr}`);
+      // Only set the human-readable body — tag is appended on save
+      setMessageBody(`Dear students, there will be no class for ${batch.name} on ${nextClassStr}. Please plan accordingly.`);
+    }
+    setOpen(true);
+  };
+
+  const handleConfirm = async () => {
+    setSending(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user!.id).single();
+
+      if (notify) {
+        // Always reconstruct full content with locked tag — user cannot remove or alter it
+        const fullContent = `${messageBody.trim()}\n\n${lockedTag}`;
+        await supabase.from("announcements").insert({
+          title: announcementTitle,
+          content: fullContent,
+          batch_id: batch.id,
+          institute_code: instituteCode,
+          posted_by: user!.id,
+          posted_by_name: profile?.full_name || "Admin",
+          type: "day_off",
+          notify_push: true,
+        });
+      }
+
+      toast({ title: "✅ Day Off marked!", description: `${batch.name} is off on ${nextClassStr}. ${notify ? "Announcement sent to students." : ""}` });
+      setOpen(false);
+      onDone();
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed", variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-8 text-xs gap-1.5 border-border/50 hover:border-warning/50 hover:text-warning text-muted-foreground flex-1"
+        onClick={handleOpen}
+        disabled={checking}
+        title="Mark a future date as day off for this batch"
+      >
+        {checking ? <Loader2 className="w-3 h-3 animate-spin" /> : <CalendarOff className="w-3 h-3" />} Day Off
+      </Button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <CalendarOff className="w-5 h-5 text-warning" /> Mark Day Off
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            {alreadyMarked ? (
+              <div className="space-y-4">
+                <div className="flex items-start gap-3 p-3 rounded-lg border border-warning/30 bg-warning/8">
+                  <CalendarOff className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-warning">Already marked as Day Off</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      <span className="font-medium text-foreground">{nextClassStr}</span> is already marked as a day off for{" "}
+                      <span className="font-medium text-foreground">{batch.name}</span>.
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      To mark additional days off, go to the <span className="font-medium">Attendance</span> tab and tap a future class date in the calendar.
+                    </p>
+                  </div>
+                </div>
+                <Button variant="outline" className="w-full" onClick={() => setOpen(false)}>Close</Button>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  You're marking <span className="font-semibold text-foreground">{batch.name}</span> as off for{" "}
+                  <span className="font-semibold text-foreground">{nextClassStr}</span>{" "}
+                  <span className="text-xs">(next scheduled class)</span>.
+                </p>
+
+                <div className="flex items-start gap-3 p-3 rounded-lg border border-border/50 bg-muted/20">
+                  <input
+                    type="checkbox"
+                    id="notify-dayoff"
+                    checked={notify}
+                    onChange={e => setNotify(e.target.checked)}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <label htmlFor="notify-dayoff" className="text-sm cursor-pointer">
+                    <span className="font-medium">Send push notification & announcement to students</span>
+                    <p className="text-xs text-muted-foreground mt-0.5">Students in this batch will be notified immediately</p>
+                  </label>
+                </div>
+
+                {notify && (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Announcement Title</Label>
+                      <Input value={announcementTitle} onChange={e => setAnnouncementTitle(e.target.value)} className="h-9 text-sm" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Message</Label>
+                      <textarea
+                        value={messageBody}
+                        onChange={e => setMessageBody(e.target.value)}
+                        rows={3}
+                        className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                      />
+                      {/* Locked system tag — cannot be edited or deleted by the user */}
+                      <div className="flex items-center gap-1.5 mt-1.5 px-2 py-1.5 rounded-md border border-dashed border-warning/50 bg-warning/5 select-none" title="System tag — automatically appended. Cannot be edited.">
+                        <Lock className="w-3 h-3 text-warning flex-shrink-0" />
+                        <span className="text-xs font-mono text-warning font-medium">{lockedTag}</span>
+                        <span className="text-xs text-muted-foreground ml-1">— system tag (read-only)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setOpen(false)}>Cancel</Button>
+                  <Button
+                    className="flex-1 bg-warning text-white hover:bg-warning/90 border-0"
+                    onClick={handleConfirm}
+                    disabled={sending}
+                  >
+                    {sending ? <><Loader2 className="w-4 h-4 animate-spin mr-1" />Confirming...</> : "Confirm Day Off"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
 
   // Convert a local date to ISO key YYYY-MM-DD
   function toISOKey(d: Date): string {
