@@ -50,6 +50,7 @@ export default function TeacherHomework() {
   const [userName, setUserName] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"homework" | "dpp">("homework");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({});
   const [form, setForm] = useState({ title: "", description: "", batchId: "", type: "homework", dueDate: "" });
 
   useEffect(() => {
