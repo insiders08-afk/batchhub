@@ -9,25 +9,7 @@ import { Zap, MapPin, Loader2, Camera, CheckCircle, Upload, AlertCircle, ArrowLe
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-
-export const INDIA_CITIES = [
-  "Agra", "Ahmedabad", "Aligarh", "Allahabad", "Amritsar",
-  "Bareilly", "Bangalore", "Bhopal", "Bhubaneswar",
-  "Chandigarh", "Chennai", "Coimbatore",
-  "Dehradun", "Delhi",
-  "Ghaziabad", "Gorakhpur", "Gurgaon",
-  "Hyderabad", "Indore",
-  "Jaipur", "Jodhpur",
-  "Kanpur", "Kochi", "Kolkata",
-  "Lucknow",
-  "Meerut", "Moradabad", "Mumbai",
-  "Nagpur", "Noida",
-  "Patna", "Pune",
-  "Raipur", "Rajkot", "Ranchi",
-  "Surat",
-  "Udaipur",
-  "Vadodara", "Varanasi", "Visakhapatnam",
-];
+import { INDIA_CITIES } from "@/lib/constants";
 
 export default function CityPartnerApply() {
   const navigate = useNavigate();
@@ -116,6 +98,7 @@ export default function CityPartnerApply() {
         return;
       }
 
+      // INC-09 fix: gracefully handle missing 'applicant-photos' storage bucket
       let facial_image_url: string | null = null;
       if (photoFile) {
         const ext = photoFile.name.split(".").pop();
@@ -123,9 +106,14 @@ export default function CityPartnerApply() {
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from("applicant-photos")
           .upload(fileName, photoFile, { cacheControl: "3600", upsert: false });
-        if (uploadError) throw uploadError;
-        const { data: urlData } = supabase.storage.from("applicant-photos").getPublicUrl(uploadData.path);
-        facial_image_url = urlData.publicUrl;
+        if (uploadError) {
+          // Bucket may not exist — warn user but allow application to proceed without photo
+          console.warn("[CityPartnerApply] Photo upload failed:", uploadError.message);
+          toast({ title: "Photo upload skipped", description: "Could not upload photo (storage not configured). Your application will be submitted without it.", variant: "default" });
+        } else {
+          const { data: urlData } = supabase.storage.from("applicant-photos").getPublicUrl(uploadData.path);
+          facial_image_url = urlData.publicUrl;
+        }
       }
 
       const { error } = await supabase.from("super_admin_applications").insert({
