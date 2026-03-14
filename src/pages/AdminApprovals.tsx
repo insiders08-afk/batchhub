@@ -392,7 +392,7 @@ export default function AdminApprovals() {
                         </div>
                       </div>
 
-                      {/* Show Approve/Reject for pending, or Re-approve for rejected */}
+                      {/* Show Approve/Reject for pending, or Re-approve for rejected, or Revoke for approved */}
                       {(isPending || isRejected) && (
                         <div className="flex gap-2 flex-shrink-0">
                           <Button
@@ -422,6 +422,19 @@ export default function AdminApprovals() {
                             </Button>
                           )}
                         </div>
+                      )}
+                      {/* INC-05: Revoke button for approved users */}
+                      {req.status === "approved" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={actionLoading === req.id}
+                          className="text-danger border-danger/30 hover:bg-danger-light h-8 text-xs gap-1 flex-shrink-0"
+                          onClick={() => handleRevoke(req)}
+                        >
+                          {actionLoading === req.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldOff className="w-3.5 h-3.5" />}
+                          Revoke
+                        </Button>
                       )}
                     </div>
                   </Card>
