@@ -63,7 +63,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Suspense fallback={null}>
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-7 h-7 border-3 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/role-select" element={<RoleSelection />} />

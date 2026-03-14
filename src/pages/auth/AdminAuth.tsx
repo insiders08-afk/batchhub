@@ -9,7 +9,8 @@ import { ArrowLeft, Zap, Shield, Upload, CheckCircle2, Clock, XCircle, Loader2, 
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { INDIA_CITIES } from "../CityPartnerApply";
+import { INDIA_CITIES } from "@/lib/constants";
+import { validateInstituteCode, validatePassword, validatePhone, normalizeInstituteCode } from "@/lib/validation";
 
 type Screen = "register" | "login" | "pending" | "rejected" | "forgot";
 
@@ -30,6 +31,7 @@ export default function AdminAuth() {
     instituteId: "",
     govtRegistrationNo: "",
     city: "",
+    customCity: "",
     email: "",
     phone: "",
     password: "",
@@ -80,12 +82,57 @@ export default function AdminAuth() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regForm.city) {
-      toast({ title: "City required", description: "Please select your city.", variant: "destructive" });
+    const effectiveCity = regForm.city === "Other" ? regForm.customCity.trim() : regForm.city;
+    if (!effectiveCity) {
+      toast({ title: "City required", description: "Please select or enter your city.", variant: "destructive" });
       return;
     }
+
+    // LIMIT-05: Validate institute code format
+    const codeError = validateInstituteCode(regForm.instituteId);
+    if (codeError) {
+      toast({ title: "Invalid Institute Code", description: codeError, variant: "destructive" });
+      return;
+    }
+
+    // LIMIT-09: Validate password strength
+    const pwError = validatePassword(regForm.password);
+    if (pwError) {
+      toast({ title: "Weak Password", description: pwError, variant: "destructive" });
+      return;
+    }
+
+    // LIMIT-12: Validate phone number
+    const phoneError = validatePhone(regForm.phone);
+    if (phoneError) {
+      toast({ title: "Invalid Phone", description: phoneError, variant: "destructive" });
+      return;
+    }
+
+    const normalizedCode = normalizeInstituteCode(regForm.instituteId);
+
     setLoading(true);
     try {
+      // BUG-02: Check institute_code uniqueness before signup
+      const { data: existingInstitute } = await supabase
+        .from("institutes")
+        .select("id")
+        .eq("institute_code", normalizedCode)
+        .maybeSingle();
+      if (existingInstitute) {
+        toast({ title: "Code already taken", description: `Institute code "${normalizedCode}" is already in use. Please choose a different one.`, variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      // LIMIT-01/02: Warn if city has no SuperAdmin yet
+      const { data: cityAdmin } = await supabase
+        .from("user_roles")
+        .select("id")
+        .eq("role", "super_admin")
+        .eq("city", effectiveCity)
+        .maybeSingle();
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: regForm.email,
         password: regForm.password,
@@ -99,9 +146,9 @@ export default function AdminAuth() {
         owner_user_id: userId,
         owner_name: regForm.ownerName,
         institute_name: regForm.instituteName,
-        institute_code: regForm.instituteId.trim(),
+        institute_code: normalizedCode,
         govt_registration_no: regForm.govtRegistrationNo,
-        city: regForm.city,
+        city: effectiveCity,
         email: regForm.email,
         phone: regForm.phone,
         status: "pending" as const,
@@ -115,15 +162,19 @@ export default function AdminAuth() {
         email: regForm.email,
         phone: regForm.phone,
         role: "admin",
-        institute_code: regForm.instituteId.trim(),
+        institute_code: normalizedCode,
         status: "pending",
       });
       if (profError) throw profError;
 
       setPendingInstituteName(regForm.instituteName);
-      setPendingCity(regForm.city);
-      fetchSuperAdminPhone(regForm.city);
+      setPendingCity(effectiveCity);
+      fetchSuperAdminPhone(effectiveCity);
       setStep("pending");
+
+      if (!cityAdmin) {
+        toast({ title: "Note: No City Partner yet", description: `Your city (${effectiveCity}) does not have a BatchHub City Partner yet. Your approval may be delayed until one is assigned.` });
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Registration failed";
       toast({ title: "Registration failed", description: message, variant: "destructive" });
@@ -351,11 +402,16 @@ export default function AdminAuth() {
                       >
                         <option value="">Select city</option>
                         {INDIA_CITIES.map(city => <option key={city} value={city}>{city}</option>)}
-                        <option value="Other">Other</option>
                       </select>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground -mt-2">Institute ID will be the unique identifier on BatchHub.</p>
+                  <p className="text-xs text-muted-foreground -mt-2">Institute ID: letters, numbers & hyphens only (auto-uppercased).</p>
+                  {regForm.city === "Other" && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="customCity">Enter your city name *</Label>
+                      <Input id="customCity" name="customCity" placeholder="e.g. Siliguri" required onChange={handleRegChange} value={regForm.customCity} />
+                    </div>
+                  )}
 
                   <div className="space-y-1.5">
                     <Label htmlFor="govtRegistrationNo">Government Registration / Trust No. *</Label>
@@ -363,14 +419,7 @@ export default function AdminAuth() {
                     <p className="text-xs text-muted-foreground">Your government-issued institute registration number for real-world verification.</p>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label>Ownership Proof Document</Label>
-                    <div className="flex items-center gap-3 p-3 border border-dashed border-border/60 rounded-lg bg-muted/40 cursor-pointer hover:bg-muted/60 transition-colors">
-                      <Upload className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">Upload ownership certificate, PAN, or GST certificate</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Accepted: PDF, JPG, PNG (max 5MB)</p>
-                  </div>
+                  {/* BUG-03 fix: Removed non-functional fake upload UI. Document upload will be added when Supabase Storage is configured. */}
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
@@ -390,7 +439,7 @@ export default function AdminAuth() {
                         id="password"
                         name="password"
                         type={showRegPassword ? "text" : "password"}
-                        placeholder="Min. 8 characters"
+                        placeholder="Min 8 chars, upper+lower+digit"
                         required
                         minLength={8}
                         onChange={handleRegChange}

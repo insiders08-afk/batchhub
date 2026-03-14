@@ -125,11 +125,26 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
     };
 
     // Read session from localStorage instantly (no network round-trip)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
         navigate(roleAuthPaths[role], { replace: true });
         return;
       }
+
+      // INC-11 fix: verify user actually has the required role
+      const { data: roleCheck } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", session.user.id)
+        .eq("role", role)
+        .maybeSingle();
+
+      if (!roleCheck) {
+        // User doesn't have this role — send them to role selection
+        navigate("/role-select", { replace: true });
+        return;
+      }
+
       loadProfile(session.user.id, session.user.email);
     });
 
@@ -143,18 +158,18 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
     return () => subscription.unsubscribe();
   }, [navigate, role]);
 
-  // Fetch pending count for admin sidebar badges
+  // Fetch pending count for admin sidebar badges (BUG-09 fix: filter by institute_code)
   useEffect(() => {
-    if (!isAdmin || !authChecked) return;
+    if (!isAdmin || !authChecked || !instituteCode) return;
     const fetchPending = async () => {
       const [reqRes, appRes] = await Promise.all([
-        supabase.from("pending_requests").select("id").eq("status", "pending"),
+        supabase.from("pending_requests").select("id").eq("status", "pending").eq("institute_code", instituteCode),
         supabase.from("batch_applications").select("id").eq("status", "pending"),
       ]);
       setPendingCount((reqRes.data?.length || 0) + (appRes.data?.length || 0));
     };
     fetchPending();
-  }, [isAdmin, authChecked]);
+  }, [isAdmin, authChecked, instituteCode]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

@@ -53,10 +53,14 @@ export default function AdminApprovals() {
 
   const fetchRequests = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      // BUG-01 fix: explicitly filter by institute_code (RLS also enforces this, but code should be correct)
+      const { data: myInstituteCode } = await supabase.rpc("get_my_institute_code");
+      const query = supabase
         .from("pending_requests")
         .select("*")
         .order("created_at", { ascending: false });
+      if (myInstituteCode) query.eq("institute_code", myInstituteCode);
+      const { data, error } = await query;
       if (error) throw error;
       setRequests(data || []);
     } catch (err: unknown) {
