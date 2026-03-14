@@ -62,13 +62,18 @@ export default function TeacherHomework() {
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle();
       setUserName(profile?.full_name || "Teacher");
 
-      const [hwRes, batchRes] = await Promise.all([
+      const [hwRes, batchRes, subRes] = await Promise.all([
         supabase.from("homeworks").select("*").order("created_at", { ascending: false }),
         supabase.from("batches").select("id, name").eq("teacher_id", user.id).eq("is_active", true).order("name"),
+        supabase.from("homework_submissions").select("homework_id"),
       ]);
 
       setHomeworks((hwRes.data || []) as Homework[]);
       setBatches(batchRes.data || []);
+      // Count submissions per homework
+      const counts: Record<string, number> = {};
+      (subRes.data || []).forEach(s => { counts[s.homework_id] = (counts[s.homework_id] || 0) + 1; });
+      setSubmissionCounts(counts);
       setLoading(false);
     };
     init();
