@@ -566,8 +566,8 @@ export default function AdminAuth() {
                       <p className="text-xs text-muted-foreground">
                         Your government-issued institute registration / trust number for real-world verification.
                       </p>
-                      <p className="text-xs text-primary font-medium">
-                        💡 Don't have a registration number yet? You can enter any placeholder (e.g. <span className="font-mono">TBD-001</span>) and update it later from your settings.
+                      <p className="text-xs text-accent-foreground font-medium bg-accent/10 rounded px-2 py-1 mt-1">
+                        💡 Don't have one yet? Enter any placeholder (e.g. <span className="font-mono">TBD-001</span>) — you can update it anytime from your Admin Settings.
                       </p>
                     </div>
                   </div>
