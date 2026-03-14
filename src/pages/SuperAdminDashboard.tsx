@@ -396,6 +396,18 @@ export default function SuperAdminDashboard() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground text-center">Registered {timeAgo(selectedInstitute.created_at)}</p>
+              {selectedInstitute.status === "approved" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={actionLoading === selectedInstitute.id}
+                  className="w-full text-danger border-danger/30 hover:bg-danger-light gap-2 mt-2"
+                  onClick={() => handleDeactivate(selectedInstitute)}
+                >
+                  {actionLoading === selectedInstitute.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldOff className="w-4 h-4" />}
+                  Deactivate Institute
+                </Button>
+              )}
             </div>
           )}
         </DialogContent>
