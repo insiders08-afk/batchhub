@@ -83,6 +83,26 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  // INC-05: Deactivate an approved institute
+  const handleDeactivate = async (inst: Institute) => {
+    if (!confirm(`Deactivate ${inst.institute_name}? The admin will no longer have access until re-approved.`)) return;
+    setActionLoading(inst.id);
+    try {
+      await supabase.from("institutes").update({ status: "rejected" }).eq("id", inst.id);
+      if (inst.owner_user_id) {
+        await supabase.from("user_roles").delete().eq("user_id", inst.owner_user_id).eq("role", "admin");
+        await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", inst.owner_user_id);
+      }
+      toast({ title: "Institute deactivated", description: `${inst.institute_name} has been deactivated.` });
+      setInstitutes(prev => prev.map(i => i.id === inst.id ? { ...i, status: "rejected" } : i));
+      setSelectedInstitute(null);
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Deactivation failed", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const handleAction = async (inst: Institute, action: "approved" | "rejected") => {
     setActionLoading(inst.id);
     try {
