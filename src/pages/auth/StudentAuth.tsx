@@ -9,6 +9,7 @@ import { ArrowLeft, Zap, GraduationCap, Eye, EyeOff, Loader2, XCircle, CheckCirc
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { validatePassword, validatePhone, normalizeInstituteCode } from "@/lib/validation";
 
 type Screen = "register" | "login" | "forgot";
 type PendingStatus = "pending" | "rejected" | "approved";
@@ -57,9 +58,30 @@ export default function StudentAuth() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // LIMIT-09: Validate password strength
+    const pwErr = validatePassword(form.password);
+    if (pwErr) { toast({ title: "Weak Password", description: pwErr, variant: "destructive" }); return; }
+
+    // LIMIT-12: Validate phone
+    const phErr = validatePhone(form.phone);
+    if (phErr) { toast({ title: "Invalid Phone", description: phErr, variant: "destructive" }); return; }
+
     setLoading(true);
     try {
-      const instituteCode = form.instituteId.trim();
+      const instituteCode = normalizeInstituteCode(form.instituteId);
+
+      // LIMIT-06: Check institute_code exists before creating account
+      const { data: institute } = await supabase
+        .from("institutes")
+        .select("id")
+        .eq("institute_code", instituteCode)
+        .maybeSingle();
+      if (!institute) {
+        toast({ title: "Institute not found", description: `No institute with code "${instituteCode}" exists. Check with your admin for the correct code.`, variant: "destructive" });
+        setLoading(false);
+        return;
+      }
 
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: form.email,
