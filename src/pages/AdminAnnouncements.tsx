@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Search, Megaphone, Clock, Users, Loader2, Bell, Trash2 } from "lucide-react";
+import { Plus, Search, Megaphone, Clock, Users, Loader2, Bell, Trash2, Lock, CalendarOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,8 +31,9 @@ const typeColors: Record<string, string> = {
   general: "bg-secondary text-secondary-foreground border-border/40",
   homework: "bg-accent-light text-accent border-accent/20",
   fee: "bg-danger-light text-danger border-danger/20",
+  day_off: "bg-warning/10 text-warning border-warning/30",
 };
-const typeLabels: Record<string, string> = { test: "Test", general: "General", homework: "Homework", fee: "Fee" };
+const typeLabels: Record<string, string> = { test: "Test", general: "General", homework: "Homework", fee: "Fee", day_off: "Day Off" };
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
@@ -256,63 +257,88 @@ export default function AdminAnnouncements() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
               >
-                <Card className="p-5 shadow-card border-border/50 hover:shadow-lg transition-shadow">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0">
-                      <Megaphone className="w-4.5 h-4.5 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                        <h3 className="font-display font-semibold text-sm leading-tight">{ann.title}</h3>
-                        {ann.type && (
-                          <Badge className={`text-xs ${typeColors[ann.type] || typeColors.general}`}>
-                            {typeLabels[ann.type] || ann.type}
-                          </Badge>
-                        )}
-                        {ann.notify_push && (
-                          <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
-                            <Bell className="w-2.5 h-2.5" /> Alerted
-                          </Badge>
-                        )}
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="ml-auto h-7 w-7 text-muted-foreground hover:text-danger hover:bg-danger-light"
-                              disabled={deleting === ann.id}
-                            >
-                              {deleting === ann.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Delete announcement?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                "{ann.title}" will be permanently deleted. This cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                className="bg-danger text-white hover:bg-danger/90"
-                                onClick={() => handleDelete(ann.id)}
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed mb-3">{ann.content}</p>
-                      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Users className="w-3 h-3" />{getBatchName(ann.batch_id)}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{timeAgo(ann.created_at)}</span>
-                        <span className="font-medium text-foreground/70">{ann.posted_by_name || "Admin"}</span>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
+                  <Card className={`p-5 shadow-card border-border/50 hover:shadow-lg transition-shadow ${ann.type === "day_off" ? "border-warning/30 bg-warning/3" : ""}`}>
+                   <div className="flex items-start gap-4">
+                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${ann.type === "day_off" ? "bg-warning/15" : "gradient-hero"}`}>
+                       {ann.type === "day_off"
+                         ? <CalendarOff className="w-4.5 h-4.5 text-warning" />
+                         : <Megaphone className="w-4.5 h-4.5 text-white" />}
+                     </div>
+                     <div className="flex-1 min-w-0">
+                       <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                         <h3 className="font-display font-semibold text-sm leading-tight">{ann.title}</h3>
+                         {ann.type && (
+                           <Badge className={`text-xs ${typeColors[ann.type] || typeColors.general}`}>
+                             {typeLabels[ann.type] || ann.type}
+                           </Badge>
+                         )}
+                         {ann.notify_push && (
+                           <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
+                             <Bell className="w-2.5 h-2.5" /> Alerted
+                           </Badge>
+                         )}
+                         {ann.type !== "day_off" && (
+                           <AlertDialog>
+                             <AlertDialogTrigger asChild>
+                               <Button
+                                 variant="ghost"
+                                 size="icon"
+                                 className="ml-auto h-7 w-7 text-muted-foreground hover:text-danger hover:bg-danger-light"
+                                 disabled={deleting === ann.id}
+                               >
+                                 {deleting === ann.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                               </Button>
+                             </AlertDialogTrigger>
+                             <AlertDialogContent>
+                               <AlertDialogHeader>
+                                 <AlertDialogTitle>Delete announcement?</AlertDialogTitle>
+                                 <AlertDialogDescription>
+                                   "{ann.title}" will be permanently deleted. This cannot be undone.
+                                 </AlertDialogDescription>
+                               </AlertDialogHeader>
+                               <AlertDialogFooter>
+                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                 <AlertDialogAction
+                                   className="bg-danger text-white hover:bg-danger/90"
+                                   onClick={() => handleDelete(ann.id)}
+                                 >
+                                   Delete
+                                 </AlertDialogAction>
+                               </AlertDialogFooter>
+                             </AlertDialogContent>
+                           </AlertDialog>
+                         )}
+                       </div>
+                       {/* For day_off announcements: strip the tag from displayed body and show it as locked chip */}
+                       {ann.type === "day_off" ? (() => {
+                         const tagMatch = (ann.content || "").match(/day_off_date:(\d{4}-\d{2}-\d{2})/);
+                         const bodyText = (ann.content || "").replace(/\n*day_off_date:\d{4}-\d{2}-\d{2}/, "").trim();
+                         return (
+                           <div className="space-y-2 mb-3">
+                             <p className="text-sm text-muted-foreground leading-relaxed">{bodyText}</p>
+                             {tagMatch && (
+                               <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border border-dashed border-warning/50 bg-warning/5 w-fit select-none" title="System tag — read-only. Managed via Attendance Calendar.">
+                                 <Lock className="w-3 h-3 text-warning flex-shrink-0" />
+                                 <span className="text-xs font-mono text-warning font-medium">day_off_date:{tagMatch[1]}</span>
+                                 <span className="text-xs text-muted-foreground">— system tag (read-only)</span>
+                               </div>
+                             )}
+                             <p className="text-xs text-warning/80 flex items-center gap-1">
+                               <Lock className="w-3 h-3" /> To remove this day-off, use the Attendance Calendar.
+                             </p>
+                           </div>
+                         );
+                       })() : (
+                         <p className="text-sm text-muted-foreground leading-relaxed mb-3">{ann.content}</p>
+                       )}
+                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                         <span className="flex items-center gap-1"><Users className="w-3 h-3" />{getBatchName(ann.batch_id)}</span>
+                         <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{timeAgo(ann.created_at)}</span>
+                         <span className="font-medium text-foreground/70">{ann.posted_by_name || "Admin"}</span>
+                       </div>
+                     </div>
+                   </div>
+                 </Card>
               </motion.div>
             ))}
           </div>

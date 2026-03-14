@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarDays, Loader2, XCircle, CheckCircle2, CalendarOff } from "lucide-react";
+import { CalendarDays, Loader2, XCircle, CheckCircle2, CalendarOff, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { parseBatchTiming, isAttendanceEditable, JS_DAY_ABBREVS } from "@/lib/batchTiming";
@@ -144,9 +144,12 @@ function FutureDayOffDialog({
   const [sending, setSending] = useState(false);
   const [notify, setNotify] = useState(true);
   const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  // Only the human-readable body; the day_off_date tag is always appended separately on save
+  const [messageBody, setMessageBody] = useState("");
   const [alreadyMarked, setAlreadyMarked] = useState(false);
   const [checking, setChecking] = useState(false);
+
+  const lockedTag = `day_off_date:${date}`;
 
   const dateDisplay = date
     ? dateKeyToLocalDate(date).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
@@ -168,7 +171,7 @@ function FutureDayOffDialog({
           setChecking(false);
           if (!marked) {
             setTitle(`No Class — ${batchName || "Batch"} — ${dateDisplay}`);
-            setContent(`Dear students, there will be no class for ${batchName || "this batch"} on ${dateDisplay}. Please plan accordingly.\n\nday_off_date:${date}`);
+            setMessageBody(`Dear students, there will be no class for ${batchName || "this batch"} on ${dateDisplay}. Please plan accordingly.`);
           }
         });
     }
@@ -181,15 +184,13 @@ function FutureDayOffDialog({
       const { data: { user } } = await supabase.auth.getUser();
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user!.id).single();
 
-      // Embed machine-readable ISO date tag into content for reliable parsing
-      const contentWithTag = content.includes("day_off_date:")
-        ? content
-        : `${content}\n\nday_off_date:${date}`;
+      // Always reconstruct content with the locked tag — user cannot remove it
+      const fullContent = `${messageBody.trim()}\n\n${lockedTag}`;
 
       if (notify) {
         await supabase.from("announcements").insert({
           title,
-          content: contentWithTag,
+          content: fullContent,
           batch_id: batchId,
           institute_code: instituteCode,
           posted_by: user!.id,
@@ -256,11 +257,17 @@ function FutureDayOffDialog({
                   <div className="space-y-1.5">
                     <Label className="text-xs">Message</Label>
                     <textarea
-                      value={content}
-                      onChange={e => setContent(e.target.value)}
+                      value={messageBody}
+                      onChange={e => setMessageBody(e.target.value)}
                       rows={3}
                       className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                     />
+                    {/* Locked system tag — cannot be edited or deleted */}
+                    <div className="flex items-center gap-1.5 mt-1.5 px-2 py-1.5 rounded-md border border-dashed border-warning/50 bg-warning/5 select-none">
+                      <Lock className="w-3 h-3 text-warning flex-shrink-0" />
+                      <span className="text-xs font-mono text-warning font-medium">{lockedTag}</span>
+                      <span className="text-xs text-muted-foreground ml-1">— system tag (read-only)</span>
+                    </div>
                   </div>
                 </div>
               )}
