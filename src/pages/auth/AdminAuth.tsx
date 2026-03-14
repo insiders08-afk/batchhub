@@ -237,12 +237,12 @@ export default function AdminAuth() {
 
 
 
+
+
       // silently ignore
     }};const handleRegister = async (e: React.FormEvent) => {e.preventDefault();const effectiveCity = regForm.city.trim();if (!effectiveCity) {toast({ title: "City required", description: "Please select or type your city.", variant: "destructive" });return;} // Institute code: already enforced by input, but double-check
     const code = regForm.instituteId.trim();if (!code || code.length < 3) {toast({ title: "Invalid Institute Code", description: "Must be at least 3 characters (A–Z, 0–9, hyphen).", variant: "destructive" });return;} // LIMIT-09: Validate password strength
-    const pwError = validatePassword(regForm.password);if (pwError) {toast({ title: "Weak Password", description: pwError, variant: "destructive" });return;
-    }
-
+    const pwError = validatePassword(regForm.password);if (pwError) {toast({ title: "Weak Password", description: pwError, variant: "destructive" });return;}
     // LIMIT-12: Validate phone number
     const phoneError = validatePhone(regForm.phone);
     if (phoneError) {
@@ -563,7 +563,7 @@ export default function AdminAuth() {
                     value={regForm.govtRegistrationNo} />
                   
                     <div className="space-y-0.5">
-                      <p className="text-success bg-primary-light text-[sidebar-accent-foreground]">
+                      <p className="bg-primary-light text-secondary-foreground text-xs">
                         Your government-issued institute registration / trust number for real-world verification.
                       </p>
                       <p className="text-xs font-medium rounded px-2 py-1 mt-1 text-accent font-mono bg-muted-foreground">
