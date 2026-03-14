@@ -334,6 +334,51 @@ export type Database = {
         }
         Relationships: []
       }
+      homework_submissions: {
+        Row: {
+          batch_id: string
+          homework_id: string
+          id: string
+          institute_code: string
+          note: string | null
+          student_id: string
+          submitted_at: string
+        }
+        Insert: {
+          batch_id: string
+          homework_id: string
+          id?: string
+          institute_code: string
+          note?: string | null
+          student_id: string
+          submitted_at?: string
+        }
+        Update: {
+          batch_id?: string
+          homework_id?: string
+          id?: string
+          institute_code?: string
+          note?: string | null
+          student_id?: string
+          submitted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "homework_submissions_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homework_submissions_homework_id_fkey"
+            columns: ["homework_id"]
+            isOneToOne: false
+            referencedRelation: "homeworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       homeworks: {
         Row: {
           batch_id: string
