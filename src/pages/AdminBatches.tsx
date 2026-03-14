@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink, Loader2, UserPlus, X, CheckCircle2, CalendarOff } from "lucide-react";
+import { Plus, Search, Users, BookOpen, Clock, Pencil, Trash2, ExternalLink, Loader2, UserPlus, X, CheckCircle2, CalendarOff, Lock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -361,7 +361,8 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
   const [checking, setChecking] = useState(false);
   const [notify, setNotify] = useState(true);
   const [announcementTitle, setAnnouncementTitle] = useState("");
-  const [announcementContent, setAnnouncementContent] = useState("");
+  // Only the human-readable body — the day_off_date tag is always appended on save, never editable
+  const [messageBody, setMessageBody] = useState("");
   const [alreadyMarked, setAlreadyMarked] = useState(false);
 
   // Convert a local date to ISO key YYYY-MM-DD
@@ -413,26 +414,27 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
 
   const nextClassDate = getNextClassDate();
   const nextClassDateKey = toISOKey(nextClassDate);
+  const lockedTag = `day_off_date:${nextClassDateKey}`;
   const nextClassStr = nextClassDate.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
 
   const handleOpen = async () => {
     setAlreadyMarked(false);
     setChecking(true);
-    // Check if this date is already marked as day off
     const { data } = await supabase
       .from("announcements")
       .select("id")
       .eq("batch_id", batch.id)
       .eq("type", "day_off")
       .ilike("content", `%day_off_date:${nextClassDateKey}%`);
-    
+
     const isMarked = (data?.length ?? 0) > 0;
     setAlreadyMarked(isMarked);
     setChecking(false);
 
     if (!isMarked) {
       setAnnouncementTitle(`No Class — ${batch.name} — ${nextClassStr}`);
-      setAnnouncementContent(`Dear students, there will be no class for ${batch.name} on ${nextClassStr}. Please plan accordingly.\n\nday_off_date:${nextClassDateKey}`);
+      // Only set the human-readable body — tag is appended on save
+      setMessageBody(`Dear students, there will be no class for ${batch.name} on ${nextClassStr}. Please plan accordingly.`);
     }
     setOpen(true);
   };
@@ -444,9 +446,11 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user!.id).single();
 
       if (notify) {
+        // Always reconstruct full content with locked tag — user cannot remove or alter it
+        const fullContent = `${messageBody.trim()}\n\n${lockedTag}`;
         await supabase.from("announcements").insert({
           title: announcementTitle,
-          content: announcementContent,
+          content: fullContent,
           batch_id: batch.id,
           institute_code: instituteCode,
           posted_by: user!.id,
@@ -535,11 +539,17 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
                     <div className="space-y-1.5">
                       <Label className="text-xs">Message</Label>
                       <textarea
-                        value={announcementContent}
-                        onChange={e => setAnnouncementContent(e.target.value)}
+                        value={messageBody}
+                        onChange={e => setMessageBody(e.target.value)}
                         rows={3}
                         className="w-full text-sm rounded-md border border-input bg-background px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-ring"
                       />
+                      {/* Locked system tag — cannot be edited or deleted by the user */}
+                      <div className="flex items-center gap-1.5 mt-1.5 px-2 py-1.5 rounded-md border border-dashed border-warning/50 bg-warning/5 select-none" title="System tag — automatically appended. Cannot be edited.">
+                        <Lock className="w-3 h-3 text-warning flex-shrink-0" />
+                        <span className="text-xs font-mono text-warning font-medium">{lockedTag}</span>
+                        <span className="text-xs text-muted-foreground ml-1">— system tag (read-only)</span>
+                      </div>
                     </div>
                   </div>
                 )}
