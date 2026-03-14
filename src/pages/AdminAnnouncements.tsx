@@ -31,8 +31,9 @@ const typeColors: Record<string, string> = {
   general: "bg-secondary text-secondary-foreground border-border/40",
   homework: "bg-accent-light text-accent border-accent/20",
   fee: "bg-danger-light text-danger border-danger/20",
+  day_off: "bg-warning/10 text-warning border-warning/30",
 };
-const typeLabels: Record<string, string> = { test: "Test", general: "General", homework: "Homework", fee: "Fee" };
+const typeLabels: Record<string, string> = { test: "Test", general: "General", homework: "Homework", fee: "Fee", day_off: "Day Off" };
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
