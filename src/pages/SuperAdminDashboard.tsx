@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Zap, Shield, CheckCircle2, XCircle, Clock, Search,
-  Building2, LogOut, Loader2, RefreshCw, MapPin, ArrowLeft, Phone, Mail, Hash
+  Building2, LogOut, Loader2, RefreshCw, MapPin, ArrowLeft, Phone, Mail, Hash, ShieldOff
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -80,6 +80,26 @@ export default function SuperAdminDashboard() {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // INC-05: Deactivate an approved institute
+  const handleDeactivate = async (inst: Institute) => {
+    if (!confirm(`Deactivate ${inst.institute_name}? The admin will no longer have access until re-approved.`)) return;
+    setActionLoading(inst.id);
+    try {
+      await supabase.from("institutes").update({ status: "rejected" }).eq("id", inst.id);
+      if (inst.owner_user_id) {
+        await supabase.from("user_roles").delete().eq("user_id", inst.owner_user_id).eq("role", "admin");
+        await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", inst.owner_user_id);
+      }
+      toast({ title: "Institute deactivated", description: `${inst.institute_name} has been deactivated.` });
+      setInstitutes(prev => prev.map(i => i.id === inst.id ? { ...i, status: "rejected" } : i));
+      setSelectedInstitute(null);
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Deactivation failed", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -376,6 +396,18 @@ export default function SuperAdminDashboard() {
                 ))}
               </div>
               <p className="text-xs text-muted-foreground text-center">Registered {timeAgo(selectedInstitute.created_at)}</p>
+              {selectedInstitute.status === "approved" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={actionLoading === selectedInstitute.id}
+                  className="w-full text-danger border-danger/30 hover:bg-danger-light gap-2 mt-2"
+                  onClick={() => handleDeactivate(selectedInstitute)}
+                >
+                  {actionLoading === selectedInstitute.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldOff className="w-4 h-4" />}
+                  Deactivate Institute
+                </Button>
+              )}
             </div>
           )}
         </DialogContent>

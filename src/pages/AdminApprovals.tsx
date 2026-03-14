@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   CheckCircle2, XCircle, Clock, BookOpen, GraduationCap,
-  UserCircle, Search, Loader2, RotateCcw, Link2
+  UserCircle, Search, Loader2, RotateCcw, Link2, ShieldOff
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -152,6 +152,23 @@ export default function AdminApprovals() {
     }
 
     await executeApproval(req, action, null);
+  };
+
+  // INC-05: Revoke an approved teacher/student/parent role
+  const handleRevoke = async (req: PendingRequest) => {
+    if (!confirm(`Revoke ${req.role} access for ${req.full_name}? They will no longer be able to log in as ${req.role}.`)) return;
+    setActionLoading(req.id);
+    try {
+      await supabase.from("user_roles").delete().eq("user_id", req.user_id).eq("role", req.role);
+      await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", req.user_id).eq("role", req.role);
+      await supabase.from("pending_requests").update({ status: "rejected" }).eq("id", req.id);
+      toast({ title: "Access revoked", description: `${req.full_name}'s ${req.role} access has been removed.` });
+      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: "rejected" } : r));
+    } catch (err: unknown) {
+      toast({ title: "Error", description: err instanceof Error ? err.message : "Revoke failed", variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const executeApproval = async (req: PendingRequest, action: "approved" | "rejected", childId: string | null) => {
@@ -375,7 +392,7 @@ export default function AdminApprovals() {
                         </div>
                       </div>
 
-                      {/* Show Approve/Reject for pending, or Re-approve for rejected */}
+                      {/* Show Approve/Reject for pending, or Re-approve for rejected, or Revoke for approved */}
                       {(isPending || isRejected) && (
                         <div className="flex gap-2 flex-shrink-0">
                           <Button
@@ -405,6 +422,19 @@ export default function AdminApprovals() {
                             </Button>
                           )}
                         </div>
+                      )}
+                      {/* INC-05: Revoke button for approved users */}
+                      {req.status === "approved" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={actionLoading === req.id}
+                          className="text-danger border-danger/30 hover:bg-danger-light h-8 text-xs gap-1 flex-shrink-0"
+                          onClick={() => handleRevoke(req)}
+                        >
+                          {actionLoading === req.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldOff className="w-3.5 h-3.5" />}
+                          Revoke
+                        </Button>
                       )}
                     </div>
                   </Card>

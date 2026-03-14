@@ -50,6 +50,7 @@ export default function TeacherHomework() {
   const [userName, setUserName] = useState<string>("");
   const [activeTab, setActiveTab] = useState<"homework" | "dpp">("homework");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [submissionCounts, setSubmissionCounts] = useState<Record<string, number>>({});
   const [form, setForm] = useState({ title: "", description: "", batchId: "", type: "homework", dueDate: "" });
 
   useEffect(() => {
@@ -61,13 +62,18 @@ export default function TeacherHomework() {
       const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle();
       setUserName(profile?.full_name || "Teacher");
 
-      const [hwRes, batchRes] = await Promise.all([
+      const [hwRes, batchRes, subRes] = await Promise.all([
         supabase.from("homeworks").select("*").order("created_at", { ascending: false }),
         supabase.from("batches").select("id, name").eq("teacher_id", user.id).eq("is_active", true).order("name"),
+        supabase.from("homework_submissions").select("homework_id"),
       ]);
 
       setHomeworks((hwRes.data || []) as Homework[]);
       setBatches(batchRes.data || []);
+      // Count submissions per homework
+      const counts: Record<string, number> = {};
+      (subRes.data || []).forEach(s => { counts[s.homework_id] = (counts[s.homework_id] || 0) + 1; });
+      setSubmissionCounts(counts);
       setLoading(false);
     };
     init();
@@ -248,6 +254,11 @@ export default function TeacherHomework() {
                         <Badge className="text-xs bg-primary-light text-primary border-primary/20">
                           {getBatchName(hw.batch_id)}
                         </Badge>
+                        {submissionCounts[hw.id] > 0 && (
+                          <Badge className="text-xs bg-success-light text-success border-success/20 gap-1">
+                            ✅ {submissionCounts[hw.id]} submitted
+                          </Badge>
+                        )}
                       </div>
                       {hw.description && <p className="text-sm text-muted-foreground mb-2">{hw.description}</p>}
                       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
