@@ -361,7 +361,8 @@ function DayOffDialog({ batch, instituteCode, onDone }: { batch: Batch; institut
   const [checking, setChecking] = useState(false);
   const [notify, setNotify] = useState(true);
   const [announcementTitle, setAnnouncementTitle] = useState("");
-  const [announcementContent, setAnnouncementContent] = useState("");
+  // Only the human-readable body — the day_off_date tag is appended separately on save
+  const [messageBody, setMessageBody] = useState("");
   const [alreadyMarked, setAlreadyMarked] = useState(false);
 
   // Convert a local date to ISO key YYYY-MM-DD
