@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   CheckCircle2, XCircle, Clock, BookOpen, GraduationCap,
-  UserCircle, Search, Loader2, RotateCcw, Link2
+  UserCircle, Search, Loader2, RotateCcw, Link2, ShieldOff
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
