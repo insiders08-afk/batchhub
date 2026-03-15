@@ -42,7 +42,18 @@ interface ChatMessage {
   file_type?: string | null;
   isSelf?: boolean;
   reply_to_id?: string | null;
-  reactions?: Record<string, string[]>; // emoji -> user_ids[]
+  reactions?: Record<string, string[]> | null;
+}
+
+interface DppItem {
+  id: string;
+  title: string;
+  description: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  link_url: string | null;
+  teacher_name: string | null;
+  created_at: string;
 }
 
 interface Student {
