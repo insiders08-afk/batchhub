@@ -189,7 +189,6 @@ function BatchFormDialog({
   const handleSave = async () => {
     if (!name.trim()) { toast({ title: "Batch name is required", variant: "destructive" }); return; }
     if (!course) { toast({ title: "Course is required", variant: "destructive" }); return; }
-    if (!teacherId) { toast({ title: "Assigning a teacher is required", variant: "destructive" }); return; }
     if (timing.days.length === 0) { toast({ title: "Select at least one class day", variant: "destructive" }); return; }
 
     setSaving(true);
@@ -208,7 +207,7 @@ function BatchFormDialog({
       }
 
       // If teacher changed, send new request
-      if (teacherId !== editBatch.teacher_id) {
+      if (teacherId && teacherId !== editBatch.teacher_id) {
         await supabase.from("batch_teacher_requests").insert({
           batch_id: editBatch.id,
           teacher_id: teacherId,
@@ -235,7 +234,8 @@ function BatchFormDialog({
         setSaving(false); return;
       }
 
-      if (batchData && user) {
+      // Fix #16: Only send teacher request if a teacher was selected
+      if (batchData && user && teacherId) {
         await supabase.from("batch_teacher_requests").insert({
           batch_id: batchData.id,
           teacher_id: teacherId,
@@ -245,8 +245,10 @@ function BatchFormDialog({
           course,
           status: "pending",
         });
+        toast({ title: "Batch created!", description: `Assignment request sent to ${teacherName}. They must accept to be linked.` });
+      } else {
+        toast({ title: "Batch created!", description: teacherId ? "Assignment request sent." : "No teacher assigned yet. You can assign one later." });
       }
-      toast({ title: "Batch created!", description: `Assignment request sent to ${teacherName}. They must accept to be linked.` });
     }
 
     onOpenChange(false);
@@ -280,7 +282,7 @@ function BatchFormDialog({
 
           {/* Teacher (required) */}
           <div className="space-y-1.5">
-            <Label>Assigned Teacher <span className="text-danger">*</span></Label>
+            <Label>Assigned Teacher <span className="text-muted-foreground text-xs">(optional)</span></Label>
             <Select value={teacherId} onValueChange={v => {
               const t = teachers.find(t => t.user_id === v);
               setTeacherId(v);
