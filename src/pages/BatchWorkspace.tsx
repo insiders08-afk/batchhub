@@ -174,7 +174,7 @@ export default function BatchWorkspace() {
       if (msgs) {
         // Reverse to show in chronological order
         const chronologicalMsgs = [...msgs].reverse();
-        setMessages(chronologicalMsgs.map(m => ({ ...m, isSelf: m.sender_id === user.id })));
+        setMessages(chronologicalMsgs.map(m => ({ ...m, reactions: (m.reactions as Record<string, string[]> | null) ?? null, isSelf: m.sender_id === user.id })));
         
         // Robust immediate scroll
         requestAnimationFrame(() => {
