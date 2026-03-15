@@ -221,11 +221,12 @@ export default function BatchWorkspace() {
 
       // DPP / Homework
       const { data: dppData } = await supabase
-        .from("homework_assignments")
-        .select("*")
+        .from("homeworks")
+        .select("id, title, description, file_url, file_name, link_url, teacher_name, created_at")
         .eq("batch_id", batchId)
+        .eq("type", "dpp")
         .order("created_at", { ascending: false });
-      setDppItems((dppData || []) as typeof dppItems);
+      setDppItems((dppData || []) as DppItem[]);
 
       setLoading(false);
     };
