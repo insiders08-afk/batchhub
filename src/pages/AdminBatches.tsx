@@ -736,12 +736,16 @@ export default function AdminBatches() {
   const [instituteCode, setInstituteCode] = useState("");
 
   const fetchBatches = async (code: string) => {
-    const { data } = await supabase.from("batches").select("*").eq("institute_code", code).order("created_at", { ascending: false });
+    const { data } = await supabase.from("batches").select("id, name, course, teacher_name, teacher_id, pending_teacher_name, schedule, is_active, institute_code").eq("institute_code", code).order("created_at", { ascending: false });
     if (!data) return;
-    const enriched = await Promise.all(data.map(async (b) => {
-      const { count } = await supabase.from("students_batches").select("id", { count: "exact" }).eq("batch_id", b.id);
-      return { ...b, studentCount: count || 0 };
-    }));
+    // Aggregate student counts in one query instead of N+1
+    const batchIds = data.map(b => b.id);
+    let countMap: Record<string, number> = {};
+    if (batchIds.length > 0) {
+      const { data: sb } = await supabase.from("students_batches").select("batch_id").in("batch_id", batchIds);
+      (sb || []).forEach(e => { countMap[e.batch_id] = (countMap[e.batch_id] || 0) + 1; });
+    }
+    const enriched = data.map(b => ({ ...b, studentCount: countMap[b.id] || 0 }));
     setBatches(enriched);
   };
 
