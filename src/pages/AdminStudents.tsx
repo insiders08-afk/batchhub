@@ -17,6 +17,7 @@ type Profile = Tables<"profiles">;
 interface StudentWithBatch extends Profile {
   batchNames: string[];
   attendancePct: number | null;
+  perBatchAttendance: Record<string, { total: number; present: number }>;
 }
 
 export default function AdminStudents() {
@@ -46,18 +47,18 @@ export default function AdminStudents() {
 
       if (error) throw error;
 
-      // Fetch batch enrollments for all students
       const studentIds = (profiles || []).map(p => p.user_id);
-      const { data: enrollments } = await supabase
-        .from("students_batches")
-        .select("student_id, batch_id, batches(name)")
-        .in("student_id", studentIds.length > 0 ? studentIds : ["none"]);
 
-      // Fetch attendance summary
-      const { data: attendanceData } = await supabase
-        .from("attendance")
-        .select("student_id, present")
-        .in("student_id", studentIds.length > 0 ? studentIds : ["none"]);
+      // Fetch batch enrollments for all students
+      // Fix #5: early-return instead of ["none"] hack
+      let enrollments: { student_id: string; batch_id: string; batches: { name: string } | null }[] = [];
+      let attendanceData: { student_id: string; batch_id: string; present: boolean }[] = [];
+      if (studentIds.length > 0) {
+        const { data: eData } = await supabase.from("students_batches").select("student_id, batch_id, batches(name)").in("student_id", studentIds);
+        enrollments = eData || [];
+        const { data: aData } = await supabase.from("attendance").select("student_id, batch_id, present").in("student_id", studentIds);
+        attendanceData = aData || [];
+      }
 
       // Build lookup maps
       const batchMap: Record<string, string[]> = {};
@@ -67,20 +68,32 @@ export default function AdminStudents() {
         if (batchName) batchMap[e.student_id].push(batchName);
       });
 
-      const attendanceMap: Record<string, { total: number; present: number }> = {};
+      // Fix #26: Build per-batch attendance instead of a single global average
+      const attendanceMap: Record<string, Record<string, { total: number; present: number }>> = {};
       (attendanceData || []).forEach(a => {
-        if (!attendanceMap[a.student_id]) attendanceMap[a.student_id] = { total: 0, present: 0 };
-        attendanceMap[a.student_id].total++;
-        if (a.present) attendanceMap[a.student_id].present++;
+        if (!attendanceMap[a.student_id]) attendanceMap[a.student_id] = {};
+        if (!attendanceMap[a.student_id][a.batch_id]) attendanceMap[a.student_id][a.batch_id] = { total: 0, present: 0 };
+        attendanceMap[a.student_id][a.batch_id].total++;
+        if (a.present) attendanceMap[a.student_id][a.batch_id].present++;
       });
 
-      const enriched: StudentWithBatch[] = (profiles || []).map(p => ({
-        ...p,
-        batchNames: batchMap[p.user_id] || [],
-        attendancePct: attendanceMap[p.user_id]
-          ? Math.round((attendanceMap[p.user_id].present / attendanceMap[p.user_id].total) * 100)
-          : null,
-      }));
+      // Compute overall attendance from per-batch data
+      const overallAttendance: Record<string, number> = {};
+      Object.entries(attendanceMap).forEach(([sid, batches]) => {
+        let totalAll = 0, presentAll = 0;
+        Object.values(batches).forEach(b => { totalAll += b.total; presentAll += b.present; });
+        overallAttendance[sid] = totalAll > 0 ? Math.round((presentAll / totalAll) * 100) : -1;
+      });
+
+      const enriched: StudentWithBatch[] = (profiles || []).map(s => {
+        const attendancePct = overallAttendance[s.user_id] ?? -1; // -1 = no data
+        return {
+          ...s,
+          batchNames: batchMap[s.user_id] || [],
+          attendancePct: attendancePct !== -1 ? attendancePct : null,
+          perBatchAttendance: attendanceMap[s.user_id] || {},
+        };
+      });
 
       setStudents(enriched);
     } catch (err: unknown) {
@@ -238,6 +251,27 @@ export default function AdminStudents() {
                         {selectedStudent.attendancePct}%
                       </span>
                     </div>
+                    {/* Fix #26: Per-batch attendance breakdown */}
+                    {Object.keys(selectedStudent.perBatchAttendance).length > 0 && (
+                      <div className="mt-2 space-y-1.5 pt-2 border-t border-border/30">
+                        <p className="text-xs text-muted-foreground font-medium">Per-Batch Breakdown</p>
+                        {selectedStudent.batchNames.map((batchName, idx) => {
+                          const batchEntries = Object.entries(selectedStudent.perBatchAttendance) as [string, { total: number; present: number }][];
+                          const entry = batchEntries[idx];
+                          if (!entry) return null;
+                          const [, stats] = entry;
+                          const pct = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : 0;
+                          return (
+                            <div key={batchName} className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground truncate max-w-[60%]">{batchName}</span>
+                              <span className={`font-semibold ${pct >= 75 ? "text-success" : "text-danger"}`}>
+                                {pct}% ({stats.present}/{stats.total})
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
