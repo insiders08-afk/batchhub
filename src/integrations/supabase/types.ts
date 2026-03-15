@@ -153,6 +153,8 @@ export type Database = {
           id: string
           institute_code: string
           message: string
+          reactions: Json
+          reply_to_id: string | null
           sender_id: string
           sender_name: string
           sender_role: string
@@ -166,6 +168,8 @@ export type Database = {
           id?: string
           institute_code: string
           message: string
+          reactions?: Json
+          reply_to_id?: string | null
           sender_id: string
           sender_name: string
           sender_role?: string
@@ -179,11 +183,21 @@ export type Database = {
           id?: string
           institute_code?: string
           message?: string
+          reactions?: Json
+          reply_to_id?: string | null
           sender_id?: string
           sender_name?: string
           sender_role?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "batch_messages_reply_to_id_fkey"
+            columns: ["reply_to_id"]
+            isOneToOne: false
+            referencedRelation: "batch_messages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       batch_teacher_requests: {
         Row: {
