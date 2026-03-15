@@ -273,28 +273,25 @@ export default function BatchWorkspace() {
     return () => { supabase.removeChannel(channel); };
   }, [batchId]);
 
-  // Robust Scrolling with ResizeObserver
-  useEffect(() => {
+  // ─── Scroll helper: only scrolls when chat tab is active ─────────────────────
+  const scrollToBottom = useCallback((smooth = false) => {
     const container = chatContainerRef.current;
     if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+  }, []);
 
-    const observer = new ResizeObserver(() => {
-      // Small buffer to check if we are already near the bottom
-      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-      
-      // If we're loading or if we're near the bottom, force scroll
-      if (loading || isNearBottom) {
-        chatEndRef.current?.scrollIntoView({ behavior: "auto" });
-      }
-    });
-
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [loading]);
-
+  // Scroll on new messages (only when chat tab is active)
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (activeTab === "chat") scrollToBottom(true);
+  }, [messages, activeTab, scrollToBottom]);
+
+  // Scroll once on initial load when chat tab mounts
+  useEffect(() => {
+    if (activeTab === "chat" && messages.length > 0) {
+      requestAnimationFrame(() => scrollToBottom(false));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // ─── File upload helper ─────────────────────────────────────────────────────
   const uploadChatFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
