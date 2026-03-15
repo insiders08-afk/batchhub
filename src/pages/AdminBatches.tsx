@@ -37,6 +37,7 @@ interface Batch {
   course: string;
   teacher_name: string | null;
   teacher_id: string | null;
+  pending_teacher_name: string | null;
   schedule: string | null;
   is_active: boolean;
   institute_code: string;
@@ -217,6 +218,8 @@ function BatchFormDialog({
           course,
           status: "pending",
         });
+        // Fix #15: Store pending teacher name so admin can see "awaiting acceptance" badge
+        await supabase.from("batches").update({ pending_teacher_name: teacherName }).eq("id", editBatch.id);
         toast({ title: "Batch updated!", description: `New assignment request sent to ${teacherName}.` });
       } else {
         toast({ title: "Batch updated successfully!" });
@@ -245,6 +248,8 @@ function BatchFormDialog({
           course,
           status: "pending",
         });
+        // Fix #15: Store pending teacher name for badge visibility
+        await supabase.from("batches").update({ pending_teacher_name: teacherName }).eq("id", batchData.id);
         toast({ title: "Batch created!", description: `Assignment request sent to ${teacherName}. They must accept to be linked.` });
       } else {
         toast({ title: "Batch created!", description: teacherId ? "Assignment request sent." : "No teacher assigned yet. You can assign one later." });
@@ -731,12 +736,16 @@ export default function AdminBatches() {
   const [instituteCode, setInstituteCode] = useState("");
 
   const fetchBatches = async (code: string) => {
-    const { data } = await supabase.from("batches").select("*").eq("institute_code", code).order("created_at", { ascending: false });
+    const { data } = await supabase.from("batches").select("id, name, course, teacher_name, teacher_id, pending_teacher_name, schedule, is_active, institute_code").eq("institute_code", code).order("created_at", { ascending: false });
     if (!data) return;
-    const enriched = await Promise.all(data.map(async (b) => {
-      const { count } = await supabase.from("students_batches").select("id", { count: "exact" }).eq("batch_id", b.id);
-      return { ...b, studentCount: count || 0 };
-    }));
+    // Aggregate student counts in one query instead of N+1
+    const batchIds = data.map(b => b.id);
+    let countMap: Record<string, number> = {};
+    if (batchIds.length > 0) {
+      const { data: sb } = await supabase.from("students_batches").select("batch_id").in("batch_id", batchIds);
+      (sb || []).forEach(e => { countMap[e.batch_id] = (countMap[e.batch_id] || 0) + 1; });
+    }
+    const enriched = data.map(b => ({ ...b, studentCount: countMap[b.id] || 0 }));
     setBatches(enriched);
   };
 
@@ -847,7 +856,16 @@ export default function AdminBatches() {
                   <div className="space-y-2 mb-4 flex-1">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{batch.teacher_name || "Awaiting teacher acceptance"}</span>
+                      {batch.teacher_name ? (
+                        <span className="truncate">{batch.teacher_name}</span>
+                      ) : batch.pending_teacher_name ? (
+                        <span className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className="text-[10px] px-1.5 py-0 bg-accent-light text-accent border-accent/20 font-semibold">Pending</Badge>
+                          <span className="truncate text-xs">{batch.pending_teacher_name}</span>
+                        </span>
+                      ) : (
+                        <span className="truncate">No teacher assigned</span>
+                      )}
                     </div>
                     {batch.schedule && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">

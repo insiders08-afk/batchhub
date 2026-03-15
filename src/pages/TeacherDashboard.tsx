@@ -118,7 +118,7 @@ export default function TeacherDashboard() {
 
       const { data: updated, error: batchErr } = await supabase
         .from("batches")
-        .update({ teacher_id: user.id, teacher_name: teacherName })
+        .update({ teacher_id: user.id, teacher_name: teacherName, pending_teacher_name: null })
         .eq("id", req.batch_id)
         .select("id");
 
