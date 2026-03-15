@@ -172,7 +172,17 @@ export default function BatchWorkspace() {
           .in("user_id", ids);
         const mapped = (studentProfiles || []).map(s => ({ id: s.user_id, user_id: s.user_id, full_name: s.full_name }));
         setStudents(mapped);
-        setAttendance(Object.fromEntries(mapped.map(s => [s.id, false])));
+
+        // Load today's actual attendance from DB (read-only display)
+        const today = new Date().toISOString().split("T")[0];
+        const { data: attData } = await supabase
+          .from("attendance")
+          .select("student_id, present")
+          .eq("batch_id", batchId)
+          .eq("date", today);
+        const attMap: Record<string, boolean> = Object.fromEntries(mapped.map(s => [s.id, false]));
+        (attData || []).forEach(a => { attMap[a.student_id] = a.present; });
+        setAttendance(attMap);
       }
 
       // Announcements
