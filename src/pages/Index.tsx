@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { lazy, Suspense } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,11 @@ import {
 import heroDashboard from "@/assets/hero-dashboard.png";
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
+
+// Lazy-load framer-motion animations — only used below the fold
+const MotionDiv = lazy(() =>
+  import("framer-motion").then((m) => ({ default: m.motion.div }))
+);
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => void;
@@ -95,6 +100,11 @@ const plans = [
 
 const navLinks = ["Features", "Pricing", "Testimonials"];
 
+// Fallback wrapper — renders children without animation
+function AnimFallback({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={className}>{children}</div>;
+}
+
 export default function Index() {
   const navigate = useNavigate();
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
@@ -105,12 +115,9 @@ export default function Index() {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
-        // If user chose "session only" (no remember me), sessionStorage flag is set.
-        // When the PWA is closed and reopened, sessionStorage is cleared → sign out.
         const noRemember = localStorage.getItem("batchhub_remember_me") !== "true";
         const sessionActive = sessionStorage.getItem("batchhub_session_only") === "true";
         if (noRemember && !sessionActive) {
-          // Session exists in localStorage but user didn't want persistence → sign out
           await supabase.auth.signOut();
           setAuthChecking(false);
           return;
@@ -131,7 +138,6 @@ export default function Index() {
   }, [navigate]);
 
   useEffect(() => {
-    // Only show banner if NOT already installed and on mobile
     const isStandalone =
     window.matchMedia("(display-mode: standalone)").matches ||
     (window.navigator as Navigator & {standalone?: boolean;}).standalone === true;
@@ -192,21 +198,16 @@ export default function Index() {
         </div>
       </nav>
 
-      {/* Hero */}
+      {/* Hero — CSS-only animation (no framer-motion on the critical path) */}
       <section className="relative overflow-hidden pt-20 pb-16 md:pt-28 md:pb-24">
-        {/* Background decoration */}
         <div className="absolute inset-0 -z-10">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-primary/5 blur-3xl" />
           <div className="absolute top-40 right-0 w-[300px] h-[300px] rounded-full bg-accent/8 blur-3xl" />
         </div>
 
         <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center max-w-4xl mx-auto">
-            
+          {/* Hero text — pure CSS fade-in, no framer-motion/layout query */}
+          <div className="hero-fadein text-center max-w-4xl mx-auto">
             <Badge className="mb-6 bg-primary-light text-primary border-primary/20 px-4 py-1.5 text-sm font-medium">
               🇮🇳 Built for Indian coaching institutes
             </Badge>
@@ -229,7 +230,6 @@ export default function Index() {
               </Link>
             </div>
 
-            {/* Role demo links — use /demo/* routes that show only fake data */}
             <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
               <span className="text-sm text-muted-foreground mr-1">Try a demo:</span>
               {[
@@ -247,22 +247,25 @@ export default function Index() {
             </div>
 
             <p className="mt-4 text-sm text-muted-foreground">Free 14-day trial · No credit card · Setup in 5 minutes</p>
-          </motion.div>
+          </div>
 
-          {/* Hero Image */}
-          <motion.div
-            initial={{ opacity: 0, y: 40 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="mt-16 relative">
-            
+          {/* Hero Image — CSS slide-up, no framer-motion */}
+          <div className="hero-slideup mt-16 relative">
             <div className="relative max-w-5xl mx-auto">
               <div className="absolute inset-0 gradient-hero rounded-2xl blur-2xl opacity-10 scale-95" />
               <div className="relative rounded-2xl border border-border/50 shadow-lg overflow-hidden">
-                <img src={heroDashboard} alt="BatchHub Dashboard Preview" className="w-full h-auto" width="1024" height="640" fetchPriority="high" />
+                <img
+                  src={heroDashboard}
+                  alt="BatchHub Dashboard Preview"
+                  className="w-full h-auto"
+                  width="1024"
+                  height="640"
+                  fetchPriority="high"
+                  decoding="async"
+                />
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </section>
 
@@ -271,17 +274,17 @@ export default function Index() {
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, i) =>
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="text-center">
-              
+            <Suspense key={stat.label} fallback={<AnimFallback className="text-center"><div className="text-3xl font-display font-bold text-gradient mb-1">{stat.value}</div><div className="text-sm text-muted-foreground">{stat.label}</div></AnimFallback>}>
+              <MotionDiv
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="text-center">
                 <div className="text-3xl font-display font-bold text-gradient mb-1">{stat.value}</div>
                 <div className="text-sm text-muted-foreground">{stat.label}</div>
-              </motion.div>
+              </MotionDiv>
+            </Suspense>
             )}
           </div>
         </div>
@@ -290,43 +293,57 @@ export default function Index() {
       {/* Features */}
       <section id="features" className="py-20 md:py-28">
         <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16">
-            
-            <Badge className="mb-4 bg-accent-light text-accent border-accent/20">Everything you need</Badge>
-            <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">
-              Your institute, fully organised
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-              Every tool your institute needs, built into one seamless platform.
-            </p>
-          </motion.div>
+          <Suspense fallback={
+            <AnimFallback className="text-center mb-16">
+              <Badge className="mb-4 bg-accent-light text-accent border-accent/20">Everything you need</Badge>
+              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Your institute, fully organised</h2>
+            </AnimFallback>
+          }>
+            <MotionDiv
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-center mb-16">
+              <Badge className="mb-4 bg-accent-light text-accent border-accent/20">Everything you need</Badge>
+              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">
+                Your institute, fully organised
+              </h2>
+              <p className="text-muted-foreground max-w-xl mx-auto text-lg">
+                Every tool your institute needs, built into one seamless platform.
+              </p>
+            </MotionDiv>
+          </Suspense>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((f, i) =>
-            <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="bg-card border border-border/50 rounded-xl p-6 shadow-card hover:shadow-lg transition-all hover:-translate-y-1 group">
-              
-                <div className={`w-11 h-11 rounded-xl mb-4 flex items-center justify-center ${
-              f.color === 'primary' ? 'bg-primary-light' :
-              f.color === 'accent' ? 'bg-accent-light' : 'bg-success-light'}`
-              }>
-                  <f.icon className={`w-5 h-5 ${
-                f.color === 'primary' ? 'text-primary' :
-                f.color === 'accent' ? 'text-accent' : 'text-success'}`
-                } />
+            <Suspense key={f.title} fallback={
+              <div className="bg-card border border-border/50 rounded-xl p-6 shadow-card">
+                <div className={`w-11 h-11 rounded-xl mb-4 flex items-center justify-center ${f.color === 'primary' ? 'bg-primary-light' : f.color === 'accent' ? 'bg-accent-light' : 'bg-success-light'}`}>
+                  <f.icon className={`w-5 h-5 ${f.color === 'primary' ? 'text-primary' : f.color === 'accent' ? 'text-accent' : 'text-success'}`} />
                 </div>
                 <h3 className="font-display font-semibold text-lg mb-2">{f.title}</h3>
                 <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
-              </motion.div>
+              </div>
+            }>
+              <MotionDiv
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-card border border-border/50 rounded-xl p-6 shadow-card hover:shadow-lg transition-all hover:-translate-y-1 group">
+                <div className={`w-11 h-11 rounded-xl mb-4 flex items-center justify-center ${
+                f.color === 'primary' ? 'bg-primary-light' :
+                f.color === 'accent' ? 'bg-accent-light' : 'bg-success-light'}`
+                }>
+                  <f.icon className={`w-5 h-5 ${
+                  f.color === 'primary' ? 'text-primary' :
+                  f.color === 'accent' ? 'text-accent' : 'text-success'}`
+                  } />
+                </div>
+                <h3 className="font-display font-semibold text-lg mb-2">{f.title}</h3>
+                <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
+              </MotionDiv>
+            </Suspense>
             )}
           </div>
         </div>
@@ -336,64 +353,65 @@ export default function Index() {
       <section className="py-20 bg-card border-y border-border/50">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <motion.div
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}>
-              
-              <Link to="/auth/owner" className="mb-4 inline-flex items-center rounded-full border border-primary/20 bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors cursor-pointer hover:bg-primary/10">Why BatchHub</Link>
-              <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">
-                Designed for the real chaos of running a coaching institute
-              </h2>
-              <div className="space-y-4">
-                {[
-                { icon: Shield, text: "Role-based access for Admin, Teachers, Students & Parents" },
-                { icon: Smartphone, text: "Works on any device — phone, tablet, or laptop" },
-                { icon: Globe, text: "Supports Hindi & English interface" },
-                { icon: TrendingUp, text: "Real-time analytics — know what's happening at a glance" },
-                { icon: Zap, text: "Get your institute set up in under 5 minutes" }].
-                map((item, i) =>
-                <div key={i} className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-primary-light flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <item.icon className="w-4 h-4 text-primary" />
+            <Suspense fallback={<AnimFallback><div /></AnimFallback>}>
+              <MotionDiv
+                initial={{ opacity: 0, x: -30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}>
+                <Link to="/auth/owner" className="mb-4 inline-flex items-center rounded-full border border-primary/20 bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors cursor-pointer hover:bg-primary/10">Why BatchHub</Link>
+                <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">
+                  Designed for the real chaos of running a coaching institute
+                </h2>
+                <div className="space-y-4">
+                  {[
+                  { icon: Shield, text: "Role-based access for Admin, Teachers, Students & Parents" },
+                  { icon: Smartphone, text: "Works on any device — phone, tablet, or laptop" },
+                  { icon: Globe, text: "Supports Hindi & English interface" },
+                  { icon: TrendingUp, text: "Real-time analytics — know what's happening at a glance" },
+                  { icon: Zap, text: "Get your institute set up in under 5 minutes" }].
+                  map((item, i) =>
+                  <div key={i} className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary-light flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <item.icon className="w-4 h-4 text-primary" />
+                      </div>
+                      <p className="text-foreground/80 leading-relaxed">{item.text}</p>
                     </div>
-                    <p className="text-foreground/80 leading-relaxed">{item.text}</p>
-                  </div>
-                )}
-              </div>
-            </motion.div>
+                  )}
+                </div>
+              </MotionDiv>
+            </Suspense>
 
-            <motion.div
-              initial={{ opacity: 0, x: 30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              className="grid grid-cols-2 gap-4">
-              
-              {[
-              { label: "Paper registers", emoji: "📋", strike: true },
-              { label: "Digital attendance", emoji: "✅", strike: false },
-              { label: "WhatsApp groups", emoji: "💬", strike: true },
-              { label: "Batch Chat", emoji: "🗨️", strike: false },
-              { label: "Excel fee sheets", emoji: "📊", strike: true },
-              { label: "Fee dashboard", emoji: "💰", strike: false },
-              { label: "Physical tests", emoji: "📝", strike: true },
-              { label: "Online rankings", emoji: "🏆", strike: false }].
-              map((item, i) =>
-              <div
-                key={i}
-                className={`rounded-xl p-4 border ${
-                item.strike ?
-                'bg-danger-light border-danger/20 opacity-60' :
-                'bg-success-light border-success/20'}`
-                }>
-                
+            <Suspense fallback={<AnimFallback className="grid grid-cols-2 gap-4"><div /></AnimFallback>}>
+              <MotionDiv
+                initial={{ opacity: 0, x: 30 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                viewport={{ once: true }}
+                className="grid grid-cols-2 gap-4">
+                {[
+                { label: "Paper registers", emoji: "📋", strike: true },
+                { label: "Digital attendance", emoji: "✅", strike: false },
+                { label: "WhatsApp groups", emoji: "💬", strike: true },
+                { label: "Batch Chat", emoji: "🗨️", strike: false },
+                { label: "Excel fee sheets", emoji: "📊", strike: true },
+                { label: "Fee dashboard", emoji: "💰", strike: false },
+                { label: "Physical tests", emoji: "📝", strike: true },
+                { label: "Online rankings", emoji: "🏆", strike: false }].
+                map((item, i) =>
+                <div
+                  key={i}
+                  className={`rounded-xl p-4 border ${
+                  item.strike ?
+                  'bg-danger-light border-danger/20 opacity-60' :
+                  'bg-success-light border-success/20'}`
+                  }>
                   <div className="text-2xl mb-1">{item.emoji}</div>
                   <p className={`text-sm font-medium ${item.strike ? 'line-through text-danger' : 'text-success'}`}>
                     {item.label}
                   </p>
                 </div>
-              )}
-            </motion.div>
+                )}
+              </MotionDiv>
+            </Suspense>
           </div>
         </div>
       </section>
@@ -401,28 +419,32 @@ export default function Index() {
       {/* Testimonials */}
       <section id="testimonials" className="py-20 md:py-28">
         <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16">
-            
-            <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">
-              Trusted by thousands of institutes
-            </h2>
-            <p className="text-muted-foreground">Real feedback from real educators across India</p>
-          </motion.div>
+          <Suspense fallback={<AnimFallback className="text-center mb-16"><h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Trusted by thousands of institutes</h2></AnimFallback>}>
+            <MotionDiv
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-center mb-16">
+              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">
+                Trusted by thousands of institutes
+              </h2>
+              <p className="text-muted-foreground">Real feedback from real educators across India</p>
+            </MotionDiv>
+          </Suspense>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {testimonials.map((t, i) =>
-            <motion.div
-              key={t.name}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="bg-card border border-border/50 rounded-xl p-6 shadow-card">
-              
+            <Suspense key={t.name} fallback={
+              <div className="bg-card border border-border/50 rounded-xl p-6 shadow-card">
+                <p className="text-foreground/80 leading-relaxed mb-6">"{t.text}"</p>
+              </div>
+            }>
+              <MotionDiv
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="bg-card border border-border/50 rounded-xl p-6 shadow-card">
                 <div className="flex gap-1 mb-4">
                   {[...Array(5)].map((_, j) =>
                 <Star key={j} className="w-4 h-4 fill-accent text-accent" />
@@ -438,7 +460,8 @@ export default function Index() {
                     <div className="text-xs text-muted-foreground">{t.role}</div>
                   </div>
                 </div>
-              </motion.div>
+              </MotionDiv>
+            </Suspense>
             )}
           </div>
         </div>
@@ -447,31 +470,35 @@ export default function Index() {
       {/* Pricing */}
       <section id="pricing" className="py-20 md:py-28 bg-card border-y border-border/50">
         <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16">
-            
-            <Badge className="mb-4 bg-primary-light text-primary border-primary/20">Pricing</Badge>
-            <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Simple, transparent pricing</h2>
-            <p className="text-muted-foreground">14-day free trial on all plans. No credit card required.</p>
-          </motion.div>
+          <Suspense fallback={<AnimFallback className="text-center mb-16"><h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Simple, transparent pricing</h2></AnimFallback>}>
+            <MotionDiv
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              className="text-center mb-16">
+              <Badge className="mb-4 bg-primary-light text-primary border-primary/20">Pricing</Badge>
+              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Simple, transparent pricing</h2>
+              <p className="text-muted-foreground">14-day free trial on all plans. No credit card required.</p>
+            </MotionDiv>
+          </Suspense>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
             {plans.map((plan, i) =>
-            <motion.div
-              key={plan.name}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className={`relative rounded-xl border p-6 ${
-              plan.highlighted ?
-              'gradient-hero text-white border-primary/0 shadow-primary scale-105' :
-              'bg-background border-border/60 shadow-card'}`
-              }>
-              
+            <Suspense key={plan.name} fallback={
+              <div className={`relative rounded-xl border p-6 ${plan.highlighted ? 'gradient-hero text-white border-primary/0 shadow-primary scale-105' : 'bg-background border-border/60 shadow-card'}`}>
+                <h3 className={`font-display font-bold text-xl mb-1 ${plan.highlighted ? 'text-white' : ''}`}>{plan.name}</h3>
+              </div>
+            }>
+              <MotionDiv
+                initial={{ opacity: 0, y: 24 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className={`relative rounded-xl border p-6 ${
+                plan.highlighted ?
+                'gradient-hero text-white border-primary/0 shadow-primary scale-105' :
+                'bg-background border-border/60 shadow-card'}`
+                }>
                 {plan.highlighted &&
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <Badge className="bg-accent text-white border-0 px-3">Most Popular</Badge>
@@ -500,11 +527,11 @@ export default function Index() {
                   'bg-white text-primary hover:bg-white/90' :
                   'gradient-hero text-white border-0 hover:opacity-90 shadow-primary'}`
                   }>
-                  
                     {plan.cta}
                   </Button>
                 </Link>
-              </motion.div>
+              </MotionDiv>
+            </Suspense>
             )}
           </div>
         </div>
@@ -514,31 +541,32 @@ export default function Index() {
       <section className="py-20 md:py-28 relative overflow-hidden">
         <div className="absolute inset-0 gradient-hero opacity-5 -z-10" />
         <div className="container mx-auto px-4 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}>
-            
-            <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">
-              Ready to transform your institute?
-            </h2>
-            <p className="text-muted-foreground max-w-xl mx-auto mb-10 text-lg">
-              Join 2,400+ institutes already running smarter with BatchHub.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/role-select">
-                <Button size="lg" className="gradient-hero text-white shadow-primary border-0 hover:opacity-90 px-10 h-12 text-base font-semibold">
-                  Start Free Trial
-                  <ArrowRight className="ml-2 w-4 h-4" />
-                </Button>
-              </Link>
-              <Link to="/admin">
-                <Button size="lg" variant="outline" className="px-10 h-12 text-base font-semibold">
-                  Explore Demo
-                </Button>
-              </Link>
-            </div>
-          </motion.div>
+          <Suspense fallback={<AnimFallback><h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Ready to transform your institute?</h2></AnimFallback>}>
+            <MotionDiv
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}>
+              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">
+                Ready to transform your institute?
+              </h2>
+              <p className="text-muted-foreground max-w-xl mx-auto mb-10 text-lg">
+                Join 2,400+ institutes already running smarter with BatchHub.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link to="/role-select">
+                  <Button size="lg" className="gradient-hero text-white shadow-primary border-0 hover:opacity-90 px-10 h-12 text-base font-semibold">
+                    Start Free Trial
+                    <ArrowRight className="ml-2 w-4 h-4" />
+                  </Button>
+                </Link>
+                <Link to="/admin">
+                  <Button size="lg" variant="outline" className="px-10 h-12 text-base font-semibold">
+                    Explore Demo
+                  </Button>
+                </Link>
+              </div>
+            </MotionDiv>
+          </Suspense>
         </div>
       </section>
 
@@ -560,11 +588,9 @@ export default function Index() {
                 size="sm"
                 className="h-8 text-xs gradient-hero text-white border-0 hover:opacity-90 gap-1.5"
                 onClick={handleNativeInstall}>
-                
                     <Download className="w-3.5 h-3.5" />
                     Install
                   </Button> :
-
               <Link to="/install">
                     <Button size="sm" className="h-8 text-xs gradient-hero text-white border-0 hover:opacity-90 gap-1.5">
                       <Download className="w-3.5 h-3.5" />
@@ -575,7 +601,6 @@ export default function Index() {
                 <button
                 onClick={() => setShowBanner(false)}
                 className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-                
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -608,5 +633,4 @@ export default function Index() {
         </div>
       </footer>
     </div>);
-
 }

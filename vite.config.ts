@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => ({
             "@radix-ui/react-toast",
           ],
           "vendor-charts": ["recharts"],
-          "vendor-motion": ["framer-motion"],
+          // framer-motion intentionally NOT in manualChunks so it lazy-splits naturally
           "vendor-supabase": ["@supabase/supabase-js"],
           "vendor-forms": ["react-hook-form", "@hookform/resolvers", "zod"],
         },
