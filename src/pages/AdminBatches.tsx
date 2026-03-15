@@ -852,7 +852,16 @@ export default function AdminBatches() {
                   <div className="space-y-2 mb-4 flex-1">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />
-                      <span className="truncate">{batch.teacher_name || "Awaiting teacher acceptance"}</span>
+                      {batch.teacher_name ? (
+                        <span className="truncate">{batch.teacher_name}</span>
+                      ) : batch.pending_teacher_name ? (
+                        <span className="flex items-center gap-1.5 flex-wrap">
+                          <Badge className="text-[10px] px-1.5 py-0 bg-accent-light text-accent border-accent/20 font-semibold">Pending</Badge>
+                          <span className="truncate text-xs">{batch.pending_teacher_name}</span>
+                        </span>
+                      ) : (
+                        <span className="truncate">No teacher assigned</span>
+                      )}
                     </div>
                     {batch.schedule && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
