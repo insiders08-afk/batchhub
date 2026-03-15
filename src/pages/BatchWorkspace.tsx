@@ -171,7 +171,7 @@ export default function BatchWorkspace() {
       if (msgs) {
         // Reverse to show in chronological order
         const chronologicalMsgs = [...msgs].reverse();
-        setMessages(chronologicalMsgs.map(m => ({ ...m, isSelf: m.sender_id === user.id })));
+        setMessages(chronologicalMsgs.map(m => ({ ...m, reactions: (m.reactions ?? {}) as Record<string, string[]>, isSelf: m.sender_id === user.id })));
       }
 
       // Enrolled students
@@ -209,11 +209,11 @@ export default function BatchWorkspace() {
 
       // DPP / Homework
       const { data: dppData } = await supabase
-        .from("homework_assignments")
-        .select("*")
+        .from("homeworks")
+        .select("id, title, description, file_url, file_name, link_url, teacher_name, created_at")
         .eq("batch_id", batchId)
         .order("created_at", { ascending: false });
-      setDppItems((dppData || []) as typeof dppItems);
+      setDppItems((dppData || []).map(d => ({ ...d, posted_by_name: d.teacher_name ?? "" })));
 
       setLoading(false);
     };
@@ -461,25 +461,26 @@ export default function BatchWorkspace() {
         file_url = publicUrl;
         file_name = dppFile.name;
       }
-      const { error } = await supabase.from("homework_assignments").insert({
+      const { error } = await supabase.from("homeworks").insert({
         batch_id: batchId!,
         institute_code: batch.institute_code,
-        posted_by: currentUserId,
-        posted_by_name: currentUserName,
+        teacher_id: currentUserId,
+        teacher_name: currentUserName,
         title: newDpp.title,
         description: newDpp.description || null,
         file_url,
         file_name,
         link_url: newDpp.link_url || null,
-      } as never);
+        type: "dpp",
+      });
       if (error) { toast({ title: "Error posting DPP", description: error.message, variant: "destructive" }); }
       else {
         toast({ title: "DPP/Homework posted!" });
         setDppDialog(false);
         setNewDpp({ title: "", description: "", link_url: "" });
         setDppFile(null);
-        const { data } = await supabase.from("homework_assignments").select("*").eq("batch_id", batchId!).order("created_at", { ascending: false });
-        setDppItems((data || []) as typeof dppItems);
+        const { data } = await supabase.from("homeworks").select("id, title, description, file_url, file_name, link_url, teacher_name, created_at").eq("batch_id", batchId!).order("created_at", { ascending: false });
+        setDppItems((data || []).map(d => ({ ...d, posted_by_name: d.teacher_name ?? "" })));
       }
     } finally { setSavingDpp(false); }
   };
