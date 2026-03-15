@@ -80,7 +80,8 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [approvalsPending, setApprovalsPending] = useState(0);
+  const [batchAppsPending, setBatchAppsPending] = useState(0);
   const [userName, setUserName] = useState("Loading...");
   const [userInitials, setUserInitials] = useState("...");
   const [instituteName, setInstituteName] = useState("");
@@ -166,7 +167,8 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
         supabase.from("pending_requests").select("id").eq("status", "pending").eq("institute_code", instituteCode),
         supabase.from("batch_applications").select("id").eq("status", "pending"),
       ]);
-      setPendingCount((reqRes.data?.length || 0) + (appRes.data?.length || 0));
+      setApprovalsPending(reqRes.data?.length || 0);
+      setBatchAppsPending(appRes.data?.length || 0);
     };
     fetchPending();
   }, [isAdmin, authChecked, instituteCode]);
@@ -208,8 +210,8 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
       <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const active = isActiveItem(item.path);
-          const showBadge = isAdmin && pendingCount > 0 &&
-            (item.path === "/admin/approvals" || item.path === "/admin/batch-applications");
+          const showApprovalBadge = isAdmin && approvalsPending > 0 && item.path === "/admin/approvals";
+          const showBatchAppBadge = isAdmin && batchAppsPending > 0 && item.path === "/admin/batch-applications";
           return (
             <Link
               key={`${item.path}-${item.label}`}
@@ -225,9 +227,14 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
             >
               <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-white" : "")} />
               {!collapsed && <span className="flex-1">{item.label}</span>}
-              {!collapsed && showBadge && (
+              {!collapsed && showApprovalBadge && (
                 <span className="text-xs font-bold bg-danger text-white rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
-                  {pendingCount}
+                  {approvalsPending}
+                </span>
+              )}
+              {!collapsed && showBatchAppBadge && (
+                <span className="text-xs font-bold bg-danger text-white rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                  {batchAppsPending}
                 </span>
               )}
             </Link>
