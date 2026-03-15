@@ -264,25 +264,32 @@ export default function BatchWorkspace() {
     return () => { supabase.removeChannel(channel); };
   }, [batchId]);
 
-  // ─── Scroll helper: only scrolls when chat tab is active ─────────────────────
+  // ─── Scroll helper ────────────────────────────────────────────────────────────
+  // Uses double-rAF so the DOM has fully painted after a tab becomes visible
+  // before we attempt to read scrollHeight.
   const scrollToBottom = useCallback((smooth = false) => {
-    const container = chatContainerRef.current;
-    if (!container) return;
-    container.scrollTo({ top: container.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+    const doScroll = () => {
+      const container = chatContainerRef.current;
+      if (!container) return;
+      container.scrollTop = container.scrollHeight;
+      if (smooth) {
+        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+      }
+    };
+    // Two frames: first lets React flush the DOM, second lets the browser paint
+    requestAnimationFrame(() => requestAnimationFrame(doScroll));
   }, []);
 
-  // Scroll on new messages (only when chat tab is active)
+  // Scroll when new messages arrive (realtime) — only when chat tab is active
   useEffect(() => {
-    if (activeTab === "chat") scrollToBottom(true);
-  }, [messages, activeTab, scrollToBottom]);
+    if (activeTab !== "chat") return;
+    scrollToBottom(messages.length > 1); // smooth only after initial load
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Scroll once on initial load when chat tab mounts
+  // Re-scroll every time the user switches back to the Chat tab
   useEffect(() => {
-    if (activeTab === "chat" && messages.length > 0) {
-      requestAnimationFrame(() => scrollToBottom(false));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab]);
+    if (activeTab === "chat") scrollToBottom(false);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── File upload helper ─────────────────────────────────────────────────────
   const uploadChatFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
