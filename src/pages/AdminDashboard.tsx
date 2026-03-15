@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Users, CalendarCheck, IndianRupee, TrendingUp, AlertTriangle,
+  Users, CalendarCheck, IndianRupee, AlertTriangle,
   ArrowUpRight, Megaphone, Clock, CheckCircle2
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -40,20 +40,29 @@ export default function AdminDashboard() {
     const totalStudents = studentsRes.count || 0;
     const activeBatches = batchesRes.data?.length || 0;
     const attendanceRows = attendanceRes.data || [];
-    const todayAttendance = attendanceRows.length
+    const hasAttendanceToday = attendanceRows.length > 0;
+    const todayAttendance = hasAttendanceToday
       ? Math.round((attendanceRows.filter(r => r.present).length / attendanceRows.length) * 100)
-      : 0;
+      : -1; // -1 signals "not taken yet"
     const unpaidFees = feesRes.count || 0;
 
-    const enrichedBatches = await Promise.all(
-      (batchesRes.data || []).slice(0, 5).map(async (b) => {
-        const { count } = await supabase
-          .from("students_batches")
-          .select("id", { count: "exact" })
-          .eq("batch_id", b.id);
-        return { ...b, studentCount: count || 0 };
-      })
-    );
+    // Fix #3: Single aggregated query for student counts instead of N+1 per-batch
+    const batchIds = (batchesRes.data || []).slice(0, 5).map(b => b.id);
+    let studentCountMap: Record<string, number> = {};
+    if (batchIds.length > 0) {
+      const { data: enrollments } = await supabase
+        .from("students_batches")
+        .select("batch_id")
+        .in("batch_id", batchIds);
+      (enrollments || []).forEach(e => {
+        studentCountMap[e.batch_id] = (studentCountMap[e.batch_id] || 0) + 1;
+      });
+    }
+
+    const enrichedBatches = (batchesRes.data || []).slice(0, 5).map(b => ({
+      ...b,
+      studentCount: studentCountMap[b.id] || 0,
+    }));
 
     setStats({ totalStudents, activeBatches, todayAttendance, unpaidFees });
     setBatches(enrichedBatches);
@@ -71,7 +80,7 @@ export default function AdminDashboard() {
       .channel("admin-dashboard-realtime")
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "announcements" },
+        { event: "*", schema: "public", table: "announcements" },
         () => fetchData()
       )
       .subscribe();
@@ -79,10 +88,10 @@ export default function AdminDashboard() {
   }, [fetchData]);
 
   const statCards = [
-    { title: "Total Students", value: loading ? "—" : String(stats.totalStudents), icon: Users, bg: "bg-primary-light", iconColor: "text-primary", trend: "up" },
-    { title: "Active Batches", value: loading ? "—" : String(stats.activeBatches), icon: CalendarCheck, bg: "bg-success-light", iconColor: "text-success", trend: "up" },
-    { title: "Today's Attendance", value: loading ? "—" : `${stats.todayAttendance}%`, icon: CheckCircle2, bg: "bg-accent-light", iconColor: "text-accent", trend: stats.todayAttendance >= 75 ? "up" : "down" },
-    { title: "Unpaid Fees", value: loading ? "—" : String(stats.unpaidFees), icon: IndianRupee, bg: "bg-danger-light", iconColor: "text-danger", trend: "down" },
+    { title: "Total Students", value: loading ? "—" : String(stats.totalStudents), icon: Users, bg: "bg-primary-light", iconColor: "text-primary" },
+    { title: "Active Batches", value: loading ? "—" : String(stats.activeBatches), icon: CalendarCheck, bg: "bg-success-light", iconColor: "text-success" },
+    { title: "Today's Attendance", value: loading ? "—" : stats.todayAttendance === -1 ? "Not taken yet" : `${stats.todayAttendance}%`, icon: CheckCircle2, bg: "bg-accent-light", iconColor: "text-accent" },
+    { title: "Unpaid Fees", value: loading ? "—" : String(stats.unpaidFees), icon: IndianRupee, bg: "bg-danger-light", iconColor: "text-danger" },
   ];
 
   const timeAgo = (dateStr: string) => {
@@ -111,7 +120,6 @@ export default function AdminDashboard() {
                   <div className={`w-10 h-10 rounded-xl ${stat.bg} flex items-center justify-center`}>
                     <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
                   </div>
-                  <TrendingUp className={`w-4 h-4 ${stat.trend === "up" ? "text-success" : "text-danger rotate-180"}`} />
                 </div>
                 <div className="text-2xl font-display font-bold mb-0.5">{stat.value}</div>
                 <div className="text-sm text-muted-foreground">{stat.title}</div>
