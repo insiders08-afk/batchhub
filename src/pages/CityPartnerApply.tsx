@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Zap, MapPin, Loader2, Camera, CheckCircle, Upload, AlertCircle, ArrowLeft } from "lucide-react";
+import { Zap, MapPin, Loader2, Camera, CheckCircle, Upload, AlertCircle, ArrowLeft, ChevronDown } from "lucide-react";
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +28,8 @@ export default function CityPartnerApply() {
     position: "",
     city: "",
   });
+  const [citySearch, setCitySearch] = useState("");
+  const [cityDropdownOpen, setCityDropdownOpen] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -237,23 +239,77 @@ export default function CityPartnerApply() {
                 <div className="space-y-1.5">
                   <Label htmlFor="city">City *</Label>
                   <div className="relative">
-                    <select
+                    <Input
                       id="city"
-                      name="city"
-                      value={form.city}
-                      onChange={handleCityChange}
+                      placeholder="Type or select your city..."
+                      value={citySearch || form.city}
+                      autoComplete="off"
+                      onChange={async e => {
+                        const val = e.target.value;
+                        setCitySearch(val);
+                        setForm({ ...form, city: val });
+                        setCityDropdownOpen(true);
+                        if (val) {
+                          setCityTaken(false);
+                          setCheckingCity(true);
+                          try {
+                            const { data } = await supabase
+                              .from("user_roles")
+                              .select("id")
+                              .eq("role", "super_admin")
+                              .eq("city", val)
+                              .maybeSingle();
+                            if (data) setCityTaken(true);
+                          } catch { } finally { setCheckingCity(false); }
+                        }
+                      }}
+                      onFocus={() => setCityDropdownOpen(true)}
+                      onBlur={() => setTimeout(() => setCityDropdownOpen(false), 150)}
                       required
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <option value="">Select your city</option>
-                      {INDIA_CITIES.map(city => (
-                        <option key={city} value={city}>{city}</option>
-                      ))}
-                      <option value="Other">Other</option>
-                    </select>
-                    {checkingCity && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                      className="pr-8"
+                    />
+                    {checkingCity ? (
+                      <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    )}
+                    {cityDropdownOpen && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-card border border-border/60 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                        {INDIA_CITIES
+                          .filter(c => c !== "Other" && (!citySearch || c.toLowerCase().includes(citySearch.toLowerCase())))
+                          .map(city => (
+                            <button
+                              key={city}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                              onMouseDown={async () => {
+                                setForm({ ...form, city });
+                                setCitySearch("");
+                                setCityDropdownOpen(false);
+                                setCheckingCity(true);
+                                try {
+                                  const { data } = await supabase.from("user_roles").select("id").eq("role", "super_admin").eq("city", city).maybeSingle();
+                                  setCityTaken(!!data);
+                                } catch { } finally { setCheckingCity(false); }
+                              }}
+                            >
+                              {city}
+                            </button>
+                          ))}
+                        {citySearch && !INDIA_CITIES.some(c => c.toLowerCase() === citySearch.toLowerCase() && c !== "Other") && (
+                          <button
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors text-primary font-medium"
+                            onMouseDown={() => {
+                              setForm({ ...form, city: citySearch });
+                              setCitySearch("");
+                              setCityDropdownOpen(false);
+                              setCityTaken(false);
+                            }}
+                          >
+                            {citySearch}
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
