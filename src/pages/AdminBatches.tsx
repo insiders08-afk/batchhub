@@ -247,6 +247,8 @@ function BatchFormDialog({
           course,
           status: "pending",
         });
+        // Fix #15: Store pending teacher name for badge visibility
+        await supabase.from("batches").update({ pending_teacher_name: teacherName }).eq("id", batchData.id);
         toast({ title: "Batch created!", description: `Assignment request sent to ${teacherName}. They must accept to be linked.` });
       } else {
         toast({ title: "Batch created!", description: teacherId ? "Assignment request sent." : "No teacher assigned yet. You can assign one later." });
