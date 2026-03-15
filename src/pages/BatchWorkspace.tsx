@@ -42,18 +42,7 @@ interface ChatMessage {
   file_type?: string | null;
   isSelf?: boolean;
   reply_to_id?: string | null;
-  reactions?: Record<string, string[]> | null;
-}
-
-interface DppItem {
-  id: string;
-  title: string;
-  description: string | null;
-  file_url: string | null;
-  file_name: string | null;
-  link_url: string | null;
-  teacher_name: string | null;
-  created_at: string;
+  reactions?: Record<string, string[]>; // emoji -> user_ids[]
 }
 
 interface Student {
@@ -89,6 +78,7 @@ export default function BatchWorkspace() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [batch, setBatch] = useState<BatchInfo | null>(null);
@@ -121,7 +111,7 @@ export default function BatchWorkspace() {
   const [tests, setTests] = useState<TestScore[]>([]);
 
   // DPP / Homework
-  const [dppItems, setDppItems] = useState<DppItem[]>([]);
+  const [dppItems, setDppItems] = useState<{ id: string; title: string; description: string | null; file_url: string | null; file_name: string | null; link_url: string | null; posted_by_name: string; created_at: string }[]>([]);
   const [dppDialog, setDppDialog] = useState(false);
   const [newDpp, setNewDpp] = useState({ title: "", description: "", link_url: "" });
   const [savingDpp, setSavingDpp] = useState(false);
@@ -172,11 +162,7 @@ export default function BatchWorkspace() {
       if (msgs) {
         // Reverse to show in chronological order
         const chronologicalMsgs = [...msgs].reverse();
-        setMessages(chronologicalMsgs.map(m => ({
-          ...m,
-          reactions: (m.reactions as Record<string, string[]> | null) ?? {},
-          isSelf: m.sender_id === user.id,
-        })));
+        setMessages(chronologicalMsgs.map(m => ({ ...m, isSelf: m.sender_id === user.id })));
         
         // Robust immediate scroll
         requestAnimationFrame(() => {
@@ -196,20 +182,13 @@ export default function BatchWorkspace() {
 
       if (enrollments && enrollments.length > 0) {
         const ids = enrollments.map(e => e.student_id);
-        const today = new Date().toISOString().split("T")[0];
-
-        const [profilesRes, attendanceRes] = await Promise.all([
-          supabase.from("profiles").select("user_id, full_name").in("user_id", ids),
-          supabase.from("attendance").select("student_id, present").eq("batch_id", batchId).eq("date", today),
-        ]);
-
-        const mapped = (profilesRes.data || []).map(s => ({ id: s.user_id, user_id: s.user_id, full_name: s.full_name }));
+        const { data: studentProfiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", ids);
+        const mapped = (studentProfiles || []).map(s => ({ id: s.user_id, user_id: s.user_id, full_name: s.full_name }));
         setStudents(mapped);
-
-        // Build attendance map from real DB records, default absent if not yet marked
-        const attendanceMap: Record<string, boolean> = Object.fromEntries(mapped.map(s => [s.id, false]));
-        (attendanceRes.data || []).forEach(a => { attendanceMap[a.student_id] = a.present; });
-        setAttendance(attendanceMap);
+        setAttendance(Object.fromEntries(mapped.map(s => [s.id, false])));
       }
 
       // Announcements
@@ -228,14 +207,13 @@ export default function BatchWorkspace() {
         .order("test_date", { ascending: false });
       setTests(testData || []);
 
-      // DPP / Homework — uses the correct `homeworks` table
+      // DPP / Homework
       const { data: dppData } = await supabase
-        .from("homeworks")
-        .select("id, title, description, file_url, file_name, link_url, teacher_name, created_at")
+        .from("homework_assignments")
+        .select("*")
         .eq("batch_id", batchId)
-        .eq("type", "dpp")
         .order("created_at", { ascending: false });
-      setDppItems((dppData || []) as DppItem[]);
+      setDppItems((dppData || []) as typeof dppItems);
 
       setLoading(false);
     };
@@ -281,6 +259,25 @@ export default function BatchWorkspace() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [batchId]);
+
+  // Robust Scrolling with ResizeObserver
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => {
+      // Small buffer to check if we are already near the bottom
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      
+      // If we're loading or if we're near the bottom, force scroll
+      if (loading || isNearBottom) {
+        chatEndRef.current?.scrollIntoView({ behavior: "auto" });
+      }
+    });
+
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [loading]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -464,31 +461,25 @@ export default function BatchWorkspace() {
         file_url = publicUrl;
         file_name = dppFile.name;
       }
-      const { error } = await supabase.from("homeworks").insert({
+      const { error } = await supabase.from("homework_assignments").insert({
         batch_id: batchId!,
         institute_code: batch.institute_code,
-        teacher_id: currentUserId,
-        teacher_name: currentUserName,
+        posted_by: currentUserId,
+        posted_by_name: currentUserName,
         title: newDpp.title,
         description: newDpp.description || null,
         file_url,
         file_name,
         link_url: newDpp.link_url || null,
-        type: "dpp",
-      });
+      } as never);
       if (error) { toast({ title: "Error posting DPP", description: error.message, variant: "destructive" }); }
       else {
         toast({ title: "DPP/Homework posted!" });
         setDppDialog(false);
         setNewDpp({ title: "", description: "", link_url: "" });
         setDppFile(null);
-        const { data } = await supabase
-          .from("homeworks")
-          .select("id, title, description, file_url, file_name, link_url, teacher_name, created_at")
-          .eq("batch_id", batchId!)
-          .eq("type", "dpp")
-          .order("created_at", { ascending: false });
-        setDppItems((data || []) as DppItem[]);
+        const { data } = await supabase.from("homework_assignments").select("*").eq("batch_id", batchId!).order("created_at", { ascending: false });
+        setDppItems((data || []) as typeof dppItems);
       }
     } finally { setSavingDpp(false); }
   };
@@ -593,7 +584,7 @@ export default function BatchWorkspace() {
         <div className="flex-1 overflow-hidden">
           {/* ── Chat ── */}
           <TabsContent value="chat" className="h-full flex flex-col m-0 data-[state=inactive]:hidden">
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground">
                   <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -1054,7 +1045,7 @@ export default function BatchWorkspace() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {timeAgo(item.created_at)} · {item.teacher_name || "Teacher"}
+                            <Clock className="w-3 h-3" /> {timeAgo(item.created_at)} · {item.posted_by_name}
                           </p>
                         </div>
                       </div>
