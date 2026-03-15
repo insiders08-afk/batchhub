@@ -569,7 +569,7 @@ export default function BatchWorkspace() {
       </header>
 
       {/* Tabs */}
-      <Tabs defaultValue="chat" className="flex-1 flex flex-col overflow-hidden">
+      <Tabs defaultValue="chat" className="flex-1 flex flex-col overflow-hidden" onValueChange={setActiveTab}>
         <div className="border-b border-border/50 bg-card px-4 flex-shrink-0">
           <TabsList className="h-10 bg-transparent p-0 gap-1">
             {[
