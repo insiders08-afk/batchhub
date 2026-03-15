@@ -191,6 +191,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "batch_messages_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "batch_messages_reply_to_id_fkey"
             columns: ["reply_to_id"]
             isOneToOne: false
@@ -255,6 +262,7 @@ export type Database = {
           institute_code: string
           is_active: boolean
           name: string
+          pending_teacher_name: string | null
           schedule: string | null
           teacher_id: string | null
           teacher_name: string | null
@@ -268,6 +276,7 @@ export type Database = {
           institute_code: string
           is_active?: boolean
           name: string
+          pending_teacher_name?: string | null
           schedule?: string | null
           teacher_id?: string | null
           teacher_name?: string | null
@@ -281,6 +290,7 @@ export type Database = {
           institute_code?: string
           is_active?: boolean
           name?: string
+          pending_teacher_name?: string | null
           schedule?: string | null
           teacher_id?: string | null
           teacher_name?: string | null
