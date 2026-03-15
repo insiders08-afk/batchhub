@@ -95,6 +95,7 @@ export default function BatchWorkspace() {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
+  const [activeTab, setActiveTab] = useState("chat");
 
   // Attendance
   const [students, setStudents] = useState<Student[]>([]);
