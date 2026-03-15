@@ -7,12 +7,18 @@
     <meta name="description" content="Manage coaching institute batches, attendance, fees, tests and announcements.">
     <meta name="author" content="BatchHub" />
 
-    <!-- Fonts: preconnect + async load to eliminate render-blocking -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <!-- Fonts: preconnect only — stylesheet loaded asynchronously via JS to avoid render-blocking -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Non-render-blocking font load (media trick) -->
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bricolage+Grotesque:wght@600;700;800&display=swap" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bricolage+Grotesque:wght@600;700;800&display=swap" media="print" onload="this.media='all'" />
+    <!-- Async font load: inserted after page paint to keep FCP clean -->
+    <script>
+      (function(){
+        var l=document.createElement('link');
+        l.rel='stylesheet';
+        l.href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bricolage+Grotesque:wght@600;700;800&display=swap';
+        document.head.appendChild(l);
+      })();
+    </script>
     <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bricolage+Grotesque:wght@600;700;800&display=swap" /></noscript>
 
     <!-- PWA Theme -->

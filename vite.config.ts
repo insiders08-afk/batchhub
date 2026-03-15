@@ -42,6 +42,8 @@ export default defineConfig(({ mode }) => ({
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
+      // Inline SW registration to avoid a separate render-blocking registerSW.js request
+      injectRegister: "inline",
       // Use injectManifest so our custom sw.ts handles push events
       strategies: "injectManifest",
       srcDir: "src",
