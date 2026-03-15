@@ -37,6 +37,7 @@ interface Batch {
   course: string;
   teacher_name: string | null;
   teacher_id: string | null;
+  pending_teacher_name: string | null;
   schedule: string | null;
   is_active: boolean;
   institute_code: string;
