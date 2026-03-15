@@ -123,7 +123,7 @@ export default function BatchWorkspace() {
   const [tests, setTests] = useState<TestScore[]>([]);
 
   // DPP / Homework
-  const [dppItems, setDppItems] = useState<{ id: string; title: string; description: string | null; file_url: string | null; file_name: string | null; link_url: string | null; posted_by_name: string; created_at: string }[]>([]);
+  const [dppItems, setDppItems] = useState<DppItem[]>([]);
   const [dppDialog, setDppDialog] = useState(false);
   const [newDpp, setNewDpp] = useState({ title: "", description: "", link_url: "" });
   const [savingDpp, setSavingDpp] = useState(false);
