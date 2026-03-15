@@ -1054,7 +1054,7 @@ export default function BatchWorkspace() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {timeAgo(item.created_at)} · {item.posted_by_name}
+                            <Clock className="w-3 h-3" /> {timeAgo(item.created_at)} · {item.teacher_name || "Teacher"}
                           </p>
                         </div>
                       </div>
