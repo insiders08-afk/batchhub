@@ -14,7 +14,7 @@ import {
   MessageSquare, Megaphone, CalendarCheck, FlaskConical,
   BookOpen, Trophy, ArrowLeft, Send, Plus, CheckCircle2,
   XCircle, Clock, Users, Loader2, Star, Bell, Paperclip,
-  FileText, Image, X, Download
+  FileText, Image, X, Download, BookMarked, Eye, Link as LinkIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -104,9 +104,14 @@ export default function BatchWorkspace() {
 
   // Tests
   const [tests, setTests] = useState<TestScore[]>([]);
-  const [testDialog, setTestDialog] = useState(false);
-  const [newTest, setNewTest] = useState({ name: "", maxMarks: "100", studentId: "", score: "" });
-  const [savingTest, setSavingTest] = useState(false);
+
+  // DPP / Homework
+  const [dppItems, setDppItems] = useState<{ id: string; title: string; description: string | null; file_url: string | null; file_name: string | null; link_url: string | null; posted_by_name: string; created_at: string }[]>([]);
+  const [dppDialog, setDppDialog] = useState(false);
+  const [newDpp, setNewDpp] = useState({ title: "", description: "", link_url: "" });
+  const [savingDpp, setSavingDpp] = useState(false);
+  const [dppFile, setDppFile] = useState<File | null>(null);
+  const dppFileRef = useRef<HTMLInputElement>(null);
 
   // Load initial data
   useEffect(() => {
@@ -185,6 +190,14 @@ export default function BatchWorkspace() {
         .eq("batch_id", batchId)
         .order("test_date", { ascending: false });
       setTests(testData || []);
+
+      // DPP / Homework
+      const { data: dppData } = await supabase
+        .from("homework_assignments")
+        .select("*")
+        .eq("batch_id", batchId)
+        .order("created_at", { ascending: false });
+      setDppItems((dppData || []) as typeof dppItems);
 
       setLoading(false);
     };
@@ -367,27 +380,42 @@ export default function BatchWorkspace() {
     setSavingAnn(false);
   };
 
-  const addTest = async () => {
-    if (!newTest.name || !newTest.studentId || !newTest.score || !batch) return;
-    setSavingTest(true);
-    const { error } = await supabase.from("test_scores").insert({
-      batch_id: batchId!,
-      institute_code: batch.institute_code,
-      student_id: newTest.studentId,
-      test_name: newTest.name,
-      score: Number(newTest.score),
-      max_marks: Number(newTest.maxMarks),
-    });
-    if (error) {
-      toast({ title: "Error adding test score", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Test score added!" });
-      setTestDialog(false);
-      setNewTest({ name: "", maxMarks: "100", studentId: "", score: "" });
-      const { data } = await supabase.from("test_scores").select("*").eq("batch_id", batchId!).order("test_date", { ascending: false });
-      setTests(data || []);
-    }
-    setSavingTest(false);
+  const postDpp = async () => {
+    if (!newDpp.title || !batch) return;
+    setSavingDpp(true);
+    try {
+      let file_url: string | null = null;
+      let file_name: string | null = null;
+      if (dppFile) {
+        const ext = dppFile.name.split(".").pop() || "bin";
+        const path = `dpp/${batchId}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("chat-files").upload(path, dppFile, { upsert: false });
+        if (upErr) { toast({ title: "File upload failed", variant: "destructive" }); setSavingDpp(false); return; }
+        const { data: { publicUrl } } = supabase.storage.from("chat-files").getPublicUrl(path);
+        file_url = publicUrl;
+        file_name = dppFile.name;
+      }
+      const { error } = await supabase.from("homework_assignments").insert({
+        batch_id: batchId!,
+        institute_code: batch.institute_code,
+        posted_by: currentUserId,
+        posted_by_name: currentUserName,
+        title: newDpp.title,
+        description: newDpp.description || null,
+        file_url,
+        file_name,
+        link_url: newDpp.link_url || null,
+      } as never);
+      if (error) { toast({ title: "Error posting DPP", description: error.message, variant: "destructive" }); }
+      else {
+        toast({ title: "DPP/Homework posted!" });
+        setDppDialog(false);
+        setNewDpp({ title: "", description: "", link_url: "" });
+        setDppFile(null);
+        const { data } = await supabase.from("homework_assignments").select("*").eq("batch_id", batchId!).order("created_at", { ascending: false });
+        setDppItems((data || []) as typeof dppItems);
+      }
+    } finally { setSavingDpp(false); }
   };
 
   const presentCount = Object.values(attendance).filter(Boolean).length;
@@ -454,6 +482,7 @@ export default function BatchWorkspace() {
               { value: "announcements", icon: Megaphone, label: "Announcements" },
               { value: "attendance", icon: CalendarCheck, label: "Attendance" },
               { value: "tests", icon: FlaskConical, label: "Tests" },
+              { value: "dpp", icon: BookMarked, label: "DPP / HW" },
               { value: "rankings", icon: Trophy, label: "Rankings" },
             ].map(tab => (
               <TabsTrigger
@@ -718,10 +747,13 @@ export default function BatchWorkspace() {
                 </Card>
               ) : (
                 <Card className="shadow-card border-border/50 overflow-hidden">
-                  <div className="p-3 border-b border-border/50">
+                  <div className="p-3 border-b border-border/50 flex items-center justify-between">
                     <p className="font-display font-semibold text-sm">
                       Today's Attendance — {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long" })}
                     </p>
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <Eye className="w-3 h-3" /> Read-only
+                    </Badge>
                   </div>
                   <div className="divide-y divide-border/40">
                     {students.map(s => (
@@ -732,37 +764,15 @@ export default function BatchWorkspace() {
                           </div>
                           <p className="text-sm font-medium">{s.full_name}</p>
                         </div>
-                        {(currentUserRole === "teacher" || currentUserRole === "admin") ? (
-                          <button
-                            onClick={() => setAttendance(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
-                            className={cn(
-                              "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all",
-                              attendance[s.id]
-                                ? "bg-success-light text-success hover:bg-success hover:text-white"
-                                : "bg-danger-light text-danger hover:bg-danger hover:text-white"
-                            )}
-                          >
-                            {attendance[s.id] ? <><CheckCircle2 className="w-3.5 h-3.5" />Present</> : <><XCircle className="w-3.5 h-3.5" />Absent</>}
-                          </button>
-                        ) : (
-                          <Badge className={attendance[s.id] ? "bg-success-light text-success border-success/20 text-xs" : "bg-danger-light text-danger border-danger/20 text-xs"}>
-                            {attendance[s.id] ? "Present" : "Absent"}
-                          </Badge>
-                        )}
+                        <Badge className={attendance[s.id] ? "bg-success-light text-success border-success/20 text-xs" : "bg-danger-light text-danger border-danger/20 text-xs"}>
+                          {attendance[s.id] ? "Present" : "Absent"}
+                        </Badge>
                       </div>
                     ))}
                   </div>
-                  {(currentUserRole === "teacher" || currentUserRole === "admin") && (
-                    <div className="p-3 border-t border-border/50">
-                      <Button
-                        className="w-full gradient-hero text-white border-0 shadow-primary hover:opacity-90 h-8 text-xs"
-                        onClick={saveAttendance}
-                        disabled={savingAttendance}
-                      >
-                        {savingAttendance ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Saving...</> : "Save Attendance"}
-                      </Button>
-                    </div>
-                  )}
+                  <div className="p-3 border-t border-border/50 text-center">
+                    <p className="text-xs text-muted-foreground">To mark attendance, use the dedicated <strong>Attendance</strong> section in the main panel.</p>
+                  </div>
                 </Card>
               )}
             </div>
@@ -773,50 +783,9 @@ export default function BatchWorkspace() {
             <div className="max-w-2xl space-y-4">
               <div className="flex justify-between items-center">
                 <h3 className="font-display font-semibold">Test Scores</h3>
-                {(currentUserRole === "teacher" || currentUserRole === "admin") && (
-                  <Dialog open={testDialog} onOpenChange={setTestDialog}>
-                    <DialogTrigger asChild>
-                      <Button size="sm" className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-1.5 h-8 text-xs">
-                        <Plus className="w-3.5 h-3.5" /> Add Score
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                      <DialogHeader>
-                        <DialogTitle className="font-display">Add Test Score</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4 pt-2">
-                        <div className="space-y-1.5">
-                          <Label>Test Name</Label>
-                          <Input placeholder="e.g. Unit Test 3 — Thermodynamics" value={newTest.name} onChange={e => setNewTest(p => ({ ...p, name: e.target.value }))} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <Label>Max Marks</Label>
-                            <Input type="number" value={newTest.maxMarks} onChange={e => setNewTest(p => ({ ...p, maxMarks: e.target.value }))} />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label>Score</Label>
-                            <Input type="number" value={newTest.score} onChange={e => setNewTest(p => ({ ...p, score: e.target.value }))} />
-                          </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label>Student</Label>
-                          <select
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            value={newTest.studentId}
-                            onChange={e => setNewTest(p => ({ ...p, studentId: e.target.value }))}
-                          >
-                            <option value="">Select student</option>
-                            {students.map(s => <option key={s.user_id} value={s.user_id}>{s.full_name}</option>)}
-                          </select>
-                        </div>
-                        <Button className="w-full gradient-hero text-white border-0 hover:opacity-90" onClick={addTest} disabled={savingTest}>
-                          {savingTest ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Score
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                )}
+                <Badge variant="secondary" className="text-xs gap-1">
+                  <Eye className="w-3 h-3" /> Read-only
+                </Badge>
               </div>
               {tests.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-8">No test scores yet.</p>
@@ -847,6 +816,95 @@ export default function BatchWorkspace() {
                             className={`h-full rounded-full ${Math.round(t.score / t.max_marks * 100) >= 75 ? "bg-success" : "bg-warning"}`}
                             style={{ width: `${Math.round(t.score / t.max_marks * 100)}%` }}
                           />
+                        </div>
+                      </div>
+                    </Card>
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </TabsContent>
+
+          {/* ── DPP / Homework ── */}
+          <TabsContent value="dpp" className="h-full overflow-y-auto m-0 p-4 data-[state=inactive]:hidden">
+            <div className="max-w-2xl space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="font-display font-semibold">DPP / Homework</h3>
+                {currentUserRole === "teacher" && (
+                  <Dialog open={dppDialog} onOpenChange={setDppDialog}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-1.5 h-8 text-xs">
+                        <Plus className="w-3.5 h-3.5" /> Upload DPP
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="font-display">Upload DPP / Homework</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-2">
+                        <div className="space-y-1.5">
+                          <Label>Title *</Label>
+                          <Input placeholder="e.g. DPP 14 — Electrostatics" value={newDpp.title} onChange={e => setNewDpp(p => ({ ...p, title: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Description / Instructions</Label>
+                          <Textarea placeholder="Any notes for students..." value={newDpp.description} onChange={e => setNewDpp(p => ({ ...p, description: e.target.value }))} rows={2} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Link (optional)</Label>
+                          <Input placeholder="https://... (Google Drive, YouTube, etc.)" value={newDpp.link_url} onChange={e => setNewDpp(p => ({ ...p, link_url: e.target.value }))} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>File (optional)</Label>
+                          <input ref={dppFileRef} type="file" className="hidden" accept="image/*,application/pdf,.doc,.docx" onChange={e => setDppFile(e.target.files?.[0] || null)} />
+                          <div
+                            className="flex items-center gap-3 p-3 border border-dashed border-border/60 rounded-lg bg-muted/40 cursor-pointer hover:bg-muted/60 transition-colors"
+                            onClick={() => dppFileRef.current?.click()}
+                          >
+                            <Paperclip className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">{dppFile ? dppFile.name : "Attach PDF, image, or doc (max 10MB)"}</span>
+                            {dppFile && <button className="ml-auto text-danger" onClick={e => { e.stopPropagation(); setDppFile(null); }}><X className="w-4 h-4" /></button>}
+                          </div>
+                        </div>
+                        <Button className="w-full gradient-hero text-white border-0 hover:opacity-90" onClick={postDpp} disabled={savingDpp || !newDpp.title}>
+                          {savingDpp ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Uploading...</> : "Post DPP / Homework"}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+
+              {dppItems.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-8">No DPP or homework posted yet.</p>
+              ) : (
+                dppItems.map((item, i) => (
+                  <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+                    <Card className="p-4 shadow-card border-border/50">
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0">
+                          <BookMarked className="w-4 h-4 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm mb-0.5">{item.title}</p>
+                          {item.description && <p className="text-xs text-muted-foreground mb-2">{item.description}</p>}
+                          <div className="flex flex-wrap gap-2">
+                            {item.file_url && (
+                              <a href={item.file_url} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs text-primary hover:underline bg-primary-light px-2.5 py-1 rounded-full">
+                                <Download className="w-3 h-3" /> {item.file_name || "Download File"}
+                              </a>
+                            )}
+                            {item.link_url && (
+                              <a href={item.link_url} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs text-accent hover:underline bg-accent-light px-2.5 py-1 rounded-full">
+                                <LinkIcon className="w-3 h-3" /> Open Link
+                              </a>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                            <Clock className="w-3 h-3" /> {timeAgo(item.created_at)} · {item.posted_by_name}
+                          </p>
                         </div>
                       </div>
                     </Card>
