@@ -15,7 +15,7 @@ import {
   BookOpen, Trophy, ArrowLeft, Send, Plus, CheckCircle2,
   XCircle, Clock, Users, Loader2, Star, Bell, Paperclip,
   FileText, Image, X, Download, BookMarked, Eye, Link as LinkIcon,
-  ThumbsUp, ThumbsDown
+  ThumbsUp, ThumbsDown, ArrowDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,18 +42,7 @@ interface ChatMessage {
   file_type?: string | null;
   isSelf?: boolean;
   reply_to_id?: string | null;
-  reactions?: Record<string, string[]> | null;
-}
-
-interface DppItem {
-  id: string;
-  title: string;
-  description: string | null;
-  file_url: string | null;
-  file_name: string | null;
-  link_url: string | null;
-  teacher_name: string | null;
-  created_at: string;
+  reactions?: Record<string, string[]>; // emoji -> user_ids[]
 }
 
 interface Student {
@@ -106,7 +95,7 @@ export default function BatchWorkspace() {
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
-  const [activeTab, setActiveTab] = useState("chat");
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
   // Attendance
   const [students, setStudents] = useState<Student[]>([]);
@@ -123,12 +112,20 @@ export default function BatchWorkspace() {
   const [tests, setTests] = useState<TestScore[]>([]);
 
   // DPP / Homework
-  const [dppItems, setDppItems] = useState<DppItem[]>([]);
+  const [dppItems, setDppItems] = useState<{ id: string; title: string; description: string | null; file_url: string | null; file_name: string | null; link_url: string | null; posted_by_name: string; created_at: string }[]>([]);
   const [dppDialog, setDppDialog] = useState(false);
   const [newDpp, setNewDpp] = useState({ title: "", description: "", link_url: "" });
   const [savingDpp, setSavingDpp] = useState(false);
   const [dppFile, setDppFile] = useState<File | null>(null);
   const dppFileRef = useRef<HTMLInputElement>(null);
+
+  const handleBack = () => {
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate("/");
+    }
+  };
 
   // Load initial data
   useEffect(() => {
@@ -174,7 +171,7 @@ export default function BatchWorkspace() {
       if (msgs) {
         // Reverse to show in chronological order
         const chronologicalMsgs = [...msgs].reverse();
-        setMessages(chronologicalMsgs.map(m => ({ ...m, reactions: (m.reactions as Record<string, string[]> | null) ?? null, isSelf: m.sender_id === user.id })));
+        setMessages(chronologicalMsgs.map(m => ({ ...m, isSelf: m.sender_id === user.id })));
       }
 
       // Enrolled students
@@ -212,12 +209,11 @@ export default function BatchWorkspace() {
 
       // DPP / Homework
       const { data: dppData } = await supabase
-        .from("homeworks")
-        .select("id, title, description, file_url, file_name, link_url, teacher_name, created_at")
+        .from("homework_assignments")
+        .select("*")
         .eq("batch_id", batchId)
-        .eq("type", "dpp")
         .order("created_at", { ascending: false });
-      setDppItems((dppData || []) as DppItem[]);
+      setDppItems((dppData || []) as typeof dppItems);
 
       setLoading(false);
     };
@@ -264,32 +260,28 @@ export default function BatchWorkspace() {
     return () => { supabase.removeChannel(channel); };
   }, [batchId]);
 
-  // ─── Scroll helper ────────────────────────────────────────────────────────────
-  // Uses double-rAF so the DOM has fully painted after a tab becomes visible
-  // before we attempt to read scrollHeight.
-  const scrollToBottom = useCallback((smooth = false) => {
-    const doScroll = () => {
-      const container = chatContainerRef.current;
-      if (!container) return;
-      container.scrollTop = container.scrollHeight;
-      if (smooth) {
-        container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+  // Robust Scrolling with ResizeObserver
+  useEffect(() => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+
+    const observer = new ResizeObserver(() => {
+      // Small buffer to check if we are already near the bottom
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      
+      // If we're loading or if we're near the bottom, force scroll
+      if (loading || isNearBottom) {
+        chatEndRef.current?.scrollIntoView({ behavior: "auto" });
       }
-    };
-    // Two frames: first lets React flush the DOM, second lets the browser paint
-    requestAnimationFrame(() => requestAnimationFrame(doScroll));
-  }, []);
+    });
 
-  // Scroll when new messages arrive (realtime) — only when chat tab is active
-  useEffect(() => {
-    if (activeTab !== "chat") return;
-    scrollToBottom(messages.length > 1); // smooth only after initial load
-  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [loading]);
 
-  // Re-scroll every time the user switches back to the Chat tab
   useEffect(() => {
-    if (activeTab === "chat") scrollToBottom(false);
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   // ─── File upload helper ─────────────────────────────────────────────────────
   const uploadChatFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
@@ -469,26 +461,25 @@ export default function BatchWorkspace() {
         file_url = publicUrl;
         file_name = dppFile.name;
       }
-      const { error } = await supabase.from("homeworks").insert({
+      const { error } = await supabase.from("homework_assignments").insert({
         batch_id: batchId!,
         institute_code: batch.institute_code,
-        teacher_id: currentUserId,
-        teacher_name: currentUserName,
+        posted_by: currentUserId,
+        posted_by_name: currentUserName,
         title: newDpp.title,
         description: newDpp.description || null,
         file_url,
         file_name,
         link_url: newDpp.link_url || null,
-        type: "dpp",
-      });
+      } as never);
       if (error) { toast({ title: "Error posting DPP", description: error.message, variant: "destructive" }); }
       else {
         toast({ title: "DPP/Homework posted!" });
         setDppDialog(false);
         setNewDpp({ title: "", description: "", link_url: "" });
         setDppFile(null);
-        const { data } = await supabase.from("homeworks").select("id, title, description, file_url, file_name, link_url, teacher_name, created_at").eq("batch_id", batchId!).eq("type", "dpp").order("created_at", { ascending: false });
-        setDppItems((data || []) as DppItem[]);
+        const { data } = await supabase.from("homework_assignments").select("*").eq("batch_id", batchId!).order("created_at", { ascending: false });
+        setDppItems((data || []) as typeof dppItems);
       }
     } finally { setSavingDpp(false); }
   };
@@ -537,7 +528,7 @@ export default function BatchWorkspace() {
       <div className="flex items-center justify-center h-screen bg-background">
         <div className="text-center">
           <p className="text-muted-foreground mb-3">Batch not found</p>
-          <Button onClick={() => navigate(-1)}>Go Back</Button>
+          <Button onClick={handleBack}>Go Back</Button>
         </div>
       </div>
     );
@@ -547,7 +538,7 @@ export default function BatchWorkspace() {
     <div className="flex flex-col h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border/50 bg-card flex items-center gap-3 px-4 h-14 flex-shrink-0">
-        <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => navigate(-1)}>
+        <Button variant="ghost" size="icon" className="w-8 h-8" onClick={handleBack}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center text-white text-xs font-bold">
@@ -567,7 +558,7 @@ export default function BatchWorkspace() {
       </header>
 
       {/* Tabs */}
-      <Tabs defaultValue="chat" className="flex-1 flex flex-col overflow-hidden" onValueChange={setActiveTab}>
+      <Tabs defaultValue="chat" className="flex-1 flex flex-col overflow-hidden">
         <div className="border-b border-border/50 bg-card px-4 flex-shrink-0">
           <TabsList className="h-10 bg-transparent p-0 gap-1">
             {[
@@ -592,8 +583,16 @@ export default function BatchWorkspace() {
 
         <div className="flex-1 overflow-hidden">
           {/* ── Chat ── */}
-          <TabsContent value="chat" className="h-full flex flex-col m-0 data-[state=inactive]:hidden">
-            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+          <TabsContent value="chat" className="h-full flex flex-col relative m-0 data-[state=inactive]:hidden">
+            <div 
+              ref={chatContainerRef} 
+              className="flex-1 overflow-y-auto p-4 space-y-3"
+              onScroll={(e) => {
+                const target = e.currentTarget;
+                const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 200;
+                setShowScrollDown(!isNearBottom);
+              }}
+            >
               {messages.length === 0 && (
                 <div className="text-center py-12 text-muted-foreground">
                   <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
@@ -604,10 +603,12 @@ export default function BatchWorkspace() {
                 <motion.div
                   key={msg.id}
                   drag="x"
-                  dragConstraints={{ left: -100, right: 0 }}
+                  dragConstraints={msg.isSelf ? { left: 0, right: 100 } : { left: -100, right: 0 }}
                   dragElastic={0.4}
                   onDragEnd={(_, info) => {
-                    if (info.offset.x < -60) {
+                    if (msg.isSelf && info.offset.x > 60) {
+                      setReplyingTo(msg);
+                    } else if (!msg.isSelf && info.offset.x < -60) {
                       setReplyingTo(msg);
                     }
                   }}
@@ -752,6 +753,18 @@ export default function BatchWorkspace() {
                   onClick={() => setAttachedFile(null)}
                 >
                   <X className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+
+            {showScrollDown && (
+              <div className="absolute bottom-[80px] right-4 z-20 animate-in slide-in-from-bottom-2 fade-in">
+                <Button 
+                  size="icon" 
+                  className="rounded-full shadow-lg gradient-hero text-white border-0 w-10 h-10 hover:opacity-90"
+                  onClick={() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" })}
+                >
+                  <ArrowDown className="w-5 h-5" />
                 </Button>
               </div>
             )}
@@ -1054,7 +1067,7 @@ export default function BatchWorkspace() {
                             )}
                           </div>
                           <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> {timeAgo(item.created_at)} · {item.teacher_name}
+                            <Clock className="w-3 h-3" /> {timeAgo(item.created_at)} · {item.posted_by_name}
                           </p>
                         </div>
                       </div>
