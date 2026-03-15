@@ -1,0 +1,1 @@
+ALTER TABLE public.homeworks ADD COLUMN IF NOT EXISTS link_url text;

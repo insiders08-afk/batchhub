@@ -389,6 +389,7 @@ export type Database = {
           file_url: string | null
           id: string
           institute_code: string
+          link_url: string | null
           teacher_id: string
           teacher_name: string | null
           title: string
@@ -404,6 +405,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           institute_code: string
+          link_url?: string | null
           teacher_id: string
           teacher_name?: string | null
           title: string
@@ -419,6 +421,7 @@ export type Database = {
           file_url?: string | null
           id?: string
           institute_code?: string
+          link_url?: string | null
           teacher_id?: string
           teacher_name?: string | null
           title?: string
