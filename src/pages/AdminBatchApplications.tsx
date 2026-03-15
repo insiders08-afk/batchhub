@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { CheckCircle2, XCircle, Clock, Search, Loader2, GraduationCap, BookOpen } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, Search, Loader2, GraduationCap, BookOpen, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -54,8 +54,12 @@ export default function AdminBatchApplications() {
     const batchIds = [...new Set(applications.map(a => a.batch_id))];
 
     const [studentsRes, batchesRes] = await Promise.all([
-      supabase.from("profiles").select("user_id, full_name, email").in("user_id", studentIds.length ? studentIds : ["x"]),
-      supabase.from("batches").select("id, name, course").in("id", batchIds.length ? batchIds : ["x"]),
+      studentIds.length > 0
+        ? supabase.from("profiles").select("user_id, full_name, email").in("user_id", studentIds)
+        : Promise.resolve({ data: [] }),
+      batchIds.length > 0
+        ? supabase.from("batches").select("id, name, course").in("id", batchIds)
+        : Promise.resolve({ data: [] }),
     ]);
 
     const studentMap: Record<string, { full_name: string; email: string }> = {};
@@ -110,6 +114,14 @@ export default function AdminBatchApplications() {
     if (action === "approved") {
       // Get institute_code
       const { data: codeData } = await supabase.rpc("get_my_institute_code");
+
+      // Fix #10: null check before insert
+      if (!codeData) {
+        toast({ title: "Error", description: "Could not determine your institute code. Enrollment skipped.", variant: "destructive" });
+        setActionLoading(null);
+        return;
+      }
+
       // Enroll student in batch
       const { error: enrollErr } = await supabase.from("students_batches").insert({
         student_id: app.student_id,
@@ -119,6 +131,8 @@ export default function AdminBatchApplications() {
 
       if (enrollErr && !enrollErr.message?.includes("duplicate") && !enrollErr.code?.includes("23505")) {
         toast({ title: "Warning", description: "Application approved but enrollment had an issue: " + enrollErr.message, variant: "destructive" });
+        setActionLoading(null);
+        return;
       } else {
         toast({ title: "Approved!", description: `${app.studentName} enrolled in ${app.batchName}` });
       }
@@ -126,6 +140,7 @@ export default function AdminBatchApplications() {
       toast({ title: "Rejected", description: `${app.studentName}'s application rejected` });
     }
 
+    // Fix #6: Only update UI state after ALL DB operations have succeeded
     setApps(prev => prev.map(a => a.id === app.id ? { ...a, status: action } : a));
     setActionLoading(null);
   };
@@ -205,7 +220,7 @@ export default function AdminBatchApplications() {
                       </div>
                     </div>
 
-                    {app.status === "pending" && (
+                    {(app.status === "pending" || app.status === "rejected") && (
                       <div className="flex gap-2 shrink-0">
                         <Button
                           size="sm"
@@ -213,18 +228,20 @@ export default function AdminBatchApplications() {
                           className="bg-success-light text-success hover:bg-success hover:text-white border border-success/20 h-8 text-xs gap-1 transition-colors"
                           onClick={() => handleAction(app, "approved")}
                         >
-                          {actionLoading === app.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                          Approve
+                          {actionLoading === app.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : app.status === "rejected" ? <RotateCcw className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                          {app.status === "rejected" ? "Re-approve" : "Approve"}
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={actionLoading === app.id}
-                          className="text-danger border-danger/30 hover:bg-danger-light h-8 text-xs gap-1"
-                          onClick={() => handleAction(app, "rejected")}
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Reject
-                        </Button>
+                        {app.status === "pending" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={actionLoading === app.id}
+                            className="text-danger border-danger/30 hover:bg-danger-light h-8 text-xs gap-1"
+                            onClick={() => handleAction(app, "rejected")}
+                          >
+                            <XCircle className="w-3.5 h-3.5" /> Reject
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
