@@ -217,6 +217,8 @@ function BatchFormDialog({
           course,
           status: "pending",
         });
+        // Fix #15: Store pending teacher name so admin can see "awaiting acceptance" badge
+        await supabase.from("batches").update({ pending_teacher_name: teacherName }).eq("id", editBatch.id);
         toast({ title: "Batch updated!", description: `New assignment request sent to ${teacherName}.` });
       } else {
         toast({ title: "Batch updated successfully!" });
