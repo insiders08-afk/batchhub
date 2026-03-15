@@ -175,15 +175,6 @@ export default function BatchWorkspace() {
         // Reverse to show in chronological order
         const chronologicalMsgs = [...msgs].reverse();
         setMessages(chronologicalMsgs.map(m => ({ ...m, reactions: (m.reactions as Record<string, string[]> | null) ?? null, isSelf: m.sender_id === user.id })));
-        
-        // Robust immediate scroll
-        requestAnimationFrame(() => {
-          chatEndRef.current?.scrollIntoView({ behavior: "auto" });
-          // Second pass after small delay to catch late layout shifts
-          setTimeout(() => {
-            chatEndRef.current?.scrollIntoView({ behavior: "auto" });
-          }, 150);
-        });
       }
 
       // Enrolled students
