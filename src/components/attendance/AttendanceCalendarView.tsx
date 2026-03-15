@@ -420,12 +420,17 @@ export default function AttendanceCalendarView({
     const dateKey = formatDateKey(day);
     const d = new Date(calYear, calMonth, day);
 
-    if (!isBatchScheduledDay(d)) return;
-
     const isDayOff = dayOffDates.has(dateKey);
     const isFuture = dateKey > todayKey;
     const isPastOrToday = dateKey <= todayKey;
     const isToday = dateKey === todayKey;
+    const isScheduledDay = isBatchScheduledDay(d);
+    const hasData = !!monthData[dateKey];
+
+    // For past/today: always allow viewing if attendance data exists, regardless of schedule.
+    // For future: only allow day-off marking on scheduled days.
+    // Non-scheduled days with no data and no day-off → block.
+    if (!isScheduledDay && !hasData && !isDayOff) return;
 
     // Clicking a day-off cell (past, today, or future) → offer to cancel if admin
     if (isDayOff && canMarkDayOff) {
@@ -436,12 +441,10 @@ export default function AttendanceCalendarView({
     if (isDayOff && !isFuture) return; // non-admin, off days in past are non-interactive
 
     if (isToday) {
-      const data = monthData[dateKey];
-      if (data) setSelectedDate(selectedDate === dateKey ? null : dateKey);
+      if (hasData) setSelectedDate(selectedDate === dateKey ? null : dateKey);
     } else if (isPastOrToday) {
-      const data = monthData[dateKey];
-      if (data) setSelectedDate(selectedDate === dateKey ? null : dateKey);
-    } else if (isFuture && canMarkDayOff && !isDayOff) {
+      if (hasData) setSelectedDate(selectedDate === dateKey ? null : dateKey);
+    } else if (isFuture && canMarkDayOff && !isDayOff && isScheduledDay) {
       setDayOffDate(dateKey);
     }
   };
