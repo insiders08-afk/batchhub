@@ -74,19 +74,25 @@ export default function AdminApprovals() {
   // Auto-repair: backfill any approved profiles missing a user_roles row
   const repairMissingRoles = useCallback(async () => {
     try {
+      // Fix #12: Scope to current admin's institute only
+      const { data: myInstCode } = await supabase.rpc("get_my_institute_code");
+      if (!myInstCode) return;
+
       // Get all approved profiles in this admin's institute
       const { data: approved } = await supabase
         .from("profiles")
         .select("user_id, role, institute_code")
+        .eq("institute_code", myInstCode)
         .in("status", ["approved", "active"])
         .not("institute_code", "is", null);
 
       if (!approved || approved.length === 0) return;
 
-      // Get existing user_roles
+      // Get existing user_roles scoped to this institute
       const { data: existingRoles } = await supabase
         .from("user_roles")
-        .select("user_id, role");
+        .select("user_id, role")
+        .eq("institute_code", myInstCode);
 
       const existingSet = new Set(
         (existingRoles || []).map((r) => `${r.user_id}::${r.role}`)
@@ -159,8 +165,8 @@ export default function AdminApprovals() {
     if (!confirm(`Revoke ${req.role} access for ${req.full_name}? They will no longer be able to log in as ${req.role}.`)) return;
     setActionLoading(req.id);
     try {
-      await supabase.from("user_roles").delete().eq("user_id", req.user_id).eq("role", req.role);
-      await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", req.user_id).eq("role", req.role);
+      await supabase.from("user_roles").delete().eq("user_id", req.user_id).eq("role", req.role).eq("institute_code", req.institute_code);
+      await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", req.user_id).eq("institute_code", req.institute_code);
       await supabase.from("pending_requests").update({ status: "rejected" }).eq("id", req.id);
       toast({ title: "Access revoked", description: `${req.full_name}'s ${req.role} access has been removed.` });
       setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: "rejected" } : r));
@@ -184,11 +190,12 @@ export default function AdminApprovals() {
       if (reqError) throw reqError;
 
       if (action === "approved") {
-        // 2. Update profile status to approved
+        // Fix #13: scope profile update to this institute
         const { error: profError } = await supabase
           .from("profiles")
           .update({ status: "approved" })
-          .eq("user_id", req.user_id);
+          .eq("user_id", req.user_id)
+          .eq("institute_code", req.institute_code);
         if (profError) throw profError;
 
         // 3. INSERT into user_roles — ignore if already exists (duplicate = fine)
@@ -216,11 +223,11 @@ export default function AdminApprovals() {
 
         toast({ title: "Approved!", description: `${req.full_name} has been granted ${req.role} access.` });
       } else {
-        // Update profile to rejected
-        await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", req.user_id);
+        // Fix #13: scope profile update + role delete to this institute
+        await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", req.user_id).eq("institute_code", req.institute_code);
         // Remove from user_roles if previously approved
         await supabase.from("user_roles").delete()
-          .eq("user_id", req.user_id).eq("role", req.role);
+          .eq("user_id", req.user_id).eq("role", req.role).eq("institute_code", req.institute_code);
         toast({ title: "Rejected", description: `${req.full_name}'s request has been rejected.` });
       }
 
