@@ -243,25 +243,21 @@ export default function AdminSettings() {
             >
               {saving ? <><Loader2 className="w-4 h-4 animate-spin" />Saving...</> : <><Save className="w-4 h-4" />Save Name</>}
             </Button>
-            <Button
-              variant="outline"
-              className="gap-2 border-accent/40 text-accent hover:bg-accent/10"
-              onClick={handleContactSuperAdmin}
-            >
-              <Mail className="w-4 h-4" /> Contact Super Admin to Edit Other Fields
-            </Button>
           </div>
         </Card>
 
         {/* Notifications */}
-        <Card className="p-5 shadow-card border-border/50">
+        <Card className="p-5 shadow-card border-border/50 opacity-60">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-9 h-9 rounded-xl bg-accent-light flex items-center justify-center">
               <Bell className="w-4 h-4 text-accent" />
             </div>
-            <div>
-              <h3 className="font-display font-semibold">Notifications</h3>
-              <p className="text-xs text-muted-foreground">System notification preferences (read-only — configured by Super Admin)</p>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="font-display font-semibold">Notifications</h3>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">Coming Soon</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Notification preferences will be available in a future update</p>
             </div>
           </div>
           <div className="space-y-3">
