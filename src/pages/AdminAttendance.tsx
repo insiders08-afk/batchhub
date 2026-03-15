@@ -58,7 +58,7 @@ export default function AdminAttendance() {
       setLoadingBatches(true);
       const { data: code } = await supabase.rpc("get_my_institute_code");
       setInstituteCode(code || "");
-      const { data, error } = await supabase.from("batches").select("*").eq("is_active", true).order("name");
+      const { data, error } = await supabase.from("batches").select("*").eq("institute_code", code || "").eq("is_active", true).order("name");
       if (!error && data) {
         setBatches(data);
         if (data.length > 0) setSelectedBatchId(data[0].id);
@@ -82,14 +82,19 @@ export default function AdminAttendance() {
       setStudents(profiles);
 
       const studentIds = profiles.map(p => p.user_id);
-      const { data: todayAtt } = await supabase
-        .from("attendance").select("student_id, present")
-        .eq("batch_id", batchId).eq("date", today)
-        .in("student_id", studentIds.length > 0 ? studentIds : ["none"]);
 
+      // Fix #5: early-return instead of ["none"] hack
       const attMap: Record<string, "present" | "absent"> = {};
-      profiles.forEach(p => { attMap[p.user_id] = "present"; });
-      (todayAtt || []).forEach(a => { attMap[a.student_id] = a.present ? "present" : "absent"; });
+      if (studentIds.length > 0) {
+        const { data: todayAtt } = await supabase
+          .from("attendance").select("student_id, present")
+          .eq("batch_id", batchId).eq("date", today)
+          .in("student_id", studentIds);
+
+        // Fix #8: Only populate from actual DB records — leave students without records
+        // as undefined so we can distinguish "not taken" from "all present"
+        (todayAtt || []).forEach(a => { attMap[a.student_id] = a.present ? "present" : "absent"; });
+      }
       setAttendance(attMap);
 
       const { data: histData } = await supabase.from("attendance").select("date, present")
@@ -159,7 +164,12 @@ export default function AdminAttendance() {
 
   const toggle = (userId: string) => {
     if (isLocked) return;
-    setAttendance(prev => ({ ...prev, [userId]: prev[userId] === "present" ? "absent" : "present" }));
+    setAttendance(prev => {
+      const current = prev[userId];
+      // If not taken yet, default to present on first click
+      if (!current) return { ...prev, [userId]: "present" };
+      return { ...prev, [userId]: current === "present" ? "absent" : "present" };
+    });
   };
 
   const markAll = (status: "present" | "absent") => {
@@ -344,12 +354,16 @@ export default function AdminAttendance() {
                           isLocked ? "opacity-50 cursor-not-allowed" : "",
                           attendance[s.user_id] === "present"
                             ? "bg-success-light text-success hover:bg-success hover:text-white"
-                            : "bg-danger-light text-danger hover:bg-danger hover:text-white"
+                            : attendance[s.user_id] === "absent"
+                            ? "bg-danger-light text-danger hover:bg-danger hover:text-white"
+                            : "bg-muted text-muted-foreground hover:bg-muted/80"
                         )}
                       >
                         {attendance[s.user_id] === "present"
                           ? <><CheckCircle2 className="w-3.5 h-3.5" /> Present</>
-                          : <><XCircle className="w-3.5 h-3.5" /> Absent</>
+                          : attendance[s.user_id] === "absent"
+                          ? <><XCircle className="w-3.5 h-3.5" /> Absent</>
+                          : <><Clock className="w-3.5 h-3.5" /> Not taken</>
                         }
                       </button>
                     </motion.div>
