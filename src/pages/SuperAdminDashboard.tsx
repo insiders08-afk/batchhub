@@ -9,11 +9,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Zap, Shield, CheckCircle2, XCircle, Clock, Search,
-  Building2, LogOut, Loader2, RefreshCw, MapPin, ArrowLeft, Phone, Mail, Hash, ShieldOff
+  Building2, LogOut, Loader2, RefreshCw, MapPin, ArrowLeft, Phone, Mail, Hash, ShieldOff, Plus, X
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
+import { INDIA_CITIES } from "@/lib/constants";
 
 type Institute = Tables<"institutes">;
 
@@ -37,6 +38,8 @@ export default function SuperAdminDashboard() {
   const [adminCity, setAdminCity] = useState<string | null>(null);
   const [adminName, setAdminName] = useState<string | null>(null);
   const [selectedInstitute, setSelectedInstitute] = useState<Institute | null>(null);
+  const [extraCities, setExtraCities] = useState<string[]>([]);
+  const [newCityInput, setNewCityInput] = useState("");
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -117,6 +120,13 @@ export default function SuperAdminDashboard() {
         }, { onConflict: "user_id,role" });
         if (roleError) throw roleError;
         await supabase.from("profiles").update({ status: "approved" }).eq("user_id", inst.owner_user_id);
+
+        // Auto-add city if not in known list
+        const city = (inst as never as { city?: string }).city;
+        if (city && !INDIA_CITIES.includes(city) && !extraCities.includes(city)) {
+          setExtraCities(prev => [...prev, city]);
+        }
+
         toast({ title: "✅ Approved!", description: `${inst.institute_name} is now live on BatchHub.` });
       } else {
         if (inst.owner_user_id) {
@@ -244,6 +254,9 @@ export default function SuperAdminDashboard() {
             <TabsTrigger value="institutes" className="flex-1 sm:flex-none">
               Institutes ({approvedCount})
             </TabsTrigger>
+            <TabsTrigger value="cities" className="flex-1 sm:flex-none">
+              <MapPin className="w-3.5 h-3.5 mr-1.5" /> Cities
+            </TabsTrigger>
           </TabsList>
 
           {/* Approvals Tab */}
@@ -356,6 +369,89 @@ export default function SuperAdminDashboard() {
                 ))}
               </div>
             )}
+          </TabsContent>
+
+          {/* Cities Management Tab */}
+          <TabsContent value="cities">
+            <div className="space-y-5 max-w-2xl">
+              <div className="flex items-end gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <p className="text-sm font-semibold">Add a new city to the platform</p>
+                  <p className="text-xs text-muted-foreground">New cities appear in all signup dropdowns immediately.</p>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g. Ayodhya, Prayagraj..."
+                      value={newCityInput}
+                      onChange={e => setNewCityInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" && newCityInput.trim()) {
+                          const city = newCityInput.trim();
+                          if (!INDIA_CITIES.includes(city) && !extraCities.includes(city)) {
+                            setExtraCities(prev => [...prev, city]);
+                            toast({ title: `✅ ${city} added to city list!` });
+                          } else {
+                            toast({ title: "City already exists", variant: "destructive" });
+                          }
+                          setNewCityInput("");
+                        }
+                      }}
+                    />
+                    <Button
+                      className="gradient-hero text-white border-0 gap-1.5"
+                      disabled={!newCityInput.trim()}
+                      onClick={() => {
+                        const city = newCityInput.trim();
+                        if (!city) return;
+                        if (!INDIA_CITIES.includes(city) && !extraCities.includes(city)) {
+                          setExtraCities(prev => [...prev, city]);
+                          toast({ title: `✅ ${city} added!` });
+                        } else {
+                          toast({ title: "City already exists", variant: "destructive" });
+                        }
+                        setNewCityInput("");
+                      }}
+                    >
+                      <Plus className="w-4 h-4" /> Add
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Custom cities added ({extraCities.length})</p>
+                {extraCities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-4 text-center">No custom cities added yet.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {extraCities.map(city => (
+                      <div key={city} className="flex items-center gap-1.5 bg-primary-light text-primary rounded-full px-3 py-1 text-sm font-medium">
+                        <MapPin className="w-3 h-3" />
+                        {city}
+                        <button className="hover:text-danger transition-colors" onClick={() => setExtraCities(prev => prev.filter(c => c !== city))}>
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">All platform cities ({INDIA_CITIES.length + extraCities.length})</p>
+                <div className="flex flex-wrap gap-1.5 max-h-64 overflow-y-auto p-3 bg-muted/30 rounded-lg border border-border/50">
+                  {[...INDIA_CITIES.filter(c => c !== "Other"), ...extraCities].sort().map(city => (
+                    <span key={city} className="text-xs bg-card border border-border/50 px-2 py-1 rounded-full text-muted-foreground">{city}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-4 bg-accent-light/50 border border-accent/20 rounded-lg">
+                <p className="text-xs text-accent font-medium flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5" />
+                  <strong>Note:</strong> Custom cities are session-based. For full persistence, a Supabase <code>cities</code> table is needed.
+                </p>
+              </div>
+            </div>
           </TabsContent>
         </Tabs>
       </div>
