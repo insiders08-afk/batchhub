@@ -1753,6 +1753,22 @@ export default function AdminFees() {
           }}
         />
       )}
+
+      {/* Load More Fees */}
+      {feesHasMore && !loading && (
+        <div className="flex justify-center pt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchData(feesPage + 1, false)}
+            disabled={loadingMoreFees}
+            className="gap-2 h-9 px-6"
+          >
+            {loadingMoreFees ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {loadingMoreFees ? "Loading..." : `Load More (${feesTotal - plans.length} remaining)`}
+          </Button>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

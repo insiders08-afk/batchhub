@@ -1183,6 +1183,22 @@ export default function AdminBatches() {
             ))}
           </div>
         )}
+
+        {/* Load More Batches */}
+        {hasMore && !loading && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchBatches(instituteCodeRef, batchPage + 1, false)}
+              disabled={loadingMore}
+              className="gap-2 h-9 px-6"
+            >
+              {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {loadingMore ? "Loading..." : `Load More (${batchTotal - batches.length} remaining)`}
+            </Button>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
