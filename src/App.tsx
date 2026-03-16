@@ -11,9 +11,6 @@ import NotFound from "./pages/NotFound";
 
 // All other pages — lazy loaded to reduce initial JS bundle
 const AdminDemo = lazy(() => import("./pages/demo/AdminDemo"));
-const TeacherDemo = lazy(() => import("./pages/demo/TeacherDemo"));
-const StudentDemo = lazy(() => import("./pages/demo/StudentDemo"));
-const ParentDemo = lazy(() => import("./pages/demo/ParentDemo"));
 const StudentBatchApply = lazy(() => import("./pages/StudentBatchApply"));
 const AdminBatchApplications = lazy(() => import("./pages/AdminBatchApplications"));
 const RoleSelection = lazy(() => import("./pages/RoleSelection"));
@@ -70,9 +67,6 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             {/* Demo routes — pure fake data, no DB */}
             <Route path="/demo/admin" element={<AdminDemo />} />
-            <Route path="/demo/teacher" element={<TeacherDemo />} />
-            <Route path="/demo/student" element={<StudentDemo />} />
-            <Route path="/demo/parent" element={<ParentDemo />} />
             {/* Admin */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/batches" element={<AdminBatches />} />

@@ -1,5 +1,5 @@
 /**
- * AdminDemo — completely hardcoded fake data, zero DB calls.
+ * AdminDemo — mirrors the real test institute dashboard with hardcoded data.
  * NEVER touches Supabase or shows real institute data.
  */
 import { useState } from "react";
@@ -9,41 +9,24 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Users, CalendarCheck, IndianRupee, CheckCircle2, TrendingUp,
+  Users, CalendarCheck, IndianRupee, CheckCircle2,
   Megaphone, Clock, AlertTriangle, ArrowUpRight, Zap, Home
 } from "lucide-react";
 
 const fakeBatches = [
-  { id: "b1", name: "JEE Advanced 2025-A", teacher: "Rahul Sharma", students: 28, course: "JEE" },
-  { id: "b2", name: "NEET Dropper Batch", teacher: "Priya Mehta", students: 35, course: "NEET" },
-  { id: "b3", name: "Foundation XI", teacher: "Arun Kumar", students: 40, course: "Foundation" },
-];
-
-const fakeStudents = [
-  { id: "s1", name: "Arjun Verma", batch: "JEE Advanced 2025-A", status: "active" },
-  { id: "s2", name: "Sneha Patel", batch: "NEET Dropper Batch", status: "active" },
-  { id: "s3", name: "Rohit Singh", batch: "JEE Advanced 2025-A", status: "active" },
-  { id: "s4", name: "Kavya Nair", batch: "Foundation XI", status: "active" },
-  { id: "s5", name: "Manish Jha", batch: "NEET Dropper Batch", status: "pending" },
+  { id: "b1", name: "Maths 9", teacher: "Lavii Singh", students: 4, course: "Maths" },
+  { id: "b2", name: "Social 9", teacher: "Krisss", students: 4, course: "Social" },
 ];
 
 const fakeAnnouncements = [
-  { id: "a1", title: "Unit Test 3 — Physics scheduled for Monday", by: "Rahul Sharma", ago: "2h ago" },
-  { id: "a2", title: "Fee reminder: last date is 15th March", by: "Admin", ago: "1d ago" },
-  { id: "a3", title: "Holiday on 14th March — Holi", by: "Admin", ago: "2d ago" },
-];
-
-const fakeAttendanceByBatch = [
-  { batchId: "b1", name: "JEE Advanced 2025-A", present: 24, total: 28, pct: 86 },
-  { batchId: "b2", name: "NEET Dropper Batch", present: 30, total: 35, pct: 86 },
-  { batchId: "b3", name: "Foundation XI", present: 33, total: 40, pct: 83 },
+  { id: "a1", title: "No Class — Social 9 — Monday, 16 March", by: "admin fake", ago: "Just now" },
 ];
 
 const stats = [
-  { title: "Total Students", value: "103", icon: Users, bg: "bg-primary/10", color: "text-primary", trend: "up" },
-  { title: "Active Batches", value: "3", icon: CalendarCheck, bg: "bg-success/10", color: "text-success", trend: "up" },
-  { title: "Today's Attendance", value: "85%", icon: CheckCircle2, bg: "bg-accent/10", color: "text-accent", trend: "up" },
-  { title: "Unpaid Fees", value: "7", icon: IndianRupee, bg: "bg-destructive/10", color: "text-destructive", trend: "down" },
+  { title: "Total Students", value: "4", icon: Users, bg: "bg-primary/10", color: "text-primary" },
+  { title: "Active Batches", value: "2", icon: CalendarCheck, bg: "bg-success/10", color: "text-success" },
+  { title: "Today's Attendance", value: "Not taken yet", icon: CheckCircle2, bg: "bg-accent/10", color: "text-accent" },
+  { title: "Unpaid Fees", value: "1", icon: IndianRupee, bg: "bg-destructive/10", color: "text-destructive" },
 ];
 
 export default function AdminDemo() {
@@ -53,20 +36,21 @@ export default function AdminDemo() {
     <div className="min-h-screen bg-background">
       {/* Demo Banner */}
       <div className="bg-accent text-white text-center text-xs py-2 font-medium">
-        🎭 Demo Mode — This is entirely fake data. No real institute.
+        🎭 Demo Mode — This is sample data from a test institute.
       </div>
 
       <div className="flex h-[calc(100vh-32px)]">
         {/* Sidebar */}
         <aside className="w-56 bg-card border-r border-border/50 flex flex-col p-4 gap-1 shrink-0">
-          <div className="flex items-center gap-2 mb-6 px-1">
+          <div className="flex items-center gap-2 mb-4 px-1">
             <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
               <Zap className="w-3.5 h-3.5 text-white" />
             </div>
             <span className="font-display font-bold text-base text-gradient">BatchHub</span>
           </div>
 
-          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide px-2 mb-1">Demo Institute</p>
+          <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wide px-2 mb-0.5">Admin</p>
+          <p className="text-xs font-semibold px-2 mb-2 truncate">TesT InsiTiTuTe, Bareilly</p>
 
           {[
             { label: "Overview", key: "dashboard" },
@@ -92,8 +76,8 @@ export default function AdminDemo() {
               </Button>
             </Link>
             <div className="p-3 rounded-lg bg-muted/50 border border-border/40">
-              <p className="text-xs font-semibold">Sanjay Mishra</p>
-              <p className="text-xs text-muted-foreground">Admin · Demo Institute</p>
+              <p className="text-xs font-semibold">admin fake</p>
+              <p className="text-xs text-muted-foreground">Admin</p>
             </div>
           </div>
         </aside>
@@ -112,9 +96,8 @@ export default function AdminDemo() {
                         <div className={`w-9 h-9 rounded-xl ${s.bg} flex items-center justify-center`}>
                           <s.icon className={`w-4 h-4 ${s.color}`} />
                         </div>
-                        <TrendingUp className={`w-4 h-4 ${s.trend === "up" ? "text-success" : "text-destructive rotate-180"}`} />
                       </div>
-                      <div className="text-2xl font-display font-bold">{s.value}</div>
+                      <div className="text-2xl font-display font-bold leading-tight">{s.value}</div>
                       <div className="text-xs text-muted-foreground mt-0.5">{s.title}</div>
                     </Card>
                   </motion.div>
@@ -143,27 +126,45 @@ export default function AdminDemo() {
                 </Card>
 
                 <Card className="p-5 shadow-card border-border/50">
-                  <h3 className="font-display font-semibold mb-4">Alerts</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-display font-semibold">Alerts</h3>
+                    <Badge className="bg-destructive/10 text-destructive border-destructive/20 text-xs">1 unpaid</Badge>
+                  </div>
                   <div className="flex items-start gap-3 p-3 rounded-lg bg-destructive/5 border border-destructive/20">
                     <div className="w-7 h-7 rounded-lg bg-destructive/10 flex items-center justify-center shrink-0">
                       <AlertTriangle className="w-3.5 h-3.5 text-destructive" />
                     </div>
                     <div>
-                      <p className="text-sm">7 students have unpaid fees</p>
+                      <p className="text-sm">1 student(s) have unpaid fees</p>
                       <Button variant="ghost" size="sm" className="text-destructive h-6 text-xs p-0 mt-1">View fees →</Button>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-accent/5 border border-accent/20 mt-3">
-                    <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                      <Users className="w-3.5 h-3.5 text-accent" />
-                    </div>
-                    <div>
-                      <p className="text-sm">2 pending approval requests</p>
-                      <Button variant="ghost" size="sm" className="text-accent h-6 text-xs p-0 mt-1">Review →</Button>
                     </div>
                   </div>
                 </Card>
               </div>
+
+              {/* Active Batches */}
+              <Card className="p-5 shadow-card border-border/50">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-display font-semibold">Active Batches</h3>
+                  <Button variant="ghost" size="sm" className="text-primary h-7 text-xs">Manage <ArrowUpRight className="w-3 h-3 ml-1" /></Button>
+                </div>
+                <div className="space-y-3">
+                  {fakeBatches.map(b => (
+                    <div key={b.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/40 border border-border/40">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl gradient-hero flex items-center justify-center text-white text-xs font-bold">
+                          {b.name.slice(0, 2)}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">{b.name}</p>
+                          <p className="text-xs text-muted-foreground">{b.teacher} · {b.students} students</p>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="outline" className="h-8 text-xs">Open</Button>
+                    </div>
+                  ))}
+                </div>
+              </Card>
             </div>
           )}
 
@@ -199,7 +200,12 @@ export default function AdminDemo() {
             <div className="space-y-5 max-w-3xl">
               <h1 className="text-xl font-display font-bold">Students</h1>
               <div className="space-y-2">
-                {fakeStudents.map((s, i) => (
+                {[
+                  { id: "s1", name: "Shiv", batch: "Maths 9" },
+                  { id: "s2", name: "Ramesh", batch: "Maths 9" },
+                  { id: "s3", name: "Student A", batch: "Social 9" },
+                  { id: "s4", name: "Student B", batch: "Social 9" },
+                ].map((s, i) => (
                   <motion.div key={s.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
                     <Card className="p-4 shadow-card border-border/50 flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -211,9 +217,7 @@ export default function AdminDemo() {
                           <p className="text-xs text-muted-foreground">{s.batch}</p>
                         </div>
                       </div>
-                      <Badge className={`text-xs ${s.status === "active" ? "bg-success/10 text-success border-success/20" : "bg-accent/10 text-accent border-accent/20"}`}>
-                        {s.status === "active" ? "Active" : "Pending"}
-                      </Badge>
+                      <Badge className="text-xs bg-success/10 text-success border-success/20">Active</Badge>
                     </Card>
                   </motion.div>
                 ))}
@@ -224,22 +228,10 @@ export default function AdminDemo() {
           {tab === "attendance" && (
             <div className="space-y-5 max-w-3xl">
               <h1 className="text-xl font-display font-bold">Today's Attendance</h1>
-              <div className="space-y-3">
-                {fakeAttendanceByBatch.map(b => (
-                  <Card key={b.batchId} className="p-4 shadow-card border-border/50 flex items-center justify-between">
-                    <div>
-                      <p className="font-semibold text-sm">{b.name}</p>
-                      <p className="text-xs text-muted-foreground">{b.present}/{b.total} students present</p>
-                    </div>
-                    <div className="text-right">
-                      <p className={`font-display font-bold text-sm ${b.pct >= 75 ? "text-success" : "text-destructive"}`}>
-                        {b.pct}%
-                      </p>
-                      <p className="text-xs text-muted-foreground">Today</p>
-                    </div>
-                  </Card>
-                ))}
-              </div>
+              <Card className="p-6 text-center shadow-card border-border/50">
+                <CheckCircle2 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                <p className="text-sm text-muted-foreground">Attendance not taken yet for today.</p>
+              </Card>
             </div>
           )}
         </main>

@@ -447,21 +447,6 @@ export default function Index() {
 
           {/* Chat bubbles */}
           <div
-            className="absolute rounded-2xl rounded-tr-sm px-4 py-2 shadow-lg"
-            style={{
-              top: "33%",
-              right: "22%",
-              background: "rgba(253,252,250,0.75)",
-              backdropFilter: "blur(20px)",
-              border: "1px solid rgba(139,111,78,0.1)",
-              animation: "floatEl 6s ease-in-out infinite",
-            }}
-          >
-            <p className="text-xs font-medium" style={{ color: "#3D2B1F" }}>
-              Batch A attendance updated ✓
-            </p>
-          </div>
-          <div
             className="absolute rounded-2xl rounded-tl-sm px-4 py-2 shadow-lg"
             style={{
               bottom: "35%",
@@ -782,6 +767,19 @@ export default function Index() {
             viewport={{ once: true }}
             className="text-center mb-16"
           >
+            {/* Why Us button */}
+            <Link to="/owner">
+              <button
+                className="inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-semibold mb-6 transition-all duration-300 hover:-translate-y-0.5"
+                style={{
+                  background: "linear-gradient(135deg, #3D2B1F, #8B6F4E)",
+                  color: "white",
+                  boxShadow: "0 4px 15px -3px rgba(61,43,31,0.35)",
+                }}
+              >
+                <Sparkles className="w-4 h-4" /> Why Us
+              </button>
+            </Link>
             <h2
               className="text-4xl md:text-5xl font-bold mb-4"
               style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
