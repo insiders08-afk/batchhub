@@ -67,9 +67,6 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             {/* Demo routes — pure fake data, no DB */}
             <Route path="/demo/admin" element={<AdminDemo />} />
-            <Route path="/demo/teacher" element={<TeacherDemo />} />
-            <Route path="/demo/student" element={<StudentDemo />} />
-            <Route path="/demo/parent" element={<ParentDemo />} />
             {/* Admin */}
             <Route path="/admin" element={<AdminDashboard />} />
             <Route path="/admin/batches" element={<AdminBatches />} />
