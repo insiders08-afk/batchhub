@@ -1,11 +1,24 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { BookOpen, CalendarCheck, Users, ExternalLink, Megaphone, ClipboardList, Loader2, Trophy, MessageSquare, CheckCircle2, X, Bell } from "lucide-react";
+import {
+  BookOpen,
+  CalendarCheck,
+  Users,
+  ExternalLink,
+  Megaphone,
+  ClipboardList,
+  Loader2,
+  Trophy,
+  MessageSquare,
+  CheckCircle2,
+  X,
+  Bell,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -36,8 +49,13 @@ export default function TeacherDashboard() {
   const [respondingId, setRespondingId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setLoading(false); return; }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const { data: profile } = await supabase
       .from("profiles")
@@ -71,7 +89,7 @@ export default function TeacherDashboard() {
             .select("id", { count: "exact" })
             .eq("batch_id", b.id);
           return { ...b, studentCount: count || 0 };
-        })
+        }),
       );
       setBatches(enriched);
       setTotalStudents(enriched.reduce((sum, b) => sum + b.studentCount, 0));
@@ -87,32 +105,49 @@ export default function TeacherDashboard() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // LIMIT-03 fix: compute actual classes scheduled for today
+  const JS_DAY_ABBREVS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const classesToday = useMemo(() => {
+    const todayAbbr = JS_DAY_ABBREVS[new Date().getDay()];
+    return batches.filter((b) => {
+      if (!b.schedule) return true; // no schedule = assume today
+      try {
+        const t = JSON.parse(b.schedule);
+        if (t?.days?.length) return t.days.includes(todayAbbr);
+      } catch {
+        /* legacy text schedule — assume today */
+      }
+      return true;
+    }).length;
+  }, [batches]);
 
   // Realtime subscription for batch assignment requests
   useEffect(() => {
     const channel = supabase
       .channel("teacher-batch-requests-realtime")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "batch_teacher_requests" },
-        () => fetchData()
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "batch_teacher_requests" }, () => fetchData())
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchData]);
 
   const handleRequest = async (req: BatchRequest, accept: boolean) => {
     setRespondingId(req.id);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setRespondingId(null); return; }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setRespondingId(null);
+      return;
+    }
 
     if (accept) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("user_id", user.id)
-        .single();
+      const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).single();
 
       const teacherName = profile?.full_name || userName;
 
@@ -133,7 +168,10 @@ export default function TeacherDashboard() {
       }
 
       await supabase.from("batch_teacher_requests").update({ status: "accepted" }).eq("id", req.id);
-      toast({ title: `✅ You've joined "${req.batch_name}"!`, description: "The batch now appears in your dashboard." });
+      toast({
+        title: `✅ You've joined "${req.batch_name}"!`,
+        description: "The batch now appears in your dashboard.",
+      });
     } else {
       await supabase.from("batch_teacher_requests").update({ status: "rejected" }).eq("id", req.id);
       toast({ title: `Request for "${req.batch_name}" declined.` });
@@ -145,7 +183,6 @@ export default function TeacherDashboard() {
   return (
     <DashboardLayout title="My Dashboard" role="teacher">
       <div className="space-y-5 w-full max-w-3xl">
-
         {/* Welcome hero */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
           <div className="gradient-hero rounded-xl p-5 text-white">
@@ -164,8 +201,11 @@ export default function TeacherDashboard() {
               <Badge className="bg-accent/10 text-accent border-accent/20 text-xs">{batchRequests.length}</Badge>
             </div>
             <div className="space-y-2">
-              {batchRequests.map(req => (
-                <div key={req.id} className="flex items-center justify-between p-3 rounded-lg bg-background border border-border/50">
+              {batchRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className="flex items-center justify-between p-3 rounded-lg bg-background border border-border/50"
+                >
                   <div>
                     <p className="text-sm font-semibold">{req.batch_name || "Unnamed Batch"}</p>
                     <p className="text-xs text-muted-foreground">{req.course} · Admin wants you to teach this batch</p>
@@ -177,7 +217,12 @@ export default function TeacherDashboard() {
                       disabled={respondingId === req.id}
                       onClick={() => handleRequest(req, true)}
                     >
-                      {respondingId === req.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />} Accept
+                      {respondingId === req.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-3 h-3" />
+                      )}{" "}
+                      Accept
                     </Button>
                     <Button
                       size="sm"
@@ -199,10 +244,25 @@ export default function TeacherDashboard() {
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: "My Students", value: loading ? "—" : String(totalStudents), icon: Users, color: "text-primary" },
-            { label: "My Batches", value: loading ? "—" : String(batches.length), icon: CalendarCheck, color: "text-success" },
-            { label: "Classes Today", value: loading ? "—" : String(batches.length), icon: ClipboardList, color: "text-accent" },
+            {
+              label: "My Batches",
+              value: loading ? "—" : String(batches.length),
+              icon: CalendarCheck,
+              color: "text-success",
+            },
+            {
+              label: "Classes Today",
+              value: loading ? "—" : String(classesToday),
+              icon: ClipboardList,
+              color: "text-accent",
+            },
           ].map((s, i) => (
-            <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
+            <motion.div
+              key={s.label}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 }}
+            >
               <Card className="p-4 text-center shadow-card border-border/50">
                 <s.icon className={`w-5 h-5 mx-auto mb-1.5 ${s.color}`} />
                 <div className={`text-xl font-display font-bold ${s.color}`}>{s.value}</div>
@@ -224,23 +284,34 @@ export default function TeacherDashboard() {
                   </Button>
                 </Link>
                 <Link to="/teacher/announcements">
-                  <Button variant="outline" className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary/10">
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 h-11 border-primary/30 text-primary hover:bg-primary/10"
+                  >
                     <Megaphone className="w-4 h-4" /> Post Announcement
                   </Button>
                 </Link>
                 <Link to="/teacher/tests">
-                  <Button variant="outline" className="w-full gap-2 h-11 border-accent/30 text-accent hover:bg-accent/10">
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 h-11 border-accent/30 text-accent hover:bg-accent/10"
+                  >
                     <Trophy className="w-4 h-4" /> Enter Test Scores
                   </Button>
                 </Link>
                 <Link to="/teacher/homework">
-                  <Button variant="outline" className="w-full gap-2 h-11 border-success/30 text-success hover:bg-success/10">
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 h-11 border-success/30 text-success hover:bg-success/10"
+                  >
                     <BookOpen className="w-4 h-4" /> Post Homework / DPP
                   </Button>
                 </Link>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No batches assigned yet. Ask your admin to assign you a batch.</p>
+              <p className="text-sm text-muted-foreground">
+                No batches assigned yet. Ask your admin to assign you a batch.
+              </p>
             )}
           </Card>
         </motion.div>
@@ -251,7 +322,9 @@ export default function TeacherDashboard() {
         </motion.div>
 
         {loading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          <div className="flex justify-center py-8">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+          </div>
         ) : batches.length === 0 ? (
           <Card className="p-8 text-center shadow-card border-border/50">
             <BookOpen className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-40" />
@@ -260,7 +333,12 @@ export default function TeacherDashboard() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {batches.map((b, i) => (
-              <motion.div key={b.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36 + i * 0.08 }}>
+              <motion.div
+                key={b.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.36 + i * 0.08 }}
+              >
                 <Card className="p-5 shadow-card border-border/50 hover:shadow-lg transition-all">
                   <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center text-white font-bold text-sm">
@@ -268,21 +346,35 @@ export default function TeacherDashboard() {
                     </div>
                     <div>
                       <p className="font-semibold text-sm">{b.name}</p>
-                      <Badge variant="secondary" className="text-xs mt-0.5">{b.course}</Badge>
+                      <Badge variant="secondary" className="text-xs mt-0.5">
+                        {b.course}
+                      </Badge>
                     </div>
                   </div>
                   <div className="flex items-center gap-4 mb-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{b.studentCount} students</span>
-                  {b.schedule && (() => {
-                    try {
-                      const t = JSON.parse(b.schedule);
-                      if (t?.days?.length) {
-                        const fmt = (h: number, m: number, ap: string) => `${h}:${String(m).padStart(2,"0")} ${ap}`;
-                        return <span className="text-xs">{t.days.join(", ")} · {fmt(t.startHour, t.startMinute, t.startAmPm)}–{fmt(t.endHour, t.endMinute, t.endAmPm)}</span>;
-                      }
-                    } catch { /* ignore */ }
-                    return <span className="text-xs">{b.schedule}</span>;
-                  })()}
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3.5 h-3.5" />
+                      {b.studentCount} students
+                    </span>
+                    {b.schedule &&
+                      (() => {
+                        try {
+                          const t = JSON.parse(b.schedule);
+                          if (t?.days?.length) {
+                            const fmt = (h: number, m: number, ap: string) =>
+                              `${h}:${String(m).padStart(2, "0")} ${ap}`;
+                            return (
+                              <span className="text-xs">
+                                {t.days.join(", ")} · {fmt(t.startHour, t.startMinute, t.startAmPm)}–
+                                {fmt(t.endHour, t.endMinute, t.endAmPm)}
+                              </span>
+                            );
+                          }
+                        } catch {
+                          /* ignore */
+                        }
+                        return <span className="text-xs">{b.schedule}</span>;
+                      })()}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <Link to={`/batch/${b.id}`}>
@@ -291,13 +383,19 @@ export default function TeacherDashboard() {
                       </Button>
                     </Link>
                     <Link to={`/teacher/tests`}>
-                      <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-accent border-accent/30 hover:bg-accent-light">
+                      <Button
+                        variant="outline"
+                        className="w-full h-8 text-xs gap-1.5 text-accent border-accent/30 hover:bg-accent-light"
+                      >
                         <Trophy className="w-3 h-3" /> Rankings
                       </Button>
                     </Link>
                   </div>
                   <Link to={`/batch/${b.id}`} className="mt-2 block">
-                    <Button variant="outline" className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light">
+                    <Button
+                      variant="outline"
+                      className="w-full h-8 text-xs gap-1.5 text-primary border-primary/30 hover:bg-primary-light"
+                    >
                       Open Workspace <ExternalLink className="w-3 h-3" />
                     </Button>
                   </Link>

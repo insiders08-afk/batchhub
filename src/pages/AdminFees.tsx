@@ -11,10 +11,25 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Search, CheckCircle2, XCircle, Clock, AlertTriangle,
-  TrendingUp, Plus, IndianRupee, Loader2, Layers,
-  Bell, ChevronDown, ChevronUp, FileText, CalendarDays, Users,
-  Trash2, Download, ListOrdered
+  Search,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertTriangle,
+  TrendingUp,
+  Plus,
+  IndianRupee,
+  Loader2,
+  Layers,
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  CalendarDays,
+  Users,
+  Trash2,
+  Download,
+  ListOrdered,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -52,7 +67,7 @@ type Batch = { id: string; name: string; course: string };
 type EnrolledStudent = { student_id: string; full_name: string };
 
 interface CycleEntry {
-  cycleIndex: number;       // 1-based
+  cycleIndex: number; // 1-based
   startDate: Date;
   endDate: Date;
   dueDate: Date;
@@ -71,8 +86,18 @@ const FREQUENCY_OPTIONS = [
 ];
 
 const MONTHS = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December"
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 function ordinal(n: number): string {
@@ -82,7 +107,7 @@ function ordinal(n: number): string {
 }
 
 function calcInstallment(annual: number, freq: string): number {
-  const opt = FREQUENCY_OPTIONS.find(o => o.value === freq);
+  const opt = FREQUENCY_OPTIONS.find((o) => o.value === freq);
   return opt ? Math.round(annual / opt.divisor) : annual;
 }
 
@@ -94,7 +119,7 @@ function calcInstallment(annual: number, freq: string): number {
  */
 function buildCycles(plan: FeePlan, count = 12): CycleEntry[] {
   if (!plan.cycle_day || !plan.start_month) return [];
-  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+  const freq = FREQUENCY_OPTIONS.find((o) => o.value === (plan.payment_frequency || "monthly"));
   const freqMonths = freq?.months ?? 1;
   const [sy, sm] = plan.start_month.split("-").map(Number);
   const today = new Date();
@@ -136,7 +161,7 @@ function getCurrentDueDate(plan: FeePlan): Date | null {
   if (!plan.cycle_day || !plan.start_month) {
     return plan.due_date ? new Date(plan.due_date) : null;
   }
-  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+  const freq = FREQUENCY_OPTIONS.find((o) => o.value === (plan.payment_frequency || "monthly"));
   const freqMonths = freq?.months ?? 1;
   const [sy, sm] = plan.start_month.split("-").map(Number);
   const cycleIndex = plan.paid_cycles_count ?? 0;
@@ -183,19 +208,30 @@ function getDaysOverdue(plan: FeePlan): number {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const CalendarClock = (props: any) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5"/>
-    <path d="M16 2v4M8 2v4M3 10h5"/>
-    <circle cx="17.5" cy="17.5" r="4.5"/>
-    <path d="M17.5 15.5v2l1.5 1"/>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    {...props}
+  >
+    <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3.5" />
+    <path d="M16 2v4M8 2v4M3 10h5" />
+    <circle cx="17.5" cy="17.5" r="4.5" />
+    <path d="M17.5 15.5v2l1.5 1" />
   </svg>
 );
 
 const STATUS_CONFIG = {
-  paid:     { label: "Paid",     color: "bg-success-light text-success border-success/20",    icon: CheckCircle2 },
-  pending:  { label: "Pending",  color: "bg-accent-light text-accent border-accent/20",       icon: Clock },
-  overdue:  { label: "Overdue",  color: "bg-danger-light text-danger border-danger/20",       icon: XCircle },
-  upcoming: { label: "Upcoming", color: "bg-muted text-muted-foreground border-border/40",   icon: CalendarClock },
+  paid: { label: "Paid", color: "bg-success-light text-success border-success/20", icon: CheckCircle2 },
+  pending: { label: "Pending", color: "bg-accent-light text-accent border-accent/20", icon: Clock },
+  overdue: { label: "Overdue", color: "bg-danger-light text-danger border-danger/20", icon: XCircle },
+  upcoming: { label: "Upcoming", color: "bg-muted text-muted-foreground border-border/40", icon: CalendarClock },
 };
 
 // ─── Cycle Structure Modal ────────────────────────────────────────────────────
@@ -210,28 +246,28 @@ function CycleStructureModal({
   onMarkPaid: (cycleIndex: number) => void;
 }) {
   const cycles = buildCycles(plan, 12);
-  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
-  const totalCycles = freq ? Math.round(12 / (freq.months)) : 12;
+  const freq = FREQUENCY_OPTIONS.find((o) => o.value === (plan.payment_frequency || "monthly"));
+  const totalCycles = freq ? Math.round(12 / freq.months) : 12;
   const [markingCycle, setMarkingCycle] = useState<number | null>(null);
 
   const fmt = (d: Date) => d.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
   const cycleBg: Record<CycleEntry["status"], string> = {
-    paid:     "bg-success-light border-success/20",
-    pending:  "bg-accent-light border-accent/20",
-    overdue:  "bg-danger-light border-danger/20",
+    paid: "bg-success-light border-success/20",
+    pending: "bg-accent-light border-accent/20",
+    overdue: "bg-danger-light border-danger/20",
     upcoming: "bg-muted/50 border-border/40",
   };
   const cycleText: Record<CycleEntry["status"], string> = {
-    paid:     "text-success",
-    pending:  "text-accent",
-    overdue:  "text-danger",
+    paid: "text-success",
+    pending: "text-accent",
+    overdue: "text-danger",
     upcoming: "text-muted-foreground",
   };
   const cycleStatusLabel: Record<CycleEntry["status"], string> = {
-    paid:     "Paid",
-    pending:  "Pending",
-    overdue:  "Overdue",
+    paid: "Paid",
+    pending: "Pending",
+    overdue: "Overdue",
     upcoming: "Upcoming",
   };
 
@@ -276,7 +312,9 @@ function CycleStructureModal({
             </div>
             <div className="w-px h-8 bg-border" />
             <div className="flex-1 text-center">
-              <p className="text-lg font-bold text-primary">₹{Number(plan.total_paid_amount).toLocaleString("en-IN")}</p>
+              <p className="text-lg font-bold text-primary">
+                ₹{Number(plan.total_paid_amount).toLocaleString("en-IN")}
+              </p>
               <p className="text-xs text-muted-foreground">Collected</p>
             </div>
           </div>
@@ -288,11 +326,13 @@ function CycleStructureModal({
 
           {/* Cycle list */}
           <div className="space-y-2">
-            {cycles.slice(0, totalCycles).map(c => (
+            {cycles.slice(0, totalCycles).map((c) => (
               <div key={c.cycleIndex} className={`rounded-lg border p-3 ${cycleBg[c.status]}`}>
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <div className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${c.status === "paid" ? "bg-success text-white" : c.status === "overdue" ? "bg-danger text-white" : c.status === "pending" ? "bg-accent text-white" : "bg-muted-foreground/20 text-muted-foreground"}`}>
+                    <div
+                      className={`w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${c.status === "paid" ? "bg-success text-white" : c.status === "overdue" ? "bg-danger text-white" : c.status === "pending" ? "bg-accent text-white" : "bg-muted-foreground/20 text-muted-foreground"}`}
+                    >
                       {c.cycleIndex}
                     </div>
                     <div className="min-w-0">
@@ -321,9 +361,11 @@ function CycleStructureModal({
                         disabled={markingCycle === c.cycleIndex}
                         onClick={() => handleAdvancePay(c)}
                       >
-                        {markingCycle === c.cycleIndex
-                          ? <Loader2 className="w-3 h-3 animate-spin" />
-                          : <CheckCircle2 className="w-3 h-3" />}
+                        {markingCycle === c.cycleIndex ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-3 h-3" />
+                        )}
                         {c.status === "upcoming" ? "Pre-Pay" : "Paid"}
                       </Button>
                     )}
@@ -345,9 +387,12 @@ function CycleStructureModal({
 // ─── Fee Structure Modal ──────────────────────────────────────────────────────
 
 function buildFeeReport(plan: FeePlan): string {
-  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+  const freq = FREQUENCY_OPTIONS.find((o) => o.value === (plan.payment_frequency || "monthly"));
   const startLabel = plan.start_month
-    ? (() => { const [y, m] = plan.start_month!.split("-").map(Number); return `${plan.cycle_day}${ordinal(plan.cycle_day!)} ${MONTHS[m-1]} ${y}`; })()
+    ? (() => {
+        const [y, m] = plan.start_month!.split("-").map(Number);
+        return `${plan.cycle_day}${ordinal(plan.cycle_day!)} ${MONTHS[m - 1]} ${y}`;
+      })()
     : "—";
   const status = getFeeStatus(plan);
   const dueDate = getCurrentDueDate(plan);
@@ -369,8 +414,14 @@ function buildFeeReport(plan: FeePlan): string {
     `Cycles Paid  : ${plan.paid_cycles_count}`,
     `Total Paid   : ₹${Number(plan.total_paid_amount).toLocaleString("en-IN")}`,
     `Status       : ${status.toUpperCase()}`,
-    ...(dueDate ? [`Due Date     : ${dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`] : []),
-    ...(plan.paid_date ? [`Last Paid On : ${new Date(plan.paid_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`] : []),
+    ...(dueDate
+      ? [`Due Date     : ${dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`]
+      : []),
+    ...(plan.paid_date
+      ? [
+          `Last Paid On : ${new Date(plan.paid_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}`,
+        ]
+      : []),
     "═══════════════════════════════════════",
     `Generated on : ${new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`,
   ];
@@ -401,7 +452,7 @@ function FeeStructureModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const freq = FREQUENCY_OPTIONS.find(o => o.value === (plan.payment_frequency || "monthly"));
+  const freq = FREQUENCY_OPTIONS.find((o) => o.value === (plan.payment_frequency || "monthly"));
   const status = getFeeStatus(plan);
   const dueDate = getCurrentDueDate(plan);
   const daysOverdue = getDaysOverdue(plan);
@@ -411,7 +462,7 @@ function FeeStructureModal({
   const startLabel = plan.start_month
     ? (() => {
         const [y, m] = plan.start_month.split("-").map(Number);
-        return `${plan.cycle_day}${ordinal(plan.cycle_day!)} ${MONTHS[m-1]} ${y}`;
+        return `${plan.cycle_day}${ordinal(plan.cycle_day!)} ${MONTHS[m - 1]} ${y}`;
       })()
     : "—";
 
@@ -424,7 +475,11 @@ function FeeStructureModal({
       onDeleted(plan.id);
       onClose();
     } catch (err: unknown) {
-      toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to delete", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to delete",
+        variant: "destructive",
+      });
     } finally {
       setDeleting(false);
     }
@@ -442,13 +497,22 @@ function FeeStructureModal({
           <div className="space-y-4">
             <div className="rounded-lg bg-danger-light border border-danger/20 p-3 text-sm">
               <p className="font-semibold text-danger mb-1">This action is permanent.</p>
-              <p className="text-muted-foreground">All fee history for <strong>{plan.student_name}</strong> under <strong>{plan.batch_name}</strong> will be deleted and cannot be recovered.</p>
+              <p className="text-muted-foreground">
+                All fee history for <strong>{plan.student_name}</strong> under <strong>{plan.batch_name}</strong> will
+                be deleted and cannot be recovered.
+              </p>
             </div>
 
             <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
               <p className="font-medium">Fee summary</p>
-              <p className="text-muted-foreground">Annual: ₹{Number(plan.annual_amount || 0).toLocaleString("en-IN")} · {freq?.label} ₹{Number(plan.amount).toLocaleString("en-IN")}</p>
-              <p className="text-muted-foreground">{plan.paid_cycles_count} cycles paid · ₹{Number(plan.total_paid_amount).toLocaleString("en-IN")} total collected</p>
+              <p className="text-muted-foreground">
+                Annual: ₹{Number(plan.annual_amount || 0).toLocaleString("en-IN")} · {freq?.label} ₹
+                {Number(plan.amount).toLocaleString("en-IN")}
+              </p>
+              <p className="text-muted-foreground">
+                {plan.paid_cycles_count} cycles paid · ₹{Number(plan.total_paid_amount).toLocaleString("en-IN")} total
+                collected
+              </p>
             </div>
 
             <Button
@@ -463,12 +527,7 @@ function FeeStructureModal({
               <Button variant="outline" onClick={() => setShowDeleteConfirm(false)} className="flex-1">
                 Cancel
               </Button>
-              <Button
-                variant="destructive"
-                className="flex-1 gap-1.5"
-                disabled={deleting}
-                onClick={handleDelete}
-              >
+              <Button variant="destructive" className="flex-1 gap-1.5" disabled={deleting} onClick={handleDelete}>
                 {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 Yes, Delete
               </Button>
@@ -508,7 +567,11 @@ function FeeStructureModal({
           <div className="rounded-lg border border-border/50 p-3 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">Cycle Date</span>
-              <span className="font-medium">{plan.cycle_day ? `${plan.cycle_day}${ordinal(plan.cycle_day)} of every ${freq?.months === 1 ? "month" : `${freq?.months} months`}` : "—"}</span>
+              <span className="font-medium">
+                {plan.cycle_day
+                  ? `${plan.cycle_day}${ordinal(plan.cycle_day)} of every ${freq?.months === 1 ? "month" : `${freq?.months} months`}`
+                  : "—"}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Started</span>
@@ -516,7 +579,9 @@ function FeeStructureModal({
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Cycles Paid</span>
-              <span className="font-medium text-success">{plan.paid_cycles_count} cycle{plan.paid_cycles_count !== 1 ? "s" : ""}</span>
+              <span className="font-medium text-success">
+                {plan.paid_cycles_count} cycle{plan.paid_cycles_count !== 1 ? "s" : ""}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total Paid</span>
@@ -524,7 +589,9 @@ function FeeStructureModal({
             </div>
           </div>
 
-          <div className={`rounded-lg p-3 border ${status === "paid" ? "bg-success-light border-success/20" : status === "overdue" ? "bg-danger-light border-danger/20" : "bg-accent-light border-accent/20"}`}>
+          <div
+            className={`rounded-lg p-3 border ${status === "paid" ? "bg-success-light border-success/20" : status === "overdue" ? "bg-danger-light border-danger/20" : "bg-accent-light border-accent/20"}`}
+          >
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Current Cycle</p>
               <Badge className={`text-xs gap-1 ${st.color}`}>
@@ -537,11 +604,18 @@ function FeeStructureModal({
               </p>
             )}
             {status === "overdue" && daysOverdue > 0 && (
-              <p className="text-xs text-danger font-medium mt-0.5">⚠ {daysOverdue} day{daysOverdue !== 1 ? "s" : ""} overdue</p>
+              <p className="text-xs text-danger font-medium mt-0.5">
+                ⚠ {daysOverdue} day{daysOverdue !== 1 ? "s" : ""} overdue
+              </p>
             )}
             {status === "paid" && plan.paid_date && (
               <p className="text-xs text-success font-medium mt-0.5">
-                ✓ Paid on {new Date(plan.paid_date).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+                ✓ Paid on{" "}
+                {new Date(plan.paid_date).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
               </p>
             )}
           </div>
@@ -612,36 +686,40 @@ export default function AdminFees() {
   const installmentAmount = newFee.annual_amount
     ? calcInstallment(parseFloat(newFee.annual_amount), newFee.payment_frequency)
     : 0;
-  const freqLabel = FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.label || "";
+  const freqLabel = FREQUENCY_OPTIONS.find((o) => o.value === newFee.payment_frequency)?.label || "";
 
   // When batch changes in the Add Fee dialog, load enrolled students
   const handleAddFeeBatchChange = async (batchId: string) => {
-    setNewFee(prev => ({ ...prev, batch_id: batchId }));
+    setNewFee((prev) => ({ ...prev, batch_id: batchId }));
     setSelectedStudentIds(new Set());
-    if (!batchId) { setEnrolledInBatch([]); return; }
+    if (!batchId) {
+      setEnrolledInBatch([]);
+      return;
+    }
     setEnrolledLoading(true);
     try {
-      const { data } = await supabase
-        .from("students_batches")
-        .select("student_id")
-        .eq("batch_id", batchId);
-      if (!data || data.length === 0) { setEnrolledInBatch([]); return; }
-      const ids = data.map(r => r.student_id);
+      const { data } = await supabase.from("students_batches").select("student_id").eq("batch_id", batchId);
+      if (!data || data.length === 0) {
+        setEnrolledInBatch([]);
+        return;
+      }
+      const ids = data.map((r) => r.student_id);
       const { data: profileData } = await supabase
         .from("profiles")
         .select("user_id, full_name")
         .in("user_id", ids)
         .eq("status", "approved");
-      setEnrolledInBatch((profileData || []).map(p => ({ student_id: p.user_id, full_name: p.full_name })));
+      setEnrolledInBatch((profileData || []).map((p) => ({ student_id: p.user_id, full_name: p.full_name })));
     } finally {
       setEnrolledLoading(false);
     }
   };
 
   const toggleStudent = (id: string) => {
-    setSelectedStudentIds(prev => {
+    setSelectedStudentIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -650,12 +728,20 @@ export default function AdminFees() {
     if (selectedStudentIds.size === enrolledInBatch.length) {
       setSelectedStudentIds(new Set());
     } else {
-      setSelectedStudentIds(new Set(enrolledInBatch.map(s => s.student_id)));
+      setSelectedStudentIds(new Set(enrolledInBatch.map((s) => s.student_id)));
     }
   };
 
   const resetAddFeeDialog = () => {
-    setNewFee({ batch_id: "", annual_amount: "", payment_frequency: "monthly", cycle_day: "", start_month_month: String(currentMonth), start_month_year: String(currentYear), description: "" });
+    setNewFee({
+      batch_id: "",
+      annual_amount: "",
+      payment_frequency: "monthly",
+      cycle_day: "",
+      start_month_month: String(currentMonth),
+      start_month_year: String(currentYear),
+      description: "",
+    });
     setSelectedStudentIds(new Set());
     setEnrolledInBatch([]);
   };
@@ -665,7 +751,9 @@ export default function AdminFees() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: roleData } = await supabase
@@ -680,12 +768,14 @@ export default function AdminFees() {
       setInstituteCode(code);
 
       const [studentsRes, batchesRes, plansRes] = await Promise.all([
-        supabase.from("profiles").select("user_id, full_name")
-          .eq("institute_code", code).eq("role", "student").eq("status", "approved"),
-        supabase.from("batches").select("id, name, course")
-          .eq("institute_code", code).eq("is_active", true),
-        supabase.from("fees").select("*")
-          .eq("institute_code", code).order("created_at", { ascending: false }),
+        supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .eq("institute_code", code)
+          .eq("role", "student")
+          .eq("status", "approved"),
+        supabase.from("batches").select("id, name, course").eq("institute_code", code).eq("is_active", true),
+        supabase.from("fees").select("*").eq("institute_code", code).order("created_at", { ascending: false }),
       ]);
 
       setStudents(studentsRes.data || []);
@@ -693,17 +783,17 @@ export default function AdminFees() {
 
       if (plansRes.error) throw plansRes.error;
 
-      const studentMap = new Map((studentsRes.data || []).map(s => [s.user_id, s.full_name]));
-      const batchMap = new Map((batchesRes.data || []).map(b => [b.id, b.name]));
+      const studentMap = new Map((studentsRes.data || []).map((s) => [s.user_id, s.full_name]));
+      const batchMap = new Map((batchesRes.data || []).map((b) => [b.id, b.name]));
 
-      const enriched: FeePlan[] = (plansRes.data || []).map(f => ({
+      const enriched: FeePlan[] = (plansRes.data || []).map((f) => ({
         ...f,
         paid_cycles_count: (f as FeePlan).paid_cycles_count ?? 0,
         total_paid_amount: (f as FeePlan).total_paid_amount ?? 0,
         cycle_day: (f as FeePlan).cycle_day ?? null,
         start_month: (f as FeePlan).start_month ?? null,
         student_name: studentMap.get(f.student_id) || "Unknown Student",
-        batch_name: f.batch_id ? (batchMap.get(f.batch_id) || "Unknown Batch") : "—",
+        batch_name: f.batch_id ? batchMap.get(f.batch_id) || "Unknown Batch" : "—",
       }));
       setPlans(enriched);
     } catch {
@@ -713,13 +803,19 @@ export default function AdminFees() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   // ─── Add Fee (multi-student bulk) ───────────────────────────────────────────
 
   const handleAddFee = async () => {
     if (!newFee.batch_id || !newFee.annual_amount || !newFee.cycle_day || selectedStudentIds.size === 0) {
-      toast({ title: "Required fields", description: "Select a batch, at least one student, annual amount and cycle day.", variant: "destructive" });
+      toast({
+        title: "Required fields",
+        description: "Select a batch, at least one student, annual amount and cycle day.",
+        variant: "destructive",
+      });
       return;
     }
     const cycleDay = parseInt(newFee.cycle_day);
@@ -734,7 +830,7 @@ export default function AdminFees() {
       const startMonth = `${newFee.start_month_year}-${String(parseInt(newFee.start_month_month)).padStart(2, "0")}`;
       const dueDate = `${startMonth}-${String(cycleDay).padStart(2, "0")}`;
 
-      const rows = Array.from(selectedStudentIds).map(sid => ({
+      const rows = Array.from(selectedStudentIds).map((sid) => ({
         student_id: sid,
         batch_id: newFee.batch_id,
         amount,
@@ -753,7 +849,10 @@ export default function AdminFees() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase.from("fees") as any).insert(rows);
       if (error) throw error;
-      toast({ title: "Fee plans created ✓", description: `Fee structure applied to ${rows.length} student${rows.length !== 1 ? "s" : ""}.` });
+      toast({
+        title: "Fee plans created ✓",
+        description: `Fee structure applied to ${rows.length} student${rows.length !== 1 ? "s" : ""}.`,
+      });
       setShowAdd(false);
       resetAddFeeDialog();
       fetchData();
@@ -817,11 +916,11 @@ export default function AdminFees() {
       const { error } = await supabase
         .from("fees")
         .update({
-          paid: true,           // mark current cycle as paid
+          paid: true, // mark current cycle as paid
           paid_date: today,
           paid_cycles_count: newPaidCyclesCount,
           total_paid_amount: newTotalPaid,
-          due_date: nextDue,    // store next cycle due date for reference
+          due_date: nextDue, // store next cycle due date for reference
         } as never)
         .eq("id", plan.id);
 
@@ -869,16 +968,21 @@ export default function AdminFees() {
 
   // ─── Filtering & Grouping ────────────────────────────────────────────────────
 
-  const filtered = useMemo(() => plans.filter(p => {
-    const matchSearch = p.student_name?.toLowerCase().includes(search.toLowerCase())
-      || p.batch_name?.toLowerCase().includes(search.toLowerCase());
-    const status = getFeeStatus(p);
-    const matchStatus = statusFilter === "all" || status === statusFilter;
-    const matchBatch = batchFilter === "all" || p.batch_id === batchFilter;
-    return matchSearch && matchStatus && matchBatch;
-  }), [plans, search, statusFilter, batchFilter]);
+  const filtered = useMemo(
+    () =>
+      plans.filter((p) => {
+        const matchSearch =
+          p.student_name?.toLowerCase().includes(search.toLowerCase()) ||
+          p.batch_name?.toLowerCase().includes(search.toLowerCase());
+        const status = getFeeStatus(p);
+        const matchStatus = statusFilter === "all" || status === statusFilter;
+        const matchBatch = batchFilter === "all" || p.batch_id === batchFilter;
+        return matchSearch && matchStatus && matchBatch;
+      }),
+    [plans, search, statusFilter, batchFilter],
+  );
 
-  const overduePlans = useMemo(() => plans.filter(p => getFeeStatus(p) === "overdue"), [plans]);
+  const overduePlans = useMemo(() => plans.filter((p) => getFeeStatus(p) === "overdue"), [plans]);
 
   const grouped: GroupedStudent[] = useMemo(() => {
     const map = new Map<string, GroupedStudent>();
@@ -892,9 +996,10 @@ export default function AdminFees() {
   }, [filtered]);
 
   const toggleExpandStudent = (id: string) => {
-    setExpandedStudents(prev => {
+    setExpandedStudents((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -902,13 +1007,31 @@ export default function AdminFees() {
   // ─── Stats ───────────────────────────────────────────────────────────────────
 
   const totalCollected = plans.reduce((s, p) => s + Number(p.total_paid_amount), 0);
-  const totalPending = plans.filter(p => getFeeStatus(p) !== "paid").reduce((s, p) => s + Number(p.amount), 0);
+  const totalPending = plans.filter((p) => getFeeStatus(p) !== "paid").reduce((s, p) => s + Number(p.amount), 0);
   const overdueAmount = overduePlans.reduce((s, p) => s + Number(p.amount), 0);
 
   const summaryStats = [
-    { label: "Total Collected", value: `₹${totalCollected.toLocaleString("en-IN")}`, sub: `${plans.reduce((s, p) => s + (p.paid_cycles_count ?? 0), 0)} payments`, color: "success", icon: TrendingUp },
-    { label: "Pending Dues", value: `₹${totalPending.toLocaleString("en-IN")}`, sub: `${plans.filter(p => getFeeStatus(p) !== "paid").length} entries`, color: "warning", icon: Clock },
-    { label: "Overdue", value: `₹${overdueAmount.toLocaleString("en-IN")}`, sub: `${overduePlans.length} entries`, color: "danger", icon: AlertTriangle },
+    {
+      label: "Total Collected",
+      value: `₹${totalCollected.toLocaleString("en-IN")}`,
+      sub: `${plans.reduce((s, p) => s + (p.paid_cycles_count ?? 0), 0)} payments`,
+      color: "success",
+      icon: TrendingUp,
+    },
+    {
+      label: "Pending Dues",
+      value: `₹${totalPending.toLocaleString("en-IN")}`,
+      sub: `${plans.filter((p) => getFeeStatus(p) !== "paid").length} entries`,
+      color: "warning",
+      icon: Clock,
+    },
+    {
+      label: "Overdue",
+      value: `₹${overdueAmount.toLocaleString("en-IN")}`,
+      sub: `${overduePlans.length} entries`,
+      color: "danger",
+      icon: AlertTriangle,
+    },
   ];
 
   return (
@@ -917,11 +1040,20 @@ export default function AdminFees() {
         {/* Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {summaryStats.map((s, i) => (
-            <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}>
+            <motion.div
+              key={s.label}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.08 }}
+            >
               <Card className="p-4 shadow-card border-border/50">
                 <div className="flex items-start justify-between mb-3">
-                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${s.color === "success" ? "bg-success-light" : s.color === "warning" ? "bg-accent-light" : "bg-danger-light"}`}>
-                    <s.icon className={`w-4 h-4 ${s.color === "success" ? "text-success" : s.color === "warning" ? "text-accent" : "text-danger"}`} />
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center ${s.color === "success" ? "bg-success-light" : s.color === "warning" ? "bg-accent-light" : "bg-danger-light"}`}
+                  >
+                    <s.icon
+                      className={`w-4 h-4 ${s.color === "success" ? "text-success" : s.color === "warning" ? "text-accent" : "text-danger"}`}
+                    />
                   </div>
                 </div>
                 <div className="text-2xl font-display font-bold mb-0.5">{s.value}</div>
@@ -947,7 +1079,9 @@ export default function AdminFees() {
             <AlertTriangle className="w-3.5 h-3.5" />
             Overdue
             {overduePlans.length > 0 && (
-              <span className="bg-danger text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">{overduePlans.length}</span>
+              <span className="bg-danger text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold">
+                {overduePlans.length}
+              </span>
             )}
           </button>
         </div>
@@ -966,17 +1100,31 @@ export default function AdminFees() {
                 const daysOverdue = getDaysOverdue(plan);
                 const dueDate = getCurrentDueDate(plan);
                 return (
-                  <motion.div key={plan.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+                  <motion.div
+                    key={plan.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.04 }}
+                  >
                     <Card className="p-4 shadow-card border-danger/20 bg-danger-light/30">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3 flex-1 min-w-0">
                           <div className="w-9 h-9 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                            {plan.student_name?.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                            {plan.student_name
+                              ?.split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)}
                           </div>
                           <div className="min-w-0">
                             <p className="font-semibold text-sm">{plan.student_name}</p>
                             <p className="text-xs text-muted-foreground">{plan.batch_name}</p>
-                            {dueDate && <p className="text-xs text-danger font-medium">Due {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} · {daysOverdue} day{daysOverdue !== 1 ? "s" : ""} overdue</p>}
+                            {dueDate && (
+                              <p className="text-xs text-danger font-medium">
+                                Due {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} ·{" "}
+                                {daysOverdue} day{daysOverdue !== 1 ? "s" : ""} overdue
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -991,16 +1139,24 @@ export default function AdminFees() {
                             onClick={() => handleSendOverdueNotification(plan)}
                             title="Send overdue notification"
                           >
-                            {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                            {notifyingId === plan.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Bell className="w-3.5 h-3.5" />
+                            )}
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             className="h-8 text-xs text-success hover:text-success gap-1"
                             disabled={markingId === plan.id}
-                             onClick={() => handleMarkPaidForCycle(plan)}
+                            onClick={() => handleMarkPaidForCycle(plan)}
                           >
-                            {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                            {markingId === plan.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                            )}
                             Paid
                           </Button>
                         </div>
@@ -1020,13 +1176,22 @@ export default function AdminFees() {
             <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search students..." value={search} onChange={e => setSearch(e.target.value)} className="pl-9 h-9" />
+                <Input
+                  placeholder="Search students..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 h-9"
+                />
               </div>
               <div className="flex gap-2 flex-wrap">
-                {["all", "paid", "pending", "overdue", "upcoming"].map(f => (
-                  <Button key={f} size="sm" variant={statusFilter === f ? "default" : "outline"}
+                {["all", "paid", "pending", "overdue", "upcoming"].map((f) => (
+                  <Button
+                    key={f}
+                    size="sm"
+                    variant={statusFilter === f ? "default" : "outline"}
                     onClick={() => setStatusFilter(f)}
-                    className={`h-9 capitalize ${statusFilter === f ? "gradient-hero text-white border-0" : ""}`}>
+                    className={`h-9 capitalize ${statusFilter === f ? "gradient-hero text-white border-0" : ""}`}
+                  >
                     {f.charAt(0).toUpperCase() + f.slice(1)}
                   </Button>
                 ))}
@@ -1038,10 +1203,18 @@ export default function AdminFees() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Batches</SelectItem>
-                  {batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                  {batches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-              <Button size="sm" className="h-9 gradient-hero text-white border-0 gap-1.5 ml-auto" onClick={() => setShowAdd(true)}>
+              <Button
+                size="sm"
+                className="h-9 gradient-hero text-white border-0 gap-1.5 ml-auto"
+                onClick={() => setShowAdd(true)}
+              >
                 <Plus className="w-4 h-4" /> Add Fee
               </Button>
             </div>
@@ -1064,13 +1237,27 @@ export default function AdminFees() {
                   <table className="w-full">
                     <thead>
                       <tr className="bg-muted/60 border-b border-border/50">
-                        <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Student / Batch</th>
-                        <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden sm:table-cell">Frequency</th>
-                        <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Amount</th>
-                        <th className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">Fee Structure</th>
-                        <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">Next Due</th>
-                        <th className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Status</th>
-                        <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">Action</th>
+                        <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                          Student / Batch
+                        </th>
+                        <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden sm:table-cell">
+                          Frequency
+                        </th>
+                        <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                          Amount
+                        </th>
+                        <th className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">
+                          Fee Structure
+                        </th>
+                        <th className="text-left text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3 hidden md:table-cell">
+                          Next Due
+                        </th>
+                        <th className="text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                          Status
+                        </th>
+                        <th className="text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide px-4 py-3">
+                          Action
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1083,7 +1270,7 @@ export default function AdminFees() {
                           const StatusIcon = st.icon;
                           const dueDate = getCurrentDueDate(plan);
                           const daysOverdue = getDaysOverdue(plan);
-                          const freqOpt = FREQUENCY_OPTIONS.find(o => o.value === plan.payment_frequency);
+                          const freqOpt = FREQUENCY_OPTIONS.find((o) => o.value === plan.payment_frequency);
                           const isFirstRow = pi === 0;
                           if (!isFirstRow && !isExpanded) return null;
 
@@ -1097,18 +1284,31 @@ export default function AdminFees() {
                                 {isFirstRow ? (
                                   <div className="flex items-center gap-2.5">
                                     <div className="w-8 h-8 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                                      {group.student_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                                      {group.student_name
+                                        .split(" ")
+                                        .map((n) => n[0])
+                                        .join("")
+                                        .slice(0, 2)}
                                     </div>
                                     <div>
                                       <div className="flex items-center gap-1.5">
                                         <p className="text-sm font-semibold">{group.student_name}</p>
                                         {hasMultiple && (
-                                          <button onClick={() => toggleExpandStudent(group.student_id)} className="text-muted-foreground hover:text-foreground transition-colors">
-                                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                          <button
+                                            onClick={() => toggleExpandStudent(group.student_id)}
+                                            className="text-muted-foreground hover:text-foreground transition-colors"
+                                          >
+                                            {isExpanded ? (
+                                              <ChevronUp className="w-3.5 h-3.5" />
+                                            ) : (
+                                              <ChevronDown className="w-3.5 h-3.5" />
+                                            )}
                                           </button>
                                         )}
                                         {hasMultiple && (
-                                          <span className="text-xs text-muted-foreground">({group.plans.length} batches)</span>
+                                          <span className="text-xs text-muted-foreground">
+                                            ({group.plans.length} batches)
+                                          </span>
                                         )}
                                       </div>
                                       <p className="text-xs text-primary font-medium">{plan.batch_name}</p>
@@ -1124,15 +1324,23 @@ export default function AdminFees() {
                               {/* Frequency */}
                               <td className="px-4 py-3 hidden sm:table-cell">
                                 {freqOpt ? (
-                                  <Badge variant="secondary" className="text-xs">{freqOpt.label}</Badge>
-                                ) : <span className="text-sm text-muted-foreground">—</span>}
+                                  <Badge variant="secondary" className="text-xs">
+                                    {freqOpt.label}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                )}
                               </td>
 
                               {/* Amount */}
                               <td className="px-4 py-3 text-right">
-                                <span className="text-sm font-semibold">₹{Number(plan.amount).toLocaleString("en-IN")}</span>
+                                <span className="text-sm font-semibold">
+                                  ₹{Number(plan.amount).toLocaleString("en-IN")}
+                                </span>
                                 {plan.annual_amount && (
-                                  <p className="text-xs text-muted-foreground">Annual: ₹{Number(plan.annual_amount).toLocaleString("en-IN")}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Annual: ₹{Number(plan.annual_amount).toLocaleString("en-IN")}
+                                  </p>
                                 )}
                               </td>
 
@@ -1151,8 +1359,14 @@ export default function AdminFees() {
                               <td className="px-4 py-3 hidden md:table-cell">
                                 {dueDate ? (
                                   <div>
-                                    <span className={`text-sm ${status === "overdue" ? "text-danger font-semibold" : status === "paid" ? "text-success" : "text-muted-foreground"}`}>
-                                      {dueDate.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                                    <span
+                                      className={`text-sm ${status === "overdue" ? "text-danger font-semibold" : status === "paid" ? "text-success" : "text-muted-foreground"}`}
+                                    >
+                                      {dueDate.toLocaleDateString("en-IN", {
+                                        day: "numeric",
+                                        month: "short",
+                                        year: "numeric",
+                                      })}
                                     </span>
                                     {status === "overdue" && daysOverdue > 0 && (
                                       <p className="text-xs text-danger">{daysOverdue}d overdue</p>
@@ -1164,7 +1378,9 @@ export default function AdminFees() {
                                       </p>
                                     )}
                                   </div>
-                                ) : <span className="text-sm text-muted-foreground">—</span>}
+                                ) : (
+                                  <span className="text-sm text-muted-foreground">—</span>
+                                )}
                               </td>
 
                               {/* Status */}
@@ -1186,7 +1402,11 @@ export default function AdminFees() {
                                       disabled={markingId === plan.id}
                                       onClick={() => handleMarkPaidForCycle(plan)}
                                     >
-                                      {markingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                                      {markingId === plan.id ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                      )}
                                       Mark Paid
                                     </Button>
                                   )}
@@ -1213,7 +1433,11 @@ export default function AdminFees() {
                                       disabled={notifyingId === plan.id}
                                       onClick={() => handleSendOverdueNotification(plan)}
                                     >
-                                      {notifyingId === plan.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Bell className="w-3.5 h-3.5" />}
+                                      {notifyingId === plan.id ? (
+                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                      ) : (
+                                        <Bell className="w-3.5 h-3.5" />
+                                      )}
                                       Notify
                                     </Button>
                                   )}
@@ -1240,20 +1464,33 @@ export default function AdminFees() {
       </div>
 
       {/* ── Add Fee Dialog (Batch-first, multi-student) ── */}
-      <Dialog open={showAdd} onOpenChange={open => { if (!open) resetAddFeeDialog(); setShowAdd(open); }}>
+      <Dialog
+        open={showAdd}
+        onOpenChange={(open) => {
+          if (!open) resetAddFeeDialog();
+          setShowAdd(open);
+        }}
+      >
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Fee Plan</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-
             {/* Step 1: Batch */}
             <div className="space-y-1.5">
-              <Label>Batch <span className="text-danger">*</span></Label>
+              <Label>
+                Batch <span className="text-danger">*</span>
+              </Label>
               <Select value={newFee.batch_id} onValueChange={handleAddFeeBatchChange}>
-                <SelectTrigger><SelectValue placeholder="Select batch first..." /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select batch first..." />
+                </SelectTrigger>
                 <SelectContent>
-                  {batches.map(b => <SelectItem key={b.id} value={b.id}>{b.name} — {b.course}</SelectItem>)}
+                  {batches.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name} — {b.course}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1285,11 +1522,16 @@ export default function AdminFees() {
                     <Loader2 className="w-4 h-4 animate-spin" /> Loading students...
                   </div>
                 ) : enrolledInBatch.length === 0 ? (
-                  <p className="text-sm text-muted-foreground rounded-lg border border-dashed border-border p-3 text-center">No students enrolled in this batch yet.</p>
+                  <p className="text-sm text-muted-foreground rounded-lg border border-dashed border-border p-3 text-center">
+                    No students enrolled in this batch yet.
+                  </p>
                 ) : (
                   <div className="rounded-lg border border-border max-h-40 overflow-y-auto divide-y divide-border/50">
-                    {enrolledInBatch.map(s => (
-                      <label key={s.student_id} className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors">
+                    {enrolledInBatch.map((s) => (
+                      <label
+                        key={s.student_id}
+                        className="flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-muted/40 transition-colors"
+                      >
                         <Checkbox
                           checked={selectedStudentIds.has(s.student_id)}
                           onCheckedChange={() => toggleStudent(s.student_id)}
@@ -1304,23 +1546,30 @@ export default function AdminFees() {
 
             {/* Annual Amount */}
             <div className="space-y-1.5">
-              <Label>Annual Package Amount (₹) <span className="text-danger">*</span></Label>
+              <Label>
+                Annual Package Amount (₹) <span className="text-danger">*</span>
+              </Label>
               <Input
                 type="number"
                 placeholder="e.g. 12000"
                 value={newFee.annual_amount}
-                onChange={e => setNewFee({ ...newFee, annual_amount: e.target.value })}
+                onChange={(e) => setNewFee({ ...newFee, annual_amount: e.target.value })}
               />
             </div>
 
             {/* Payment Frequency */}
             <div className="space-y-1.5">
-              <Label>Payment Frequency <span className="text-danger">*</span></Label>
+              <Label>
+                Payment Frequency <span className="text-danger">*</span>
+              </Label>
               <div className="grid grid-cols-4 gap-1.5">
-                {FREQUENCY_OPTIONS.map(opt => (
-                  <button key={opt.value} type="button"
+                {FREQUENCY_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
                     onClick={() => setNewFee({ ...newFee, payment_frequency: opt.value })}
-                    className={`h-9 rounded-lg text-xs font-medium border transition-all ${newFee.payment_frequency === opt.value ? "gradient-hero text-white border-0 shadow-sm" : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary"}`}>
+                    className={`h-9 rounded-lg text-xs font-medium border transition-all ${newFee.payment_frequency === opt.value ? "gradient-hero text-white border-0 shadow-sm" : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary"}`}
+                  >
                     {opt.label}
                   </button>
                 ))}
@@ -1334,45 +1583,75 @@ export default function AdminFees() {
                   <p className="text-xs text-primary font-medium">{freqLabel} Installment</p>
                   <p className="text-xs text-muted-foreground">Auto-calculated</p>
                 </div>
-                <p className="text-lg font-display font-bold text-primary">₹{installmentAmount.toLocaleString("en-IN")}</p>
+                <p className="text-lg font-display font-bold text-primary">
+                  ₹{installmentAmount.toLocaleString("en-IN")}
+                </p>
               </div>
             )}
 
             {/* Cycle Day */}
             <div className="space-y-1.5">
-              <Label>Cycle Date (1–31) <span className="text-danger">*</span></Label>
+              <Label>
+                Cycle Date (1–31) <span className="text-danger">*</span>
+              </Label>
               <Input
                 type="number"
-                min={1} max={31}
+                min={1}
+                max={31}
                 placeholder="e.g. 10"
                 value={newFee.cycle_day}
-                onChange={e => setNewFee({ ...newFee, cycle_day: e.target.value })}
+                onChange={(e) => setNewFee({ ...newFee, cycle_day: e.target.value })}
               />
               <p className="text-xs text-muted-foreground">
-                Fee is due on this date each {FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months === 1 ? "month" : `${FREQUENCY_OPTIONS.find(o => o.value === newFee.payment_frequency)?.months} months`}
+                Fee is due on this date each{" "}
+                {FREQUENCY_OPTIONS.find((o) => o.value === newFee.payment_frequency)?.months === 1
+                  ? "month"
+                  : `${FREQUENCY_OPTIONS.find((o) => o.value === newFee.payment_frequency)?.months} months`}
               </p>
             </div>
 
             {/* Start Month */}
             <div className="space-y-1.5">
-              <Label>Starting From <span className="text-danger">*</span></Label>
+              <Label>
+                Starting From <span className="text-danger">*</span>
+              </Label>
               <div className="grid grid-cols-2 gap-2">
-                <Select value={newFee.start_month_month} onValueChange={v => setNewFee({ ...newFee, start_month_month: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={newFee.start_month_month}
+                  onValueChange={(v) => setNewFee({ ...newFee, start_month_month: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {MONTHS.map((m, i) => <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>)}
+                    {MONTHS.map((m, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>
+                        {m}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
-                <Select value={newFee.start_month_year} onValueChange={v => setNewFee({ ...newFee, start_month_year: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                <Select
+                  value={newFee.start_month_year}
+                  onValueChange={(v) => setNewFee({ ...newFee, start_month_year: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {[currentYear - 1, currentYear, currentYear + 1].map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                    {[currentYear - 1, currentYear, currentYear + 1].map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        {y}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               {newFee.cycle_day && newFee.start_month_month && (
                 <p className="text-xs text-primary font-medium">
-                  First cycle: {newFee.cycle_day}{ordinal(parseInt(newFee.cycle_day) || 1)} {MONTHS[parseInt(newFee.start_month_month) - 1]} {newFee.start_month_year}
+                  First cycle: {newFee.cycle_day}
+                  {ordinal(parseInt(newFee.cycle_day) || 1)} {MONTHS[parseInt(newFee.start_month_month) - 1]}{" "}
+                  {newFee.start_month_year}
                 </p>
               )}
             </div>
@@ -1383,15 +1662,32 @@ export default function AdminFees() {
               <Textarea
                 placeholder="e.g. Physics batch monthly fee"
                 value={newFee.description}
-                onChange={e => setNewFee({ ...newFee, description: e.target.value })}
+                onChange={(e) => setNewFee({ ...newFee, description: e.target.value })}
                 rows={2}
               />
             </div>
 
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" onClick={() => { resetAddFeeDialog(); setShowAdd(false); }} className="flex-1">Cancel</Button>
-              <Button onClick={handleAddFee} disabled={addLoading || selectedStudentIds.size === 0} className="flex-1 gradient-hero text-white border-0">
-                {addLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : `Apply to ${selectedStudentIds.size > 0 ? selectedStudentIds.size : ""} Student${selectedStudentIds.size !== 1 ? "s" : ""}`}
+              <Button
+                variant="outline"
+                onClick={() => {
+                  resetAddFeeDialog();
+                  setShowAdd(false);
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleAddFee}
+                disabled={addLoading || selectedStudentIds.size === 0}
+                className="flex-1 gradient-hero text-white border-0"
+              >
+                {addLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  `Apply to ${selectedStudentIds.size > 0 ? selectedStudentIds.size : ""} Student${selectedStudentIds.size !== 1 ? "s" : ""}`
+                )}
               </Button>
             </div>
           </div>
@@ -1404,7 +1700,7 @@ export default function AdminFees() {
           plan={selectedPlan}
           onClose={() => setSelectedPlan(null)}
           onDeleted={(id) => {
-            setPlans(prev => prev.filter(p => p.id !== id));
+            setPlans((prev) => prev.filter((p) => p.id !== id));
             setSelectedPlan(null);
           }}
         />
@@ -1418,7 +1714,7 @@ export default function AdminFees() {
           onMarkPaid={async (cycleIndex) => {
             await handleMarkPaidForCycle(cycleStructurePlan, cycleIndex);
             // Refresh the plan data in the modal
-            setCycleStructurePlan(prev => {
+            setCycleStructurePlan((prev) => {
               if (!prev) return null;
               const cyclesToPay = cycleIndex - (prev.paid_cycles_count ?? 0);
               return {
