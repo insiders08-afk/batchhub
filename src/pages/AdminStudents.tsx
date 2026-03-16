@@ -20,88 +20,112 @@ interface StudentWithBatch extends Profile {
   perBatchAttendance: Record<string, { total: number; present: number }>;
 }
 
+const PAGE_SIZE = 20;
+
 export default function AdminStudents() {
   const { toast } = useToast();
   const [students, setStudents] = useState<StudentWithBatch[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const [search, setSearch] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<StudentWithBatch | null>(null);
+  const [instituteCodeState, setInstituteCodeState] = useState("");
 
   useEffect(() => {
-    fetchStudents();
+    fetchStudents(0, true);
   }, []);
 
-  const fetchStudents = async () => {
-    setLoading(true);
-    try {
-      const instituteCode = await supabase.rpc("get_my_institute_code");
-      if (!instituteCode.data) return;
+  const enrichProfiles = async (profiles: Profile[], instituteCode: string): Promise<StudentWithBatch[]> => {
+    const studentIds = profiles.map(p => p.user_id);
+    let enrollments: { student_id: string; batch_id: string; batches: { name: string } | null }[] = [];
+    let attendanceData: { student_id: string; batch_id: string; present: boolean }[] = [];
+    if (studentIds.length > 0) {
+      const [eRes, aRes] = await Promise.all([
+        supabase.from("students_batches").select("student_id, batch_id, batches(name)").in("student_id", studentIds),
+        supabase.from("attendance").select("student_id, batch_id, present").in("student_id", studentIds),
+      ]);
+      enrollments = eRes.data || [];
+      attendanceData = aRes.data || [];
+    }
 
-      // Fetch all approved students in this institute
-      const { data: profiles, error } = await supabase
+    const batchMap: Record<string, string[]> = {};
+    enrollments.forEach(e => {
+      if (!batchMap[e.student_id]) batchMap[e.student_id] = [];
+      const batchName = (e.batches as { name: string } | null)?.name;
+      if (batchName) batchMap[e.student_id].push(batchName);
+    });
+
+    const attendanceMap: Record<string, Record<string, { total: number; present: number }>> = {};
+    attendanceData.forEach(a => {
+      if (!attendanceMap[a.student_id]) attendanceMap[a.student_id] = {};
+      if (!attendanceMap[a.student_id][a.batch_id]) attendanceMap[a.student_id][a.batch_id] = { total: 0, present: 0 };
+      attendanceMap[a.student_id][a.batch_id].total++;
+      if (a.present) attendanceMap[a.student_id][a.batch_id].present++;
+    });
+
+    const overallAttendance: Record<string, number> = {};
+    Object.entries(attendanceMap).forEach(([sid, batches]) => {
+      let totalAll = 0, presentAll = 0;
+      Object.values(batches).forEach(b => { totalAll += b.total; presentAll += b.present; });
+      overallAttendance[sid] = totalAll > 0 ? Math.round((presentAll / totalAll) * 100) : -1;
+    });
+
+    return profiles.map(s => {
+      const attendancePct = overallAttendance[s.user_id] ?? -1;
+      return {
+        ...s,
+        batchNames: batchMap[s.user_id] || [],
+        attendancePct: attendancePct !== -1 ? attendancePct : null,
+        perBatchAttendance: attendanceMap[s.user_id] || {},
+      };
+    });
+  };
+
+  const fetchStudents = async (pageNum: number, reset = false) => {
+    if (reset) setLoading(true); else setLoadingMore(true);
+    try {
+      const { data: codeData } = await supabase.rpc("get_my_institute_code");
+      const code = codeData || "";
+      if (!code) return;
+      if (reset) setInstituteCodeState(code);
+
+      const from = pageNum * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+
+      const { data: profiles, error, count } = await supabase
         .from("profiles")
-        .select("*")
-        .eq("institute_code", instituteCode.data)
+        .select("*", { count: "exact" })
+        .eq("institute_code", code)
         .eq("role", "student")
-        .order("full_name");
+        .order("full_name")
+        .range(from, to);
 
       if (error) throw error;
 
-      const studentIds = (profiles || []).map(p => p.user_id);
+      const enriched = await enrichProfiles(profiles || [], code);
 
-      // Fetch batch enrollments for all students
-      // Fix #5: early-return instead of ["none"] hack
-      let enrollments: { student_id: string; batch_id: string; batches: { name: string } | null }[] = [];
-      let attendanceData: { student_id: string; batch_id: string; present: boolean }[] = [];
-      if (studentIds.length > 0) {
-        const { data: eData } = await supabase.from("students_batches").select("student_id, batch_id, batches(name)").in("student_id", studentIds);
-        enrollments = eData || [];
-        const { data: aData } = await supabase.from("attendance").select("student_id, batch_id, present").in("student_id", studentIds);
-        attendanceData = aData || [];
+      if (reset) {
+        setStudents(enriched);
+      } else {
+        setStudents(prev => [...prev, ...enriched]);
       }
 
-      // Build lookup maps
-      const batchMap: Record<string, string[]> = {};
-      (enrollments || []).forEach(e => {
-        if (!batchMap[e.student_id]) batchMap[e.student_id] = [];
-        const batchName = (e.batches as { name: string } | null)?.name;
-        if (batchName) batchMap[e.student_id].push(batchName);
-      });
-
-      // Fix #26: Build per-batch attendance instead of a single global average
-      const attendanceMap: Record<string, Record<string, { total: number; present: number }>> = {};
-      (attendanceData || []).forEach(a => {
-        if (!attendanceMap[a.student_id]) attendanceMap[a.student_id] = {};
-        if (!attendanceMap[a.student_id][a.batch_id]) attendanceMap[a.student_id][a.batch_id] = { total: 0, present: 0 };
-        attendanceMap[a.student_id][a.batch_id].total++;
-        if (a.present) attendanceMap[a.student_id][a.batch_id].present++;
-      });
-
-      // Compute overall attendance from per-batch data
-      const overallAttendance: Record<string, number> = {};
-      Object.entries(attendanceMap).forEach(([sid, batches]) => {
-        let totalAll = 0, presentAll = 0;
-        Object.values(batches).forEach(b => { totalAll += b.total; presentAll += b.present; });
-        overallAttendance[sid] = totalAll > 0 ? Math.round((presentAll / totalAll) * 100) : -1;
-      });
-
-      const enriched: StudentWithBatch[] = (profiles || []).map(s => {
-        const attendancePct = overallAttendance[s.user_id] ?? -1; // -1 = no data
-        return {
-          ...s,
-          batchNames: batchMap[s.user_id] || [],
-          attendancePct: attendancePct !== -1 ? attendancePct : null,
-          perBatchAttendance: attendanceMap[s.user_id] || {},
-        };
-      });
-
-      setStudents(enriched);
+      const total = count ?? 0;
+      setTotalCount(total);
+      setHasMore(from + PAGE_SIZE < total);
+      setPage(pageNum);
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load students", variant: "destructive" });
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  const loadMore = () => fetchStudents(page + 1);
 
   const filtered = students.filter(s =>
     s.full_name.toLowerCase().includes(search.toLowerCase()) ||
