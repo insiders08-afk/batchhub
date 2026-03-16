@@ -218,6 +218,22 @@ export default function AdminStudents() {
             ))}
           </div>
         )}
+
+        {/* Load More */}
+        {hasMore && !loading && (
+          <div className="flex justify-center pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="gap-2 h-9 px-6"
+            >
+              {loadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              {loadingMore ? "Loading..." : `Load More (${totalCount - students.length} remaining)`}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Student detail dialog */}
