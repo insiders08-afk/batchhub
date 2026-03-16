@@ -746,10 +746,17 @@ export default function AdminFees() {
     setEnrolledInBatch([]);
   };
 
+  const [feesPage, setFeesPage] = useState(0);
+  const [feesHasMore, setFeesHasMore] = useState(false);
+  const [feesTotal, setFeesTotal] = useState(0);
+  const [loadingMoreFees, setLoadingMoreFees] = useState(false);
+
+  const FEES_PAGE_SIZE = 50;
+
   // ─── Fetch ──────────────────────────────────────────────────────────────────
 
-  const fetchData = async () => {
-    setLoading(true);
+  const fetchData = async (pageNum = 0, reset = true) => {
+    if (reset) setLoading(true); else setLoadingMoreFees(true);
     try {
       const {
         data: { user },
@@ -767,6 +774,9 @@ export default function AdminFees() {
       if (!code) return;
       setInstituteCode(code);
 
+      const from = pageNum * FEES_PAGE_SIZE;
+      const to = from + FEES_PAGE_SIZE - 1;
+
       const [studentsRes, batchesRes, plansRes] = await Promise.all([
         supabase
           .from("profiles")
@@ -775,7 +785,12 @@ export default function AdminFees() {
           .eq("role", "student")
           .eq("status", "approved"),
         supabase.from("batches").select("id, name, course").eq("institute_code", code).eq("is_active", true),
-        supabase.from("fees").select("*").eq("institute_code", code).order("created_at", { ascending: false }),
+        supabase
+          .from("fees")
+          .select("*", { count: "exact" })
+          .eq("institute_code", code)
+          .order("created_at", { ascending: false })
+          .range(from, to),
       ]);
 
       setStudents(studentsRes.data || []);
@@ -795,16 +810,27 @@ export default function AdminFees() {
         student_name: studentMap.get(f.student_id) || "Unknown Student",
         batch_name: f.batch_id ? batchMap.get(f.batch_id) || "Unknown Batch" : "—",
       }));
-      setPlans(enriched);
+
+      if (reset) {
+        setPlans(enriched);
+      } else {
+        setPlans((prev) => [...prev, ...enriched]);
+      }
+
+      const total = plansRes.count ?? 0;
+      setFeesTotal(total);
+      setFeesHasMore(from + FEES_PAGE_SIZE < total);
+      setFeesPage(pageNum);
     } catch {
       toast({ title: "Error", description: "Failed to load fees", variant: "destructive" });
     } finally {
       setLoading(false);
+      setLoadingMoreFees(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(0, true);
   }, []);
 
   // ─── Add Fee (multi-student bulk) ───────────────────────────────────────────
@@ -855,7 +881,7 @@ export default function AdminFees() {
       });
       setShowAdd(false);
       resetAddFeeDialog();
-      fetchData();
+      fetchData(0, true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add fee";
       toast({ title: "Error", description: msg, variant: "destructive" });
@@ -930,7 +956,7 @@ export default function AdminFees() {
         title: "Marked as Paid ✓",
         description: `Cycle ${newPaidCyclesCount} paid. Next due: ${nextDue ? new Date(nextDue).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "—"}`,
       });
-      fetchData();
+      fetchData(0, true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to update";
       toast({ title: "Error", description: msg, variant: "destructive" });
@@ -1726,6 +1752,22 @@ export default function AdminFees() {
             });
           }}
         />
+      )}
+
+      {/* Load More Fees */}
+      {feesHasMore && !loading && (
+        <div className="flex justify-center pt-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchData(feesPage + 1, false)}
+            disabled={loadingMoreFees}
+            className="gap-2 h-9 px-6"
+          >
+            {loadingMoreFees ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {loadingMoreFees ? "Loading..." : `Load More (${feesTotal - plans.length} remaining)`}
+          </Button>
+        </div>
       )}
     </DashboardLayout>
   );
