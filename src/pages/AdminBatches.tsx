@@ -1166,7 +1166,7 @@ export default function AdminBatches() {
                       <DayOffDialog
                         batch={batch}
                         instituteCode={instituteCode}
-                        onDone={() => fetchBatches(instituteCode)}
+                        onDone={() => fetchBatches(instituteCodeRef, 0, true)}
                       />
                       <Link to={`/batch/${batch.id}`} className="flex-1">
                         <Button
