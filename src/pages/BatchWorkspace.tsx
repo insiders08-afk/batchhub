@@ -11,11 +11,33 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import {
-  MessageSquare, Megaphone, CalendarCheck, FlaskConical,
-  BookOpen, Trophy, ArrowLeft, Send, Plus, CheckCircle2,
-  XCircle, Clock, Users, Loader2, Star, Bell, Paperclip,
-  FileText, Image, X, Download, BookMarked, Eye, Link as LinkIcon,
-  ThumbsUp, ThumbsDown, ArrowDown
+  MessageSquare,
+  Megaphone,
+  CalendarCheck,
+  FlaskConical,
+  BookOpen,
+  Trophy,
+  ArrowLeft,
+  Send,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Users,
+  Loader2,
+  Star,
+  Bell,
+  Paperclip,
+  FileText,
+  Image,
+  X,
+  Download,
+  BookMarked,
+  Eye,
+  Link as LinkIcon,
+  ThumbsUp,
+  ThumbsDown,
+  ArrowDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -112,7 +134,18 @@ export default function BatchWorkspace() {
   const [tests, setTests] = useState<TestScore[]>([]);
 
   // DPP / Homework
-  const [dppItems, setDppItems] = useState<{ id: string; title: string; description: string | null; file_url: string | null; file_name: string | null; link_url: string | null; posted_by_name: string; created_at: string }[]>([]);
+  const [dppItems, setDppItems] = useState<
+    {
+      id: string;
+      title: string;
+      description: string | null;
+      file_url: string | null;
+      file_name: string | null;
+      link_url: string | null;
+      posted_by_name: string;
+      created_at: string;
+    }[]
+  >([]);
   const [dppDialog, setDppDialog] = useState(false);
   const [newDpp, setNewDpp] = useState({ title: "", description: "", link_url: "" });
   const [savingDpp, setSavingDpp] = useState(false);
@@ -131,7 +164,9 @@ export default function BatchWorkspace() {
   useEffect(() => {
     if (!batchId) return;
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) return;
       setCurrentUserId(user.id);
 
@@ -147,11 +182,7 @@ export default function BatchWorkspace() {
       }
 
       // Batch info
-      const { data: batchData } = await supabase
-        .from("batches")
-        .select("*")
-        .eq("id", batchId)
-        .single();
+      const { data: batchData } = await supabase.from("batches").select("*").eq("id", batchId).single();
       if (batchData) setBatch(batchData);
 
       // Student count
@@ -171,7 +202,13 @@ export default function BatchWorkspace() {
       if (msgs) {
         // Reverse to show in chronological order
         const chronologicalMsgs = [...msgs].reverse();
-        setMessages(chronologicalMsgs.map(m => ({ ...m, reactions: (m.reactions ?? {}) as Record<string, string[]>, isSelf: m.sender_id === user.id })));
+        setMessages(
+          chronologicalMsgs.map((m) => ({
+            ...m,
+            reactions: (m.reactions ?? {}) as Record<string, string[]>,
+            isSelf: m.sender_id === user.id,
+          })),
+        );
       }
 
       // Enrolled students
@@ -181,14 +218,36 @@ export default function BatchWorkspace() {
         .eq("batch_id", batchId);
 
       if (enrollments && enrollments.length > 0) {
-        const ids = enrollments.map(e => e.student_id);
+        const ids = enrollments.map((e) => e.student_id);
         const { data: studentProfiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
           .in("user_id", ids);
-        const mapped = (studentProfiles || []).map(s => ({ id: s.user_id, user_id: s.user_id, full_name: s.full_name }));
+        const mapped = (studentProfiles || []).map((s) => ({
+          id: s.user_id,
+          user_id: s.user_id,
+          full_name: s.full_name,
+        }));
         setStudents(mapped);
-        setAttendance(Object.fromEntries(mapped.map(s => [s.id, false])));
+
+        // LIMIT-07 fix: Load existing attendance for today instead of defaulting to all absent
+        const today = new Date().toISOString().split("T")[0];
+        const { data: todayAtt } = await supabase
+          .from("attendance")
+          .select("student_id, present")
+          .eq("batch_id", batchId)
+          .eq("date", today)
+          .in("student_id", ids);
+
+        const attMap: Record<string, boolean> = {};
+        // Default all to false, then override with DB records
+        mapped.forEach((s) => {
+          attMap[s.id] = false;
+        });
+        (todayAtt || []).forEach((a) => {
+          attMap[a.student_id] = a.present;
+        });
+        setAttendance(attMap);
       }
 
       // Announcements
@@ -213,7 +272,7 @@ export default function BatchWorkspace() {
         .select("id, title, description, file_url, file_name, link_url, teacher_name, created_at")
         .eq("batch_id", batchId)
         .order("created_at", { ascending: false });
-      setDppItems((dppData || []).map(d => ({ ...d, posted_by_name: d.teacher_name ?? "" })));
+      setDppItems((dppData || []).map((d) => ({ ...d, posted_by_name: d.teacher_name ?? "" })));
 
       setLoading(false);
     };
@@ -230,14 +289,38 @@ export default function BatchWorkspace() {
         { event: "INSERT", schema: "public", table: "batch_messages", filter: `batch_id=eq.${batchId}` },
         (payload) => {
           const msg = payload.new as ChatMessage;
-          setMessages(prev => {
-            if (prev.some(m => m.id === msg.id)) return prev;
-            return [...prev, { ...msg, isSelf: msg.sender_id === currentUserId }];
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [
+              ...prev,
+              {
+                ...msg,
+                reactions: (msg.reactions ?? {}) as Record<string, string[]>,
+                isSelf: msg.sender_id === currentUserId,
+              },
+            ];
           });
-        }
+        },
+      )
+      // UX-04 fix: subscribe to UPDATE events so reactions sync in real-time
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "batch_messages", filter: `batch_id=eq.${batchId}` },
+        (payload) => {
+          const updated = payload.new as ChatMessage;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === updated.id
+                ? { ...m, reactions: (updated.reactions ?? {}) as Record<string, string[]>, message: updated.message }
+                : m,
+            ),
+          );
+        },
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [batchId, currentUserId]);
 
   // Realtime announcements subscription
@@ -250,14 +333,16 @@ export default function BatchWorkspace() {
         { event: "INSERT", schema: "public", table: "announcements", filter: `batch_id=eq.${batchId}` },
         (payload) => {
           const ann = payload.new as Announcement;
-          setAnnouncements(prev => {
-            if (prev.some(a => a.id === ann.id)) return prev;
+          setAnnouncements((prev) => {
+            if (prev.some((a) => a.id === ann.id)) return prev;
             return [ann, ...prev];
           });
-        }
+        },
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [batchId]);
 
   // Robust Scrolling with ResizeObserver
@@ -268,7 +353,7 @@ export default function BatchWorkspace() {
     const observer = new ResizeObserver(() => {
       // Small buffer to check if we are already near the bottom
       const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-      
+
       // If we're loading or if we're near the bottom, force scroll
       if (loading || isNearBottom) {
         chatEndRef.current?.scrollIntoView({ behavior: "auto" });
@@ -291,8 +376,13 @@ export default function BatchWorkspace() {
     const { error } = await supabase.storage
       .from("chat-files")
       .upload(path, file, { contentType: file.type, upsert: false });
-    if (error) { console.error("[upload]", error); return null; }
-    const { data: { publicUrl } } = supabase.storage.from("chat-files").getPublicUrl(path);
+    if (error) {
+      console.error("[upload]", error);
+      return null;
+    }
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("chat-files").getPublicUrl(path);
     return { url: publicUrl, name: file.name, type: file.type };
   };
 
@@ -359,23 +449,19 @@ export default function BatchWorkspace() {
   };
 
   const handleReaction = async (messageId: string, emoji: string) => {
-    const msg = messages.find(m => m.id === messageId);
+    const msg = messages.find((m) => m.id === messageId);
     if (!msg) return;
 
     const currentReactions = msg.reactions || {};
     const users = currentReactions[emoji] || [];
     const hasReacted = users.includes(currentUserId);
 
-    let newUsers = hasReacted 
-      ? users.filter(id => id !== currentUserId)
-      : [...users, currentUserId];
+    let newUsers = hasReacted ? users.filter((id) => id !== currentUserId) : [...users, currentUserId];
 
     const newReactions = { ...currentReactions, [emoji]: newUsers };
 
     // Update local state first for instant feedback
-    setMessages(prev => prev.map(m => 
-      m.id === messageId ? { ...m, reactions: newReactions } : m
-    ));
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions: newReactions } : m)));
 
     const { error } = await supabase
       .from("batch_messages")
@@ -392,7 +478,7 @@ export default function BatchWorkspace() {
     setSavingAttendance(true);
     const today = new Date().toISOString().split("T")[0];
 
-    const rows = students.map(s => ({
+    const rows = students.map((s) => ({
       batch_id: batchId!,
       institute_code: batch.institute_code,
       student_id: s.user_id,
@@ -453,11 +539,23 @@ export default function BatchWorkspace() {
       let file_url: string | null = null;
       let file_name: string | null = null;
       if (dppFile) {
+        // NICE-05 fix: Enforce file size limit for DPP uploads
+        if (dppFile.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+          toast({ title: `File too large (max ${MAX_FILE_SIZE_MB} MB)`, variant: "destructive" });
+          setSavingDpp(false);
+          return;
+        }
         const ext = dppFile.name.split(".").pop() || "bin";
         const path = `dpp/${batchId}/${Date.now()}.${ext}`;
         const { error: upErr } = await supabase.storage.from("chat-files").upload(path, dppFile, { upsert: false });
-        if (upErr) { toast({ title: "File upload failed", variant: "destructive" }); setSavingDpp(false); return; }
-        const { data: { publicUrl } } = supabase.storage.from("chat-files").getPublicUrl(path);
+        if (upErr) {
+          toast({ title: "File upload failed", variant: "destructive" });
+          setSavingDpp(false);
+          return;
+        }
+        const {
+          data: { publicUrl },
+        } = supabase.storage.from("chat-files").getPublicUrl(path);
         file_url = publicUrl;
         file_name = dppFile.name;
       }
@@ -473,16 +571,23 @@ export default function BatchWorkspace() {
         link_url: newDpp.link_url || null,
         type: "dpp",
       });
-      if (error) { toast({ title: "Error posting DPP", description: error.message, variant: "destructive" }); }
-      else {
+      if (error) {
+        toast({ title: "Error posting DPP", description: error.message, variant: "destructive" });
+      } else {
         toast({ title: "DPP/Homework posted!" });
         setDppDialog(false);
         setNewDpp({ title: "", description: "", link_url: "" });
         setDppFile(null);
-        const { data } = await supabase.from("homeworks").select("id, title, description, file_url, file_name, link_url, teacher_name, created_at").eq("batch_id", batchId!).order("created_at", { ascending: false });
-        setDppItems((data || []).map(d => ({ ...d, posted_by_name: d.teacher_name ?? "" })));
+        const { data } = await supabase
+          .from("homeworks")
+          .select("id, title, description, file_url, file_name, link_url, teacher_name, created_at")
+          .eq("batch_id", batchId!)
+          .order("created_at", { ascending: false });
+        setDppItems((data || []).map((d) => ({ ...d, posted_by_name: d.teacher_name ?? "" })));
       }
-    } finally { setSavingDpp(false); }
+    } finally {
+      setSavingDpp(false);
+    }
   };
 
   const presentCount = Object.values(attendance).filter(Boolean).length;
@@ -499,9 +604,9 @@ export default function BatchWorkspace() {
 
     if (isToday) return timeStr;
     if (isYesterday) return `${timeStr} Yesterday`;
-    
+
     const day = date.getDate();
-    const month = date.toLocaleString('en-IN', { month: 'short' }).toUpperCase();
+    const month = date.toLocaleString("en-IN", { month: "short" }).toUpperCase();
     return `${timeStr} ${day} ${month}`;
   };
 
@@ -551,7 +656,9 @@ export default function BatchWorkspace() {
             {batch.teacher_name || "No teacher"} · {studentCount} students
           </p>
         </div>
-        <Badge variant="secondary" className="text-xs hidden sm:flex">{batch.course}</Badge>
+        <Badge variant="secondary" className="text-xs hidden sm:flex">
+          {batch.course}
+        </Badge>
         <div className="flex items-center gap-1 text-xs text-success">
           <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />
           Live
@@ -569,7 +676,7 @@ export default function BatchWorkspace() {
               { value: "tests", icon: FlaskConical, label: "Tests" },
               { value: "dpp", icon: BookMarked, label: "DPP / HW" },
               { value: "rankings", icon: Trophy, label: "Rankings" },
-            ].map(tab => (
+            ].map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
@@ -585,8 +692,8 @@ export default function BatchWorkspace() {
         <div className="flex-1 overflow-hidden">
           {/* ── Chat ── */}
           <TabsContent value="chat" className="h-full flex flex-col relative m-0 data-[state=inactive]:hidden">
-            <div 
-              ref={chatContainerRef} 
+            <div
+              ref={chatContainerRef}
               className="flex-1 overflow-y-auto p-4 space-y-3"
               onScroll={(e) => {
                 const target = e.currentTarget;
@@ -618,37 +725,66 @@ export default function BatchWorkspace() {
                   className={cn("flex gap-2.5 relative group", msg.isSelf ? "flex-row-reverse" : "flex-row")}
                 >
                   {!msg.isSelf && (
-                    <div className={cn(
-                      "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5",
-                      msg.sender_role === "teacher" || msg.sender_role === "admin" ? "gradient-hero" : "bg-secondary border border-border"
-                    )}>
-                      <span className={msg.sender_role === "teacher" || msg.sender_role === "admin" ? "" : "text-foreground"}>
-                        {msg.sender_name.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+                    <div
+                      className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5",
+                        msg.sender_role === "teacher" || msg.sender_role === "admin"
+                          ? "gradient-hero"
+                          : "bg-secondary border border-border",
+                      )}
+                    >
+                      <span
+                        className={
+                          msg.sender_role === "teacher" || msg.sender_role === "admin" ? "" : "text-foreground"
+                        }
+                      >
+                        {msg.sender_name
+                          .split(" ")
+                          .map((n: string) => n[0])
+                          .join("")
+                          .slice(0, 2)}
                       </span>
                     </div>
                   )}
-                  <div className={cn("max-w-xs lg:max-w-md", msg.isSelf ? "items-end" : "items-start", "flex flex-col gap-0.5")}>
+                  <div
+                    className={cn(
+                      "max-w-xs lg:max-w-md",
+                      msg.isSelf ? "items-end" : "items-start",
+                      "flex flex-col gap-0.5",
+                    )}
+                  >
                     {!msg.isSelf && (
                       <div className="flex items-center gap-1.5">
                         <span className="text-xs font-semibold">{msg.sender_name}</span>
-                        <Badge variant="secondary" className={cn("text-xs px-1.5 py-0", (msg.sender_role === "teacher" || msg.sender_role === "admin") && "bg-primary-light text-primary border-primary/20")}>
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-xs px-1.5 py-0",
+                            (msg.sender_role === "teacher" || msg.sender_role === "admin") &&
+                              "bg-primary-light text-primary border-primary/20",
+                          )}
+                        >
                           {msg.sender_role}
                         </Badge>
                       </div>
                     )}
-                    <div className={cn(
-                      "rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",
-                      msg.isSelf
-                        ? "gradient-hero text-white rounded-tr-sm"
-                        : "bg-card border border-border/60 rounded-tl-sm"
-                    )}>
+                    <div
+                      className={cn(
+                        "rounded-xl px-3.5 py-2.5 text-sm leading-relaxed",
+                        msg.isSelf
+                          ? "gradient-hero text-white rounded-tr-sm"
+                          : "bg-card border border-border/60 rounded-tl-sm",
+                      )}
+                    >
                       {/* Reply reference */}
                       {msg.reply_to_id && (
-                        <div className={cn(
-                          "mb-2 p-2 rounded-lg border-l-4 bg-black/5 text-xs truncate",
-                          msg.isSelf ? "border-white/40 text-white/90" : "border-primary/40 text-muted-foreground"
-                        )}>
-                          {messages.find(m => m.id === msg.reply_to_id)?.message || "Original message"}
+                        <div
+                          className={cn(
+                            "mb-2 p-2 rounded-lg border-l-4 bg-black/5 text-xs truncate",
+                            msg.isSelf ? "border-white/40 text-white/90" : "border-primary/40 text-muted-foreground",
+                          )}
+                        >
+                          {messages.find((m) => m.id === msg.reply_to_id)?.message || "Original message"}
                         </div>
                       )}
                       {/* File attachment */}
@@ -669,30 +805,30 @@ export default function BatchWorkspace() {
                               rel="noopener noreferrer"
                               className={cn(
                                 "flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium",
-                                msg.isSelf ? "bg-white/20 text-white" : "bg-muted text-foreground"
+                                msg.isSelf ? "bg-white/20 text-white" : "bg-muted text-foreground",
                               )}
                             >
-                              {isPDF(msg.file_type) ? <FileText className="w-4 h-4 flex-shrink-0" /> : <Download className="w-4 h-4 flex-shrink-0" />}
+                              {isPDF(msg.file_type) ? (
+                                <FileText className="w-4 h-4 flex-shrink-0" />
+                              ) : (
+                                <Download className="w-4 h-4 flex-shrink-0" />
+                              )}
                               <span className="truncate max-w-[140px]">{msg.file_name || "Download file"}</span>
                             </a>
                           )}
                         </div>
                       )}
                       {/* Text */}
-                      {msg.message && msg.message !== msg.file_name && (
-                        <span>{msg.message}</span>
-                      )}
+                      {msg.message && msg.message !== msg.file_name && <span>{msg.message}</span>}
                     </div>
                     <div className="flex items-center gap-3 mt-1 px-1">
-                      <span className="text-[10px] text-muted-foreground">
-                        {formatChatDate(msg.created_at)}
-                      </span>
+                      <span className="text-[10px] text-muted-foreground">{formatChatDate(msg.created_at)}</span>
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleReaction(msg.id, "👍")}
                           className={cn(
                             "flex items-center gap-1 p-1 rounded-md transition-colors hover:bg-muted",
-                            msg.reactions?.["👍"]?.includes(currentUserId) && "text-primary bg-primary-light/30"
+                            msg.reactions?.["👍"]?.includes(currentUserId) && "text-primary bg-primary-light/30",
                           )}
                         >
                           <ThumbsUp className="w-3 h-3" />
@@ -704,7 +840,7 @@ export default function BatchWorkspace() {
                           onClick={() => handleReaction(msg.id, "👎")}
                           className={cn(
                             "flex items-center gap-1 p-1 rounded-md transition-colors hover:bg-muted",
-                            msg.reactions?.["👎"]?.includes(currentUserId) && "text-danger bg-danger-light/30"
+                            msg.reactions?.["👎"]?.includes(currentUserId) && "text-danger bg-danger-light/30",
                           )}
                         >
                           <ThumbsDown className="w-3 h-3" />
@@ -724,10 +860,17 @@ export default function BatchWorkspace() {
             {replyingTo && (
               <div className="px-4 py-2 bg-muted/30 border-t border-border/40 flex items-center justify-between animate-in slide-in-from-bottom-2">
                 <div className="flex-1 min-w-0 border-l-2 border-primary pl-3 py-1">
-                  <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Replying to {replyingTo.sender_name}</p>
+                  <p className="text-[10px] font-bold text-primary uppercase tracking-wider">
+                    Replying to {replyingTo.sender_name}
+                  </p>
                   <p className="text-sm text-muted-foreground truncate">{replyingTo.message}</p>
                 </div>
-                <Button variant="ghost" size="icon" className="w-8 h-8 rounded-full" onClick={() => setReplyingTo(null)}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="w-8 h-8 rounded-full"
+                  onClick={() => setReplyingTo(null)}
+                >
                   <X className="w-4 h-4" />
                 </Button>
               </div>
@@ -760,8 +903,8 @@ export default function BatchWorkspace() {
 
             {showScrollDown && (
               <div className="absolute bottom-[80px] right-4 z-20 animate-in slide-in-from-bottom-2 fade-in">
-                <Button 
-                  size="icon" 
+                <Button
+                  size="icon"
                   className="rounded-full shadow-lg gradient-hero text-white border-0 w-10 h-10 hover:opacity-90"
                   onClick={() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" })}
                 >
@@ -793,8 +936,8 @@ export default function BatchWorkspace() {
               <Input
                 placeholder="Type a message..."
                 value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && !e.shiftKey && sendMessage()}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendMessage()}
                 className="flex-1 h-9"
               />
               <Button
@@ -825,11 +968,20 @@ export default function BatchWorkspace() {
                     <div className="space-y-4 pt-2">
                       <div className="space-y-1.5">
                         <Label>Title</Label>
-                        <Input placeholder="e.g. Unit Test 3 Schedule" value={newAnn.title} onChange={e => setNewAnn(p => ({ ...p, title: e.target.value }))} />
+                        <Input
+                          placeholder="e.g. Unit Test 3 Schedule"
+                          value={newAnn.title}
+                          onChange={(e) => setNewAnn((p) => ({ ...p, title: e.target.value }))}
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <Label>Message</Label>
-                        <Textarea placeholder="Write your announcement..." value={newAnn.content} onChange={e => setNewAnn(p => ({ ...p, content: e.target.value }))} rows={3} />
+                        <Textarea
+                          placeholder="Write your announcement..."
+                          value={newAnn.content}
+                          onChange={(e) => setNewAnn((p) => ({ ...p, content: e.target.value }))}
+                          rows={3}
+                        />
                       </div>
                       {/* Notify Push toggle */}
                       <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border border-border/50">
@@ -842,10 +994,14 @@ export default function BatchWorkspace() {
                         </div>
                         <Switch
                           checked={newAnn.notifyPush}
-                          onCheckedChange={v => setNewAnn(p => ({ ...p, notifyPush: v }))}
+                          onCheckedChange={(v) => setNewAnn((p) => ({ ...p, notifyPush: v }))}
                         />
                       </div>
-                      <Button className="w-full gradient-hero text-white border-0 hover:opacity-90" onClick={postAnnouncement} disabled={savingAnn}>
+                      <Button
+                        className="w-full gradient-hero text-white border-0 hover:opacity-90"
+                        onClick={postAnnouncement}
+                        disabled={savingAnn}
+                      >
                         {savingAnn ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Post
                       </Button>
                     </div>
@@ -856,26 +1012,38 @@ export default function BatchWorkspace() {
                 <p className="text-sm text-muted-foreground text-center py-8">No announcements yet.</p>
               ) : (
                 announcements.map((ann, i) => (
-                  <motion.div key={ann.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+                  <motion.div
+                    key={ann.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.06 }}
+                  >
                     <Card className="p-4 shadow-card border-border/50">
                       <div className="flex items-start gap-3">
                         <div className="w-9 h-9 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0">
                           <Megaphone className="w-4 h-4 text-white" />
                         </div>
-                         <div className="flex-1">
-                           <div className="flex items-center gap-2 mb-1">
-                             <span className="font-semibold text-sm">{ann.title}</span>
-                             {ann.type && <Badge variant="secondary" className="text-xs">{ann.type}</Badge>}
-                             {ann.notify_push && (
-                               <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
-                                 <Bell className="w-2.5 h-2.5" /> Alerted
-                               </Badge>
-                             )}
-                           </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-sm">{ann.title}</span>
+                            {ann.type && (
+                              <Badge variant="secondary" className="text-xs">
+                                {ann.type}
+                              </Badge>
+                            )}
+                            {ann.notify_push && (
+                              <Badge className="text-xs bg-accent-light text-accent border-accent/20 gap-1">
+                                <Bell className="w-2.5 h-2.5" /> Alerted
+                              </Badge>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground leading-relaxed mb-2">{ann.content}</p>
                           <div className="flex items-center gap-3 text-xs text-muted-foreground">
                             <span>{ann.posted_by_name}</span>
-                            <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{timeAgo(ann.created_at)}</span>
+                            <span className="flex items-center gap-1">
+                              <Clock className="w-3 h-3" />
+                              {timeAgo(ann.created_at)}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -899,8 +1067,10 @@ export default function BatchWorkspace() {
                   <div className="text-xs text-muted-foreground">Absent</div>
                 </Card>
                 <Card className="p-3 text-center shadow-card border-border/50">
-                  <div className={`text-xl font-display font-bold ${students.length > 0 && Math.round(presentCount / students.length * 100) >= 75 ? "text-success" : "text-danger"}`}>
-                    {students.length > 0 ? `${Math.round(presentCount / students.length * 100)}%` : "—"}
+                  <div
+                    className={`text-xl font-display font-bold ${students.length > 0 && Math.round((presentCount / students.length) * 100) >= 75 ? "text-success" : "text-danger"}`}
+                  >
+                    {students.length > 0 ? `${Math.round((presentCount / students.length) * 100)}%` : "—"}
                   </div>
                   <div className="text-xs text-muted-foreground">Today</div>
                 </Card>
@@ -921,22 +1091,34 @@ export default function BatchWorkspace() {
                     </Badge>
                   </div>
                   <div className="divide-y divide-border/40">
-                    {students.map(s => (
+                    {students.map((s) => (
                       <div key={s.id} className="flex items-center justify-between px-4 py-2.5">
                         <div className="flex items-center gap-2.5">
                           <div className="w-7 h-7 rounded-full gradient-hero flex items-center justify-center text-white text-xs font-bold">
-                            {s.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                            {s.full_name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)}
                           </div>
                           <p className="text-sm font-medium">{s.full_name}</p>
                         </div>
-                        <Badge className={attendance[s.id] ? "bg-success-light text-success border-success/20 text-xs" : "bg-danger-light text-danger border-danger/20 text-xs"}>
+                        <Badge
+                          className={
+                            attendance[s.id]
+                              ? "bg-success-light text-success border-success/20 text-xs"
+                              : "bg-danger-light text-danger border-danger/20 text-xs"
+                          }
+                        >
                           {attendance[s.id] ? "Present" : "Absent"}
                         </Badge>
                       </div>
                     ))}
                   </div>
                   <div className="p-3 border-t border-border/50 text-center">
-                    <p className="text-xs text-muted-foreground">To mark attendance, use the dedicated <strong>Attendance</strong> section in the main panel.</p>
+                    <p className="text-xs text-muted-foreground">
+                      To mark attendance, use the dedicated <strong>Attendance</strong> section in the main panel.
+                    </p>
                   </div>
                 </Card>
               )}
@@ -956,7 +1138,12 @@ export default function BatchWorkspace() {
                 <p className="text-sm text-muted-foreground text-center py-8">No test scores yet.</p>
               ) : (
                 tests.map((t, i) => (
-                  <motion.div key={t.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+                  <motion.div
+                    key={t.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.06 }}
+                  >
                     <Card className="p-4 shadow-card border-border/50">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
@@ -965,21 +1152,28 @@ export default function BatchWorkspace() {
                           </div>
                           <div>
                             <p className="font-semibold text-sm">{t.test_name}</p>
-                            <p className="text-xs text-muted-foreground">{new Date(t.test_date).toLocaleDateString("en-IN")} · Max: {t.max_marks}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(t.test_date).toLocaleDateString("en-IN")} · Max: {t.max_marks}
+                            </p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="font-display font-bold text-lg">{t.score}<span className="text-sm text-muted-foreground">/{t.max_marks}</span></p>
-                          <p className={`text-xs font-semibold ${Math.round(t.score / t.max_marks * 100) >= 75 ? "text-success" : "text-warning"}`}>
-                            {Math.round(t.score / t.max_marks * 100)}%
+                          <p className="font-display font-bold text-lg">
+                            {t.score}
+                            <span className="text-sm text-muted-foreground">/{t.max_marks}</span>
+                          </p>
+                          <p
+                            className={`text-xs font-semibold ${Math.round((t.score / t.max_marks) * 100) >= 75 ? "text-success" : "text-warning"}`}
+                          >
+                            {Math.round((t.score / t.max_marks) * 100)}%
                           </p>
                         </div>
                       </div>
                       <div className="mt-3">
                         <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
                           <div
-                            className={`h-full rounded-full ${Math.round(t.score / t.max_marks * 100) >= 75 ? "bg-success" : "bg-warning"}`}
-                            style={{ width: `${Math.round(t.score / t.max_marks * 100)}%` }}
+                            className={`h-full rounded-full ${Math.round((t.score / t.max_marks) * 100) >= 75 ? "bg-success" : "bg-warning"}`}
+                            style={{ width: `${Math.round((t.score / t.max_marks) * 100)}%` }}
                           />
                         </div>
                       </div>
@@ -998,7 +1192,10 @@ export default function BatchWorkspace() {
                 {currentUserRole === "teacher" && (
                   <Dialog open={dppDialog} onOpenChange={setDppDialog}>
                     <DialogTrigger asChild>
-                      <Button size="sm" className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-1.5 h-8 text-xs">
+                      <Button
+                        size="sm"
+                        className="gradient-hero text-white border-0 shadow-primary hover:opacity-90 gap-1.5 h-8 text-xs"
+                      >
                         <Plus className="w-3.5 h-3.5" /> Upload DPP
                       </Button>
                     </DialogTrigger>
@@ -1009,30 +1206,72 @@ export default function BatchWorkspace() {
                       <div className="space-y-4 pt-2">
                         <div className="space-y-1.5">
                           <Label>Title *</Label>
-                          <Input placeholder="e.g. DPP 14 — Electrostatics" value={newDpp.title} onChange={e => setNewDpp(p => ({ ...p, title: e.target.value }))} />
+                          <Input
+                            placeholder="e.g. DPP 14 — Electrostatics"
+                            value={newDpp.title}
+                            onChange={(e) => setNewDpp((p) => ({ ...p, title: e.target.value }))}
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Description / Instructions</Label>
-                          <Textarea placeholder="Any notes for students..." value={newDpp.description} onChange={e => setNewDpp(p => ({ ...p, description: e.target.value }))} rows={2} />
+                          <Textarea
+                            placeholder="Any notes for students..."
+                            value={newDpp.description}
+                            onChange={(e) => setNewDpp((p) => ({ ...p, description: e.target.value }))}
+                            rows={2}
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <Label>Link (optional)</Label>
-                          <Input placeholder="https://... (Google Drive, YouTube, etc.)" value={newDpp.link_url} onChange={e => setNewDpp(p => ({ ...p, link_url: e.target.value }))} />
+                          <Input
+                            placeholder="https://... (Google Drive, YouTube, etc.)"
+                            value={newDpp.link_url}
+                            onChange={(e) => setNewDpp((p) => ({ ...p, link_url: e.target.value }))}
+                          />
                         </div>
                         <div className="space-y-1.5">
                           <Label>File (optional)</Label>
-                          <input ref={dppFileRef} type="file" className="hidden" accept="image/*,application/pdf,.doc,.docx" onChange={e => setDppFile(e.target.files?.[0] || null)} />
+                          <input
+                            ref={dppFileRef}
+                            type="file"
+                            className="hidden"
+                            accept="image/*,application/pdf,.doc,.docx"
+                            onChange={(e) => setDppFile(e.target.files?.[0] || null)}
+                          />
                           <div
                             className="flex items-center gap-3 p-3 border border-dashed border-border/60 rounded-lg bg-muted/40 cursor-pointer hover:bg-muted/60 transition-colors"
                             onClick={() => dppFileRef.current?.click()}
                           >
                             <Paperclip className="w-4 h-4 text-muted-foreground" />
-                            <span className="text-sm text-muted-foreground">{dppFile ? dppFile.name : "Attach PDF, image, or doc (max 10MB)"}</span>
-                            {dppFile && <button className="ml-auto text-danger" onClick={e => { e.stopPropagation(); setDppFile(null); }}><X className="w-4 h-4" /></button>}
+                            <span className="text-sm text-muted-foreground">
+                              {dppFile ? dppFile.name : "Attach PDF, image, or doc (max 10MB)"}
+                            </span>
+                            {dppFile && (
+                              <button
+                                className="ml-auto text-danger"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDppFile(null);
+                                }}
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <Button className="w-full gradient-hero text-white border-0 hover:opacity-90" onClick={postDpp} disabled={savingDpp || !newDpp.title}>
-                          {savingDpp ? <><Loader2 className="w-4 h-4 animate-spin mr-2" />Uploading...</> : "Post DPP / Homework"}
+                        <Button
+                          className="w-full gradient-hero text-white border-0 hover:opacity-90"
+                          onClick={postDpp}
+                          disabled={savingDpp || !newDpp.title}
+                        >
+                          {savingDpp ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                              Uploading...
+                            </>
+                          ) : (
+                            "Post DPP / Homework"
+                          )}
                         </Button>
                       </div>
                     </DialogContent>
@@ -1044,7 +1283,12 @@ export default function BatchWorkspace() {
                 <p className="text-sm text-muted-foreground text-center py-8">No DPP or homework posted yet.</p>
               ) : (
                 dppItems.map((item, i) => (
-                  <motion.div key={item.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.06 }}
+                  >
                     <Card className="p-4 shadow-card border-border/50">
                       <div className="flex items-start gap-3">
                         <div className="w-9 h-9 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0">
@@ -1055,14 +1299,22 @@ export default function BatchWorkspace() {
                           {item.description && <p className="text-xs text-muted-foreground mb-2">{item.description}</p>}
                           <div className="flex flex-wrap gap-2">
                             {item.file_url && (
-                              <a href={item.file_url} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 text-xs text-primary hover:underline bg-primary-light px-2.5 py-1 rounded-full">
+                              <a
+                                href={item.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs text-primary hover:underline bg-primary-light px-2.5 py-1 rounded-full"
+                              >
                                 <Download className="w-3 h-3" /> {item.file_name || "Download File"}
                               </a>
                             )}
                             {item.link_url && (
-                              <a href={item.link_url} target="_blank" rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 text-xs text-accent hover:underline bg-accent-light px-2.5 py-1 rounded-full">
+                              <a
+                                href={item.link_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-xs text-accent hover:underline bg-accent-light px-2.5 py-1 rounded-full"
+                              >
                                 <LinkIcon className="w-3 h-3" /> Open Link
                               </a>
                             )}
@@ -1092,39 +1344,61 @@ export default function BatchWorkspace() {
                 </div>
                 {tests.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground text-sm">No test scores yet to rank.</div>
-                ) : (() => {
-                  const byStudent: Record<string, { name: string; total: number; count: number }> = {};
-                  tests.forEach(t => {
-                    const s = students.find(s => s.user_id === t.student_id);
-                    const name = s?.full_name || "Unknown";
-                    if (!byStudent[t.student_id]) byStudent[t.student_id] = { name, total: 0, count: 0 };
-                    byStudent[t.student_id].total += Math.round(t.score / t.max_marks * 100);
-                    byStudent[t.student_id].count += 1;
-                  });
-                  const ranked = Object.entries(byStudent)
-                    .map(([id, v]) => ({ id, name: v.name, avg: Math.round(v.total / v.count) }))
-                    .sort((a, b) => b.avg - a.avg);
-                  return (
-                    <div className="divide-y divide-border/40">
-                      {ranked.map((r, i) => (
-                        <div key={r.id} className={cn("flex items-center gap-3 px-4 py-3.5", r.id === currentUserId && "bg-primary-light/40 border-l-2 border-primary")}>
-                          <div className={cn("w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0",
-                            i === 0 ? "gradient-hero text-white" : i === 1 ? "bg-secondary text-foreground" : i === 2 ? "bg-accent-light text-accent" : "bg-muted text-muted-foreground text-xs"
-                          )}>
-                            {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                ) : (
+                  (() => {
+                    const byStudent: Record<string, { name: string; total: number; count: number }> = {};
+                    tests.forEach((t) => {
+                      const s = students.find((s) => s.user_id === t.student_id);
+                      const name = s?.full_name || "Unknown";
+                      if (!byStudent[t.student_id]) byStudent[t.student_id] = { name, total: 0, count: 0 };
+                      byStudent[t.student_id].total += Math.round((t.score / t.max_marks) * 100);
+                      byStudent[t.student_id].count += 1;
+                    });
+                    const ranked = Object.entries(byStudent)
+                      .map(([id, v]) => ({ id, name: v.name, avg: Math.round(v.total / v.count) }))
+                      .sort((a, b) => b.avg - a.avg);
+                    return (
+                      <div className="divide-y divide-border/40">
+                        {ranked.map((r, i) => (
+                          <div
+                            key={r.id}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-3.5",
+                              r.id === currentUserId && "bg-primary-light/40 border-l-2 border-primary",
+                            )}
+                          >
+                            <div
+                              className={cn(
+                                "w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0",
+                                i === 0
+                                  ? "gradient-hero text-white"
+                                  : i === 1
+                                    ? "bg-secondary text-foreground"
+                                    : i === 2
+                                      ? "bg-accent-light text-accent"
+                                      : "bg-muted text-muted-foreground text-xs",
+                              )}
+                            >
+                              {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p
+                                className={cn(
+                                  "text-sm font-medium",
+                                  r.id === currentUserId && "text-primary font-bold",
+                                )}
+                              >
+                                {r.name} {r.id === currentUserId && <span className="text-xs">(You)</span>}
+                              </p>
+                              <p className="text-xs text-muted-foreground">Avg: {r.avg}%</p>
+                            </div>
+                            <span className="text-sm font-display font-bold">{r.avg}%</span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className={cn("text-sm font-medium", r.id === currentUserId && "text-primary font-bold")}>
-                              {r.name} {r.id === currentUserId && <span className="text-xs">(You)</span>}
-                            </p>
-                            <p className="text-xs text-muted-foreground">Avg: {r.avg}%</p>
-                          </div>
-                          <span className="text-sm font-display font-bold">{r.avg}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
+                        ))}
+                      </div>
+                    );
+                  })()
+                )}
               </Card>
             </div>
           </TabsContent>
