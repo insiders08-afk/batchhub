@@ -1,25 +1,44 @@
-import { useState, useEffect } from "react";
-import { lazy, Suspense } from "react";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  BarChart3, CheckCircle2, Users, BookOpen, ClipboardList,
-  MessageSquare, IndianRupee, TrendingUp, Star, ArrowRight,
-  Zap, Shield, Smartphone, Globe, Download, X } from
-"lucide-react";
-import heroDashboard from "@/assets/hero-dashboard.png";
+  BarChart3,
+  Users,
+  BookOpen,
+  ClipboardList,
+  MessageSquare,
+  IndianRupee,
+  TrendingUp,
+  ArrowRight,
+  Zap,
+  Shield,
+  Smartphone,
+  Download,
+  X,
+  Check,
+  UserCheck,
+  Bell,
+  FileText,
+  Settings2,
+  Sparkles,
+  Star,
+  GraduationCap,
+  ChevronRight,
+  ChevronDown,
+  Play,
+  XCircle,
+  CheckCircle2,
+  Clock,
+  Rocket,
+  MousePointerClick,
+} from "lucide-react";
 import InstallButton from "@/components/InstallButton";
 import { supabase } from "@/integrations/supabase/client";
 
-// Lazy-load framer-motion animations — only used below the fold
-const MotionDiv = lazy(() =>
-  import("framer-motion").then((m) => ({ default: m.motion.div }))
-);
-
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => void;
-  userChoice: Promise<{outcome: "accepted" | "dismissed";}>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
 const roleToPath: Record<string, string> = {
@@ -31,87 +50,210 @@ const roleToPath: Record<string, string> = {
   app_owner: "/owner",
 };
 
-const features = [
-{ icon: Users, title: "Batch Management", desc: "Organise students into batches by course. JEE, NEET, Foundation — all in one place.", color: "primary" },
-{ icon: ClipboardList, title: "Digital Attendance", desc: "Mark attendance in seconds. Get instant reports, alerts for low-attendance students.", color: "accent" },
-{ icon: MessageSquare, title: "Batch Chat", desc: "Replace WhatsApp groups with structured, role-based batch communication.", color: "success" },
-{ icon: BarChart3, title: "Test & Rankings", desc: "Create tests, enter scores, auto-generate leaderboards and performance reports.", color: "primary" },
-{ icon: IndianRupee, title: "Fee Tracking", desc: "Track payment history, send reminders, flag overdue fees with one click.", color: "accent" },
-{ icon: BookOpen, title: "Homework / DPP", desc: "Upload daily practice problems per batch. Students never miss an assignment.", color: "success" }];
-
+const navLinks = [
+  { label: "Features", href: "#features" },
+  { label: "Why Us", href: "#problem-solution" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "Testimonials", href: "#testimonials" },
+];
 
 const stats = [
-{ value: "2,400+", label: "Institutes onboarded" },
-{ value: "1.2L+", label: "Students managed" },
-{ value: "98%", label: "Attendance accuracy" },
-{ value: "4.9★", label: "Average rating" }];
+  { value: "10+", label: "Institutes Onboarded", color: "#3D2B1F" },
+  { value: "150+", label: "Students Managed", color: "#3D2B1F" },
+  { value: "98%", label: "Attendance Accuracy", color: "#9CAF88" },
+  { value: "4.9★", label: "Average Rating", color: "#E6C2A0" },
+];
 
+const oldProblems = [
+  { icon: FileText, title: "Paper Registers", desc: "Easily lost, damaged, or outdated. No backup available." },
+  {
+    icon: MessageSquare,
+    title: "Scattered WhatsApp Groups",
+    desc: "Chaotic communication, missed messages, no structure.",
+  },
+  { icon: BarChart3, title: "Messy Spreadsheets", desc: "Manual errors, version conflicts, no real-time updates." },
+];
+
+const batchhubSolutions = [
+  {
+    icon: CheckCircle2,
+    title: "Digital Everything",
+    desc: "Cloud-based records, automatic backups, accessible anywhere.",
+  },
+  { icon: Users, title: "Organized Batch Chat", desc: "Structured communication per batch, announcements, and polls." },
+  { icon: TrendingUp, title: "Real-time Analytics", desc: "Live dashboards, attendance tracking, and fee insights." },
+];
+
+const featureCards = [
+  {
+    icon: Users,
+    title: "Batch Management",
+    desc: "Organize students into intelligent batches with simplicity.",
+    tags: ["Scheduling", "Transfers"],
+    bg: "#9CAF88",
+  },
+  {
+    icon: CheckCircle2,
+    title: "Digital Attendance",
+    desc: "One-tap attendance with instant notifications to parents.",
+    tags: ["One-Tap", "Alerts"],
+    bg: "#8B6F4E",
+  },
+  {
+    icon: MessageSquare,
+    title: "Batch Chat",
+    desc: "Dedicated chat spaces for each batch with file sharing.",
+    tags: ["File Share", "Structured"],
+    bg: "#E6C2A0",
+  },
+  {
+    icon: BarChart3,
+    title: "Test & Rankings",
+    desc: "Create tests, enter scores, and watch auto-generated leaderboards.",
+    tags: ["Scores", "Rankings"],
+    bg: "#D4C4B0",
+  },
+  {
+    icon: IndianRupee,
+    title: "Fee Tracking",
+    desc: "Automated reminders, digital receipts, and payment analytics.",
+    tags: ["Auto Remind", "Receipts"],
+    bg: "#9CAF88",
+  },
+  {
+    icon: BookOpen,
+    title: "Homework & DPP",
+    desc: "Digital assignment distribution and practice papers.",
+    tags: ["PDF Upload", "Tracking"],
+    bg: "#8B6F4E",
+  },
+];
 
 const testimonials = [
-{
-  name: "Rajesh Sharma",
-  role: "Director, Apex Classes, Kota",
-  text: "BatchHub replaced 6 WhatsApp groups and 3 spreadsheets. My teachers love the attendance feature.",
-  avatar: "RS"
-},
-{
-  name: "Priya Mehta",
-  role: "Founder, Bright Minds Institute, Pune",
-  text: "Fee tracking alone saved us 8 hours a week. Parents get instant updates now.",
-  avatar: "PM"
-},
-{
-  name: "Arun Kumar",
-  role: "Principal, Vision Academy, Delhi",
-  text: "The batch chat is a game-changer. Finally, structured communication without the chaos.",
-  avatar: "AK"
-}];
+  {
+    initial: "R",
+    name: "Rajesh Kumar",
+    title: "Director, Brilliant Academy",
+    quote:
+      "BatchHub transformed how we manage our 200+ students. Fee collection improved by 40% in the first month alone.",
+    color: "from-[#E6C2A0] to-[#D4C4B0]",
+  },
+  {
+    initial: "S",
+    name: "Sunita Sharma",
+    title: "Founder, Sharma Coaching",
+    quote:
+      "The attendance system is a game-changer. Parents love the instant notifications and real-time transparency.",
+    color: "from-[#9CAF88] to-[#8B6F4E]",
+  },
+  {
+    initial: "A",
+    name: "Amit Patel",
+    title: "Principal, Patel Classes",
+    quote:
+      "Finally, a platform that understands Indian coaching needs. The batch chat feature eliminated our WhatsApp chaos.",
+    color: "from-[#D4C4B0] to-[#8B6F4E]",
+  },
+];
 
+const pricingPlans = [
+  {
+    name: "Starter",
+    price: "Free",
+    sub: "First month on us",
+    desc: "Perfect for new or small institutes",
+    features: ["Up to 3 batches", "Up to 60 students", "Attendance + Chat", "Basic fee tracking", "Email support"],
+    cta: "Start Free",
+    highlighted: false,
+    dark: false,
+  },
+  {
+    name: "Growing",
+    price: "₹8",
+    priceSuffix: "/student",
+    sub: "per month · min ₹499",
+    desc: "Most institutes choose this",
+    features: [
+      "Unlimited batches",
+      "Per-student billing",
+      "Full fee management",
+      "Test scores & rankings",
+      "Push notifications",
+      "Priority support",
+    ],
+    cta: "Get Started",
+    highlighted: true,
+    dark: true,
+  },
+  {
+    name: "Scaling",
+    price: "Custom",
+    sub: "Talk to us",
+    desc: "For large & multi-branch institutes",
+    features: [
+      "500+ students",
+      "Multiple co-admins",
+      "Advanced analytics",
+      "Parent portal",
+      "Dedicated onboarding",
+      "SLA guarantee",
+    ],
+    cta: "Contact Us",
+    highlighted: false,
+    dark: false,
+  },
+];
 
-const plans = [
-{
-  name: "Starter",
-  price: "₹999",
-  period: "/month",
-  desc: "Perfect for small institutes",
-  features: ["Up to 100 students", "5 batches", "Attendance & Chat", "Basic analytics", "Email support"],
-  cta: "Start Free Trial",
-  highlighted: false
-},
-{
-  name: "Growth",
-  price: "₹2,499",
-  period: "/month",
-  desc: "For growing institutes",
-  features: ["Up to 500 students", "Unlimited batches", "Fee management", "Test & Rankings", "Priority support", "Custom branding"],
-  cta: "Start Free Trial",
-  highlighted: true
-},
-{
-  name: "Institute",
-  price: "₹5,999",
-  period: "/month",
-  desc: "For large institutes",
-  features: ["Unlimited students", "Multiple branches", "Advanced analytics", "Parent portal", "API access", "Dedicated support"],
-  cta: "Contact Sales",
-  highlighted: false
-}];
+const faqs = [
+  {
+    q: "Is BatchHub right for my coaching institute?",
+    a: "If you run a coaching class, tuition centre, or training institute in India with batches of students — yes, BatchHub is built exactly for you. It works for JEE/NEET coaching, foundation classes, language schools, and more.",
+  },
+  {
+    q: "How long does it take to set up?",
+    a: "Under 5 minutes. Sign up, create your institute, add your first batch, and invite students. That's it. No complex configuration or training needed.",
+  },
+  {
+    q: "Do I need any technical experience?",
+    a: "Not at all. BatchHub is designed for institute owners and teachers, not IT teams. If you can use WhatsApp, you can use BatchHub.",
+  },
+  {
+    q: "What if it doesn't work for my use case?",
+    a: "Your first month is completely free with no credit card required. Try it risk-free. If it's not the right fit, you can walk away — no questions asked.",
+  },
+  {
+    q: "Can I cancel anytime?",
+    a: "Yes, absolutely. There are no lock-in contracts. You can cancel, upgrade, or downgrade your plan at any time from your dashboard.",
+  },
+  {
+    q: "Does it work on mobile phones?",
+    a: "Yes! BatchHub is a PWA (Progressive Web App) — it works on any phone's browser and can be added to the home screen. No Play Store or App Store required.",
+  },
+];
 
-
-const navLinks = ["Features", "Pricing", "Testimonials"];
-
-// Fallback wrapper — renders children without animation
-function AnimFallback({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={className}>{children}</div>;
-}
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: (i: number = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, delay: i * 0.08, ease: "easeOut" as const },
+  }),
+};
 
 export default function Index() {
   const navigate = useNavigate();
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
   const [showBanner, setShowBanner] = useState(false);
   const [authChecking, setAuthChecking] = useState(true);
+  const [scrolled, setScrolled] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
-  // Session check — redirect logged-in users straight to their dashboard
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 20);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) {
@@ -139,13 +281,10 @@ export default function Index() {
 
   useEffect(() => {
     const isStandalone =
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (window.navigator as Navigator & {standalone?: boolean;}).standalone === true;
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
     if (isStandalone) return;
-
-    const isMobile = window.innerWidth < 768;
-    if (isMobile) setShowBanner(true);
-
+    if (window.innerWidth < 768) setShowBanner(true);
     const handler = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e);
@@ -156,481 +295,1366 @@ export default function Index() {
 
   const handleNativeInstall = async () => {
     if (!installPrompt) return;
-    const promptEvent = installPrompt as BeforeInstallPromptEvent;
-    promptEvent.prompt();
-  const result = await promptEvent.userChoice;
-    if (result.outcome === "accepted") setShowBanner(false);
+    const p = installPrompt as BeforeInstallPromptEvent;
+    p.prompt();
+    const r = await p.userChoice;
+    if (r.outcome === "accepted") setShowBanner(false);
   };
 
   if (authChecking) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Navbar */}
-      <nav className="sticky top-0 z-50 glass border-b border-border/50">
-        <div className="container mx-auto flex items-center justify-between h-16 px-4">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg gradient-hero flex items-center justify-center">
-              <Zap className="w-4 h-4 text-white" />
+    <div
+      className="min-h-screen overflow-x-hidden antialiased"
+      style={{ backgroundColor: "#F5F1E8", color: "#3D2B1F", fontFamily: "'Inter', system-ui, sans-serif" }}
+    >
+      {/* Grain overlay */}
+      <div
+        className="fixed inset-0 pointer-events-none z-[9999]"
+        style={{
+          opacity: 0.025,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+        }}
+      />
+
+      {/* ══════════════════ NAVBAR ══════════════════ */}
+      <nav
+        className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
+        style={{
+          borderBottom: scrolled ? "1px solid rgba(139,111,78,0.15)" : "none",
+          background: scrolled ? "rgba(253,252,250,0.85)" : "transparent",
+          backdropFilter: scrolled ? "blur(20px)" : "none",
+        }}
+      >
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+            {/* Logo */}
+            <Link to="/" className="flex items-center gap-3 group">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg transition-transform duration-300 group-hover:scale-105"
+                style={{ background: "linear-gradient(135deg, #8B6F4E, #3D2B1F)" }}
+              >
+                B
+              </div>
+              <span
+                className="text-2xl font-bold tracking-tight"
+                style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+              >
+                BatchHub
+              </span>
+            </Link>
+
+            {/* Desktop nav links */}
+            <div className="hidden md:flex items-center gap-8">
+              {navLinks.map((l) => (
+                <a
+                  key={l.label}
+                  href={l.href}
+                  className="text-sm font-medium transition-colors duration-200 hover:opacity-100"
+                  style={{ color: "rgba(61,43,31,0.75)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "#3D2B1F")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(61,43,31,0.75)")}
+                >
+                  {l.label}
+                </a>
+              ))}
             </div>
-            <span className="text-xl font-display font-bold text-gradient">BatchHub</span>
-          </Link>
 
-          <div className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) =>
-            <a key={link} href={`#${link.toLowerCase()}`} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-                {link}
-              </a>
-            )}
-          </div>
-
-          <div className="flex items-center gap-3">
-            <InstallButton />
-            <Link to="/role-select">
-              <Button variant="ghost" size="sm">Login</Button>
-            </Link>
-            <Link to="/role-select">
-              <Button size="sm" className="gradient-hero text-white shadow-primary border-0 hover:opacity-90">
-                Get Started
-              </Button>
-            </Link>
+            {/* Right actions */}
+            <div className="flex items-center gap-3">
+              <InstallButton />
+              <Link to="/role-select" className="hidden sm:inline-flex">
+                <button
+                  className="text-sm font-medium px-4 py-2 transition-colors duration-200"
+                  style={{ color: "#3D2B1F" }}
+                >
+                  Sign In
+                </button>
+              </Link>
+              <Link to="/role-select">
+                <button
+                  className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
+                  style={{
+                    background: "#9CAF88",
+                    boxShadow: "0 4px 15px -3px rgba(156,175,136,0.5)",
+                  }}
+                >
+                  Start Free Trial
+                </button>
+              </Link>
+            </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero — CSS-only animation (no framer-motion on the critical path) */}
-      <section className="relative overflow-hidden pt-20 pb-16 md:pt-28 md:pb-24">
-        <div className="absolute inset-0 -z-10">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-primary/5 blur-3xl" />
-          <div className="absolute top-40 right-0 w-[300px] h-[300px] rounded-full bg-accent/8 blur-3xl" />
+      {/* ══════════════════ HERO ══════════════════ */}
+      <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
+        {/* Floating ambient orbs */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div
+            className="absolute top-32 left-10 w-80 h-80 rounded-full blur-3xl"
+            style={{ background: "radial-gradient(circle, rgba(156,175,136,0.18) 0%, transparent 70%)" }}
+          />
+          <div
+            className="absolute top-40 right-20 w-96 h-96 rounded-full blur-3xl"
+            style={{ background: "radial-gradient(circle, rgba(230,194,160,0.15) 0%, transparent 70%)" }}
+          />
+          <div
+            className="absolute bottom-20 left-1/3 w-64 h-64 rounded-full blur-3xl"
+            style={{ background: "radial-gradient(circle, rgba(139,111,78,0.1) 0%, transparent 70%)" }}
+          />
         </div>
 
-        <div className="container mx-auto px-4">
-          {/* Hero text — pure CSS fade-in, no framer-motion/layout query */}
-          <div className="hero-fadein text-center max-w-4xl mx-auto">
-            <Badge className="mb-6 bg-primary-light text-primary border-primary/20 px-4 py-1.5 text-sm font-medium">
-              🇮🇳 Built for Indian coaching institutes
-            </Badge>
-
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-bold tracking-tight mb-6 leading-[1.05]">
-              Run your coaching institute,{" "}
-              <span className="text-gradient">not WhatsApp groups</span>
-            </h1>
-
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed font-light md:text-2xl font-sans">
-              BatchHub replaces paper registers, scattered WhatsApp groups, and manual fee tracking with one clean platform built for how Indian coaching institutes actually work.
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link to="/role-select">
-                <Button size="lg" className="gradient-hero text-white shadow-primary border-0 hover:opacity-90 px-8 h-12 text-base font-semibold">
-                  Start Free Trial
-                  <ArrowRight className="ml-2 w-4 h-4" />
-                </Button>
-              </Link>
+        {/* Floating UI decorations */}
+        <div className="absolute inset-0 pointer-events-none hidden md:block">
+          {/* Notebook page */}
+          <div
+            className="absolute top-32 left-10 w-28 h-36 rounded-lg shadow-2xl opacity-60"
+            style={{
+              background: "#FDFCFA",
+              animation: "pageFly 3s ease-in-out infinite alternate",
+              transformStyle: "preserve-3d",
+            }}
+          >
+            <div className="p-3 space-y-2">
+              <div className="h-2 rounded" style={{ background: "#D4C4B0", width: "75%" }} />
+              <div className="h-2 rounded" style={{ background: "#E8DCC4", width: "100%" }} />
+              <div className="h-2 rounded" style={{ background: "#E8DCC4", width: "83%" }} />
             </div>
-
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-              <span className="text-sm text-muted-foreground mr-1">Try a demo:</span>
-              {[
-              { label: "Admin Demo", to: "/demo/admin", color: "bg-primary-light text-primary border-primary/20 hover:bg-primary/10" },
-              { label: "Teacher Demo", to: "/demo/teacher", color: "bg-success-light text-[hsl(142,60%,28%)] border-success/20 hover:bg-success/10" },
-              { label: "Student Demo", to: "/demo/student", color: "bg-accent-light text-[hsl(35,98%,30%)] border-accent/20 hover:bg-accent/10" },
-              { label: "Parent Demo", to: "/demo/parent", color: "bg-muted text-foreground border-border/40 hover:bg-muted/70" }].
-              map((d) =>
-              <Link key={d.to} to={d.to}>
-                  <Button size="sm" variant="outline" className={`h-8 text-xs font-medium border ${d.color}`}>
-                    {d.label} →
-                  </Button>
-                </Link>
-              )}
-            </div>
-
-            <p className="mt-4 text-sm text-muted-foreground">Free 14-day trial · No credit card · Setup in 5 minutes</p>
           </div>
 
-          {/* Hero Image — CSS slide-up, no framer-motion */}
-          <div className="hero-slideup mt-16 relative">
-            <div className="relative max-w-5xl mx-auto">
-              <div className="absolute inset-0 gradient-hero rounded-2xl blur-2xl opacity-10 scale-95" />
-              <div className="relative rounded-2xl border border-border/50 shadow-lg overflow-hidden">
-                <img
-                  src={heroDashboard}
-                  alt="BatchHub Dashboard Preview"
-                  className="w-full h-auto"
-                  width="1024"
-                  height="640"
-                  fetchPriority="high"
-                  decoding="async"
-                />
+          {/* Rupee floating */}
+          <div
+            className="absolute top-44 right-24 text-6xl font-bold"
+            style={{
+              color: "#8B6F4E",
+              animation: "floatEl 8s ease-in-out infinite",
+              filter: "drop-shadow(0 4px 6px rgba(139,111,78,0.2))",
+            }}
+          >
+            ₹
+          </div>
+          <div
+            className="absolute bottom-44 left-24 text-4xl font-bold"
+            style={{
+              color: "#9CAF88",
+              animation: "floatEl 7s ease-in-out infinite 1s",
+              filter: "drop-shadow(0 4px 6px rgba(156,175,136,0.2))",
+            }}
+          >
+            ₹
+          </div>
+
+          {/* Chat bubbles */}
+          <div
+            className="absolute rounded-2xl rounded-tr-sm px-4 py-2 shadow-lg"
+            style={{
+              top: "33%",
+              right: "22%",
+              background: "rgba(253,252,250,0.75)",
+              backdropFilter: "blur(20px)",
+              border: "1px solid rgba(139,111,78,0.1)",
+              animation: "floatEl 6s ease-in-out infinite",
+            }}
+          >
+            <p className="text-xs font-medium" style={{ color: "#3D2B1F" }}>
+              Batch A attendance updated ✓
+            </p>
+          </div>
+          <div
+            className="absolute rounded-2xl rounded-tl-sm px-4 py-2 shadow-lg"
+            style={{
+              bottom: "35%",
+              left: "22%",
+              background: "rgba(253,252,250,0.75)",
+              backdropFilter: "blur(20px)",
+              border: "1px solid rgba(139,111,78,0.1)",
+              animation: "floatEl 6s ease-in-out infinite 2s",
+            }}
+          >
+            <p className="text-xs font-medium" style={{ color: "#3D2B1F" }}>
+              Fee reminder sent to 12 students
+            </p>
+          </div>
+
+          {/* Check circle */}
+          <div
+            className="absolute w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+            style={{ top: "50%", right: "10%", background: "#9CAF88", animation: "floatEl 5s ease-in-out infinite" }}
+          >
+            <Check className="w-6 h-6 text-white" strokeWidth={3} />
+          </div>
+
+          {/* Avatar cluster */}
+          <div
+            className="absolute flex -space-x-3"
+            style={{ bottom: "32%", right: "30%", animation: "floatEl 9s ease-in-out infinite" }}
+          >
+            {[
+              { l: "A", bg: "#E6C2A0" },
+              { l: "R", bg: "#D4C4B0" },
+              { l: "S", bg: "#9CAF88" },
+            ].map((a) => (
+              <div
+                key={a.l}
+                className="w-10 h-10 rounded-full border-2 flex items-center justify-center text-xs font-bold text-white"
+                style={{ background: a.bg, borderColor: "#F5F1E8" }}
+              >
+                {a.l}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Main hero content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 text-center">
+          {/* Trust badge */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
+            style={{ background: "rgba(139,111,78,0.1)", border: "1px solid rgba(139,111,78,0.2)" }}
+          >
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#9CAF88" }} />
+            <span className="text-sm font-medium" style={{ color: "#3D2B1F" }}>
+              Trusted by 10+ Institutes across India
+            </span>
+          </motion.div>
+
+          {/* Headline */}
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
+            className="text-5xl md:text-7xl lg:text-8xl font-bold leading-tight mb-6"
+            style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+          >
+            Run your coaching
+            <br />
+            <span
+              className="italic"
+              style={{
+                background: "linear-gradient(135deg, #3D2B1F 0%, #8B6F4E 100%)",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+              }}
+            >
+              institute smarter
+            </span>
+          </motion.h1>
+
+          {/* Subheading */}
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed"
+            style={{ color: "rgba(61,43,31,0.7)" }}
+          >
+            BatchHub replaces paper registers, scattered WhatsApp groups, and manual fee tracking with one clean
+            platform built for how Indian coaching institutes actually work.
+          </motion.p>
+
+          {/* CTA buttons */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-4"
+          >
+            <Link to="/role-select">
+              <button
+                className="px-8 py-4 rounded-full text-base font-semibold text-white flex items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
+                style={{ background: "#9CAF88", boxShadow: "0 4px 20px -4px rgba(156,175,136,0.5)" }}
+              >
+                Get Started Free
+                <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+              </button>
+            </Link>
+            <Link to="/demo/admin">
+              <button
+                className="px-8 py-4 rounded-full text-base font-semibold flex items-center gap-2 transition-all duration-300 hover:-translate-y-1"
+                style={{ border: "2px solid #8B6F4E", color: "#3D2B1F", background: "transparent" }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "#8B6F4E";
+                  (e.currentTarget as HTMLButtonElement).style.color = "white";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#3D2B1F";
+                }}
+              >
+                <Play className="w-5 h-5" /> Try Demo
+              </button>
+            </Link>
+          </motion.div>
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="text-sm"
+            style={{ color: "rgba(61,43,31,0.5)" }}
+          >
+            No credit card required · Setup in under 5 minutes
+          </motion.p>
+
+          {/* Dashboard mockup */}
+          <motion.div
+            initial={{ opacity: 0, y: 40, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="mt-20 relative max-w-5xl mx-auto"
+          >
+            {/* Fade-out gradient at bottom */}
+            <div
+              className="absolute inset-0 z-10 pointer-events-none"
+              style={{ background: "linear-gradient(to top, #F5F1E8 0%, transparent 60%)" }}
+            />
+            <div
+              className="rounded-3xl p-2 shadow-2xl hover:scale-[1.01] transition-transform duration-500"
+              style={{
+                background: "rgba(253,252,250,0.7)",
+                backdropFilter: "blur(20px)",
+                border: "1px solid rgba(139,111,78,0.1)",
+              }}
+            >
+              <div
+                className="rounded-2xl overflow-hidden"
+                style={{ background: "#FDFCFA", border: "1px solid #E8DCC4" }}
+              >
+                {/* Browser chrome */}
+                <div
+                  className="flex items-center gap-2 px-4 py-3"
+                  style={{ background: "rgba(245,241,232,0.5)", borderBottom: "1px solid #E8DCC4" }}
+                >
+                  <div className="flex gap-1.5">
+                    <div className="w-3 h-3 rounded-full" style={{ background: "#E6C2A0" }} />
+                    <div className="w-3 h-3 rounded-full" style={{ background: "#D4C4B0" }} />
+                    <div className="w-3 h-3 rounded-full" style={{ background: "#9CAF88" }} />
+                  </div>
+                  <div className="flex-1 text-center text-xs font-medium" style={{ color: "#8B6F4E" }}>
+                    BatchHub Dashboard
+                  </div>
+                </div>
+                <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Stat cards */}
+                  <div className="col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+                    {[
+                      { v: "156", l: "Total Students", c: "#3D2B1F" },
+                      { v: "94%", l: "Attendance", c: "#9CAF88" },
+                      { v: "₹2.4L", l: "Fee Collected", c: "#8B6F4E" },
+                      { v: "12", l: "Active Batches", c: "#E6C2A0" },
+                    ].map((s) => (
+                      <div
+                        key={s.l}
+                        className="rounded-xl p-4"
+                        style={{ background: "#F5F1E8", border: "1px solid #E8DCC4" }}
+                      >
+                        <div className="text-2xl font-bold" style={{ color: s.c }}>
+                          {s.v}
+                        </div>
+                        <div className="text-xs mt-1" style={{ color: "#8B6F4E" }}>
+                          {s.l}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Batch list */}
+                  <div
+                    className="md:col-span-2 rounded-xl p-4"
+                    style={{ background: "#FDFCFA", border: "1px solid #E8DCC4" }}
+                  >
+                    <h3 className="font-semibold text-sm mb-3" style={{ color: "#3D2B1F" }}>
+                      Active Batches
+                    </h3>
+                    <div className="space-y-2">
+                      {[
+                        { l: "JEE Advanced 2025", s: "42 students · Physics", c: "#9CAF88" },
+                        { l: "NEET Crash Course", s: "32 students · Biology", c: "#E6C2A0" },
+                        { l: "Foundation XI", s: "55 students · Maths", c: "#8B6F4E" },
+                      ].map((b) => (
+                        <div
+                          key={b.l}
+                          className="flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors"
+                          style={{ background: "#F5F1E8", border: "1px solid #E8DCC4" }}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold"
+                              style={{ background: b.c }}
+                            >
+                              {b.l[0]}
+                            </div>
+                            <div>
+                              <div className="text-sm font-medium" style={{ color: "#3D2B1F" }}>
+                                {b.l}
+                              </div>
+                              <div className="text-xs" style={{ color: "#8B6F4E" }}>
+                                {b.s}
+                              </div>
+                            </div>
+                          </div>
+                          <span className="w-2 h-2 rounded-full" style={{ background: "#9CAF88" }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Attendance chart */}
+                  <div className="rounded-xl p-4" style={{ background: "#FDFCFA", border: "1px solid #E8DCC4" }}>
+                    <h3 className="font-semibold text-sm mb-3" style={{ color: "#3D2B1F" }}>
+                      Today's Attendance
+                    </h3>
+                    <div className="space-y-3">
+                      {[
+                        { l: "Batch A", v: 92, c: "#9CAF88" },
+                        { l: "Batch B", v: 88, c: "#8B6F4E" },
+                        { l: "Batch C", v: 95, c: "#E6C2A0" },
+                      ].map((a) => (
+                        <div key={a.l}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span style={{ color: "#3D2B1F" }}>{a.l}</span>
+                            <span className="font-semibold" style={{ color: a.c }}>
+                              {a.v}%
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full overflow-hidden" style={{ background: "#E8DCC4" }}>
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${a.v}%`, background: a.c }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </motion.div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-10 left-1/2 -translate-x-1/2" style={{ animation: "bounce 2s infinite" }}>
+          <ChevronDown className="w-6 h-6" style={{ color: "#8B6F4E" }} />
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-12 border-y border-border/50 bg-card">
-        <div className="container mx-auto px-4">
+      {/* ══════════════════ STATS ══════════════════ */}
+      <section className="py-20" style={{ background: "#F5F1E8" }}>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((stat, i) =>
-            <Suspense key={stat.label} fallback={<AnimFallback className="text-center"><div className="text-3xl font-display font-bold text-gradient mb-1">{stat.value}</div><div className="text-sm text-muted-foreground">{stat.label}</div></AnimFallback>}>
-              <MotionDiv
+            {stats.map((s, i) => (
+              <motion.div
+                key={s.label}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                className="text-center">
-                <div className="text-3xl font-display font-bold text-gradient mb-1">{stat.value}</div>
-                <div className="text-sm text-muted-foreground">{stat.label}</div>
-              </MotionDiv>
-            </Suspense>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Features */}
-      <section id="features" className="py-20 md:py-28">
-        <div className="container mx-auto px-4">
-          <Suspense fallback={
-            <AnimFallback className="text-center mb-16">
-              <Badge className="mb-4 bg-accent-light text-accent border-accent/20">Everything you need</Badge>
-              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Your institute, fully organised</h2>
-            </AnimFallback>
-          }>
-            <MotionDiv
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-center mb-16">
-              <Badge className="mb-4 bg-accent-light text-accent border-accent/20">Everything you need</Badge>
-              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">
-                Your institute, fully organised
-              </h2>
-              <p className="text-muted-foreground max-w-xl mx-auto text-lg">
-                Every tool your institute needs, built into one seamless platform.
-              </p>
-            </MotionDiv>
-          </Suspense>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((f, i) =>
-            <Suspense key={f.title} fallback={
-              <div className="bg-card border border-border/50 rounded-xl p-6 shadow-card">
-                <div className={`w-11 h-11 rounded-xl mb-4 flex items-center justify-center ${f.color === 'primary' ? 'bg-primary-light' : f.color === 'accent' ? 'bg-accent-light' : 'bg-success-light'}`}>
-                  <f.icon className={`w-5 h-5 ${f.color === 'primary' ? 'text-primary' : f.color === 'accent' ? 'text-accent' : 'text-success'}`} />
-                </div>
-                <h3 className="font-display font-semibold text-lg mb-2">{f.title}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
-              </div>
-            }>
-              <MotionDiv
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-card border border-border/50 rounded-xl p-6 shadow-card hover:shadow-lg transition-all hover:-translate-y-1 group">
-                <div className={`w-11 h-11 rounded-xl mb-4 flex items-center justify-center ${
-                f.color === 'primary' ? 'bg-primary-light' :
-                f.color === 'accent' ? 'bg-accent-light' : 'bg-success-light'}`
-                }>
-                  <f.icon className={`w-5 h-5 ${
-                  f.color === 'primary' ? 'text-primary' :
-                  f.color === 'accent' ? 'text-accent' : 'text-success'}`
-                  } />
-                </div>
-                <h3 className="font-display font-semibold text-lg mb-2">{f.title}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
-              </MotionDiv>
-            </Suspense>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Why BatchHub Section */}
-      <section className="py-20 bg-card border-y border-border/50">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <Suspense fallback={<AnimFallback><div /></AnimFallback>}>
-              <MotionDiv
-                initial={{ opacity: 0, x: -30 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}>
-                <Link to="/auth/owner" className="mb-4 inline-flex items-center rounded-full border border-primary/20 bg-primary-light px-2.5 py-0.5 text-xs font-semibold text-primary transition-colors cursor-pointer hover:bg-primary/10">Why BatchHub</Link>
-                <h2 className="text-3xl md:text-4xl font-display font-bold mb-6">
-                  Designed for the real chaos of running a coaching institute
-                </h2>
-                <div className="space-y-4">
-                  {[
-                  { icon: Shield, text: "Role-based access for Admin, Teachers, Students & Parents" },
-                  { icon: Smartphone, text: "Works on any device — phone, tablet, or laptop" },
-                  { icon: Globe, text: "Supports Hindi & English interface" },
-                  { icon: TrendingUp, text: "Real-time analytics — know what's happening at a glance" },
-                  { icon: Zap, text: "Get your institute set up in under 5 minutes" }].
-                  map((item, i) =>
-                  <div key={i} className="flex items-start gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary-light flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <item.icon className="w-4 h-4 text-primary" />
-                      </div>
-                      <p className="text-foreground/80 leading-relaxed">{item.text}</p>
-                    </div>
-                  )}
-                </div>
-              </MotionDiv>
-            </Suspense>
-
-            <Suspense fallback={<AnimFallback className="grid grid-cols-2 gap-4"><div /></AnimFallback>}>
-              <MotionDiv
-                initial={{ opacity: 0, x: 30 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                className="grid grid-cols-2 gap-4">
-                {[
-                { label: "Paper registers", emoji: "📋", strike: true },
-                { label: "Digital attendance", emoji: "✅", strike: false },
-                { label: "WhatsApp groups", emoji: "💬", strike: true },
-                { label: "Batch Chat", emoji: "🗨️", strike: false },
-                { label: "Excel fee sheets", emoji: "📊", strike: true },
-                { label: "Fee dashboard", emoji: "💰", strike: false },
-                { label: "Physical tests", emoji: "📝", strike: true },
-                { label: "Online rankings", emoji: "🏆", strike: false }].
-                map((item, i) =>
+                className="text-center group"
+              >
                 <div
-                  key={i}
-                  className={`rounded-xl p-4 border ${
-                  item.strike ?
-                  'bg-danger-light border-danger/20 opacity-60' :
-                  'bg-success-light border-success/20'}`
-                  }>
-                  <div className="text-2xl mb-1">{item.emoji}</div>
-                  <p className={`text-sm font-medium ${item.strike ? 'line-through text-danger' : 'text-success'}`}>
-                    {item.label}
-                  </p>
+                  className="text-4xl md:text-5xl font-bold mb-2"
+                  style={{ color: s.color, fontFamily: "'Bricolage Grotesque', serif" }}
+                >
+                  {s.value}
                 </div>
-                )}
-              </MotionDiv>
-            </Suspense>
+                <div className="text-sm font-medium uppercase tracking-wider" style={{ color: "#8B6F4E" }}>
+                  {s.label}
+                </div>
+                <div
+                  className="mt-4 h-1 rounded-full mx-auto transition-all duration-300 group-hover:w-20 w-12"
+                  style={{ background: "#9CAF88" }}
+                />
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section id="testimonials" className="py-20 md:py-28">
-        <div className="container mx-auto px-4">
-          <Suspense fallback={<AnimFallback className="text-center mb-16"><h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Trusted by thousands of institutes</h2></AnimFallback>}>
-            <MotionDiv
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-center mb-16">
-              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">
-                Trusted by thousands of institutes
-              </h2>
-              <p className="text-muted-foreground">Real feedback from real educators across India</p>
-            </MotionDiv>
-          </Suspense>
+      {/* ══════════════════ PROBLEM → SOLUTION ══════════════════ */}
+      <section id="problem-solution" className="py-24 relative" style={{ background: "#FDFCFA" }}>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2
+              className="text-4xl md:text-5xl font-bold mb-4"
+              style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+            >
+              The Old Way vs{" "}
+              <span
+                style={{
+                  background: "linear-gradient(135deg, #3D2B1F, #8B6F4E)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                BatchHub
+              </span>
+            </h2>
+            <p className="text-lg max-w-2xl mx-auto" style={{ color: "#8B6F4E" }}>
+              See how we transform chaos into clarity
+            </p>
+          </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((t, i) =>
-            <Suspense key={t.name} fallback={
-              <div className="bg-card border border-border/50 rounded-xl p-6 shadow-card">
-                <p className="text-foreground/80 leading-relaxed mb-6">"{t.text}"</p>
+          <div className="grid md:grid-cols-2 gap-8 items-stretch max-w-5xl mx-auto">
+            {/* Old */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="relative group"
+            >
+              <div
+                className="absolute inset-0 rounded-3xl transform rotate-1 group-hover:rotate-2 transition-transform duration-500"
+                style={{ background: "linear-gradient(135deg, #e2e8f0, #cbd5e1)" }}
+              />
+              <div
+                className="relative rounded-3xl p-8 h-full"
+                style={{ background: "#FDFCFA", border: "2px solid #e2e8f0" }}
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center"
+                    style={{ background: "#f1f5f9" }}
+                  >
+                    <XCircle className="w-6 h-6" style={{ color: "#94a3b8" }} />
+                  </div>
+                  <h3
+                    className="text-2xl font-bold"
+                    style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#64748b" }}
+                  >
+                    The Old Way
+                  </h3>
+                </div>
+                <div className="space-y-4">
+                  {oldProblems.map((p) => (
+                    <div
+                      key={p.title}
+                      className="flex items-start gap-4 p-4 rounded-xl"
+                      style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
+                    >
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
+                        style={{ background: "white", border: "1px solid #e2e8f0" }}
+                      >
+                        <p.icon className="w-5 h-5" style={{ color: "#94a3b8" }} />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold mb-1" style={{ color: "#475569" }}>
+                          {p.title}
+                        </h4>
+                        <p className="text-sm" style={{ color: "#94a3b8" }}>
+                          {p.desc}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            }>
-              <MotionDiv
+            </motion.div>
+
+            {/* New */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              whileInView={{ opacity: 1, x: 0 }}
+              viewport={{ once: true }}
+              className="relative group"
+            >
+              <div
+                className="absolute inset-0 rounded-3xl transform -rotate-1 group-hover:-rotate-2 transition-transform duration-500 opacity-20"
+                style={{ background: "linear-gradient(135deg, #9CAF88, #8B6F4E)" }}
+              />
+              <div
+                className="relative rounded-3xl p-8 h-full shadow-xl"
+                style={{ background: "#FDFCFA", border: "2px solid rgba(156,175,136,0.3)" }}
+              >
+                <div className="flex items-center gap-3 mb-6">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center"
+                    style={{ background: "#9CAF88" }}
+                  >
+                    <CheckCircle2 className="w-6 h-6 text-white" />
+                  </div>
+                  <h3
+                    className="text-2xl font-bold"
+                    style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+                  >
+                    With BatchHub
+                  </h3>
+                </div>
+                <div className="space-y-4">
+                  {batchhubSolutions.map((s, i) => (
+                    <div
+                      key={s.title}
+                      className="flex items-start gap-4 p-4 rounded-xl transition-colors"
+                      style={{ background: "#F5F1E8", border: "1px solid #E8DCC4" }}
+                    >
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-white"
+                        style={{ background: i === 0 ? "#9CAF88" : i === 1 ? "#8B6F4E" : "#E6C2A0" }}
+                      >
+                        <s.icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold mb-1" style={{ color: "#3D2B1F" }}>
+                          {s.title}
+                        </h4>
+                        <p className="text-sm" style={{ color: "#8B6F4E" }}>
+                          {s.desc}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Mid CTA */}
+          <div className="mt-14 flex flex-col sm:flex-row gap-4 justify-center">
+            <Link to="/role-select">
+              <button
+                className="px-8 py-4 rounded-full text-base font-semibold text-white flex items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
+                style={{ background: "#9CAF88", boxShadow: "0 4px 20px -4px rgba(156,175,136,0.5)" }}
+              >
+                Get Started Free <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </button>
+            </Link>
+            <Link to="/demo/admin">
+              <button
+                className="px-8 py-4 rounded-full text-base font-semibold flex items-center gap-2 transition-all duration-300 hover:-translate-y-1"
+                style={{ border: "2px solid #8B6F4E", color: "#3D2B1F" }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "#8B6F4E";
+                  (e.currentTarget as HTMLButtonElement).style.color = "white";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                  (e.currentTarget as HTMLButtonElement).style.color = "#3D2B1F";
+                }}
+              >
+                <Play className="w-4 h-4" /> Watch Demo
+              </button>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════ FEATURES ══════════════════ */}
+      <section id="features" className="py-24 relative" style={{ background: "#F5F1E8" }}>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2
+              className="text-4xl md:text-5xl font-bold mb-4"
+              style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+            >
+              Everything you need to{" "}
+              <span className="italic" style={{ color: "#8B6F4E" }}>
+                run smarter
+              </span>
+            </h2>
+            <p className="text-lg max-w-2xl mx-auto" style={{ color: "#8B6F4E" }}>
+              Powerful features designed specifically for Indian coaching institutes
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featureCards.map((f, i) => (
+              <motion.div
+                key={f.title}
                 initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="bg-card border border-border/50 rounded-xl p-6 shadow-card">
-                <div className="flex gap-1 mb-4">
-                  {[...Array(5)].map((_, j) =>
-                <Star key={j} className="w-4 h-4 fill-accent text-accent" />
-                )}
-                </div>
-                <p className="text-foreground/80 leading-relaxed mb-6">"{t.text}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full gradient-hero flex items-center justify-center text-white text-sm font-bold">
-                    {t.avatar}
+                transition={{ delay: i * 0.06 }}
+                className="group cursor-pointer h-64 relative"
+                style={{ perspective: "1000px" }}
+              >
+                <div
+                  className="absolute inset-0 rounded-2xl p-6 flex flex-col justify-between transition-all duration-500"
+                  style={{
+                    background: "linear-gradient(135deg, #F5F1E8, #E8DCC4)",
+                    border: "1px solid #D4C4B0",
+                    transformStyle: "preserve-3d",
+                  }}
+                >
+                  <div
+                    className="w-14 h-14 rounded-2xl flex items-center justify-center text-white mb-4 transition-transform duration-300 group-hover:scale-110"
+                    style={{ background: f.bg }}
+                  >
+                    <f.icon className="w-7 h-7" />
                   </div>
                   <div>
-                    <div className="font-semibold text-sm">{t.name}</div>
-                    <div className="text-xs text-muted-foreground">{t.role}</div>
+                    <h3
+                      className="text-xl font-bold mb-2"
+                      style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+                    >
+                      {f.title}
+                    </h3>
+                    <p className="text-sm" style={{ color: "#8B6F4E" }}>
+                      {f.desc}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 mt-4">
+                    {f.tags.map((t) => (
+                      <span
+                        key={t}
+                        className="px-3 py-1 rounded-full text-xs"
+                        style={{ background: "rgba(255,255,255,0.5)", color: "#8B6F4E" }}
+                      >
+                        {t}
+                      </span>
+                    ))}
                   </div>
                 </div>
-              </MotionDiv>
-            </Suspense>
-            )}
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="py-20 md:py-28 bg-card border-y border-border/50">
-        <div className="container mx-auto px-4">
-          <Suspense fallback={<AnimFallback className="text-center mb-16"><h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Simple, transparent pricing</h2></AnimFallback>}>
-            <MotionDiv
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="text-center mb-16">
-              <Badge className="mb-4 bg-primary-light text-primary border-primary/20">Pricing</Badge>
-              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Simple, transparent pricing</h2>
-              <p className="text-muted-foreground">14-day free trial on all plans. No credit card required.</p>
-            </MotionDiv>
-          </Suspense>
+      {/* ══════════════════ TESTIMONIALS ══════════════════ */}
+      <section id="testimonials" className="py-24 relative overflow-hidden" style={{ background: "#FDFCFA" }}>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2
+              className="text-4xl md:text-5xl font-bold mb-4"
+              style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+            >
+              Loved by{" "}
+              <span
+                className="italic"
+                style={{
+                  background: "linear-gradient(135deg, #3D2B1F, #8B6F4E)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                educators
+              </span>
+            </h2>
+            <p className="text-lg" style={{ color: "#8B6F4E" }}>
+              See what institute owners say about BatchHub
+            </p>
+          </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {plans.map((plan, i) =>
-            <Suspense key={plan.name} fallback={
-              <div className={`relative rounded-xl border p-6 ${plan.highlighted ? 'gradient-hero text-white border-primary/0 shadow-primary scale-105' : 'bg-background border-border/60 shadow-card'}`}>
-                <h3 className={`font-display font-bold text-xl mb-1 ${plan.highlighted ? 'text-white' : ''}`}>{plan.name}</h3>
-              </div>
-            }>
-              <MotionDiv
+          <div className="grid md:grid-cols-3 gap-8">
+            {testimonials.map((t, i) => (
+              <motion.div
+                key={t.name}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.1 }}
+                className="relative rounded-3xl p-8 hover:-translate-y-2 transition-transform duration-400 cursor-default"
+                style={{
+                  background: "rgba(253,252,250,0.7)",
+                  backdropFilter: "blur(20px)",
+                  border: "1px solid rgba(139,111,78,0.1)",
+                  boxShadow: "0 4px 20px rgba(61,43,31,0.06)",
+                  animation: `floatEl ${8 + i}s ease-in-out infinite`,
+                  animationDelay: `${i}s`,
+                }}
+              >
+                <div
+                  className="absolute -top-4 -right-4 w-12 h-12 rounded-full flex items-center justify-center text-white text-2xl font-bold"
+                  style={{ background: i === 0 ? "#9CAF88" : i === 1 ? "#8B6F4E" : "#E6C2A0", fontFamily: "serif" }}
+                >
+                  "
+                </div>
+                <div className="flex items-center gap-4 mb-6">
+                  <div
+                    className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl bg-gradient-to-br ${t.color}`}
+                  >
+                    {t.initial}
+                  </div>
+                  <div>
+                    <h4 className="font-bold" style={{ color: "#3D2B1F" }}>
+                      {t.name}
+                    </h4>
+                    <p className="text-sm" style={{ color: "#8B6F4E" }}>
+                      {t.title}
+                    </p>
+                  </div>
+                </div>
+                <p className="leading-relaxed" style={{ color: "rgba(61,43,31,0.8)" }}>
+                  "{t.quote}"
+                </p>
+                <div className="flex gap-1 mt-4">
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <span key={n} style={{ color: "#E6C2A0" }}>
+                      ★
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════════ PRICING ══════════════════ */}
+      <section id="pricing" className="py-24 relative" style={{ background: "#F5F1E8" }}>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2
+              className="text-4xl md:text-5xl font-bold mb-4"
+              style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+            >
+              Simple, transparent{" "}
+              <span className="italic" style={{ color: "#8B6F4E" }}>
+                pricing
+              </span>
+            </h2>
+            <p className="text-lg" style={{ color: "#8B6F4E" }}>
+              Choose the plan that fits your institute size. No credit card required.
+            </p>
+          </motion.div>
+
+          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+            {pricingPlans.map((plan, i) => (
+              <motion.div
+                key={plan.name}
                 initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                className={`relative rounded-xl border p-6 ${
-                plan.highlighted ?
-                'gradient-hero text-white border-primary/0 shadow-primary scale-105' :
-                'bg-background border-border/60 shadow-card'}`
-                }>
-                {plan.highlighted &&
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-accent text-white border-0 px-3">Most Popular</Badge>
+                className={`relative rounded-3xl p-8 hover:-translate-y-2 transition-all duration-300 overflow-hidden group ${plan.dark ? "md:-translate-y-4" : ""}`}
+                style={{
+                  background: plan.dark ? "#3D2B1F" : "#F5F1E8",
+                  border: plan.dark ? "1px solid #3D2B1F" : "1px solid #E8DCC4",
+                  boxShadow: plan.dark ? "0 20px 40px rgba(61,43,31,0.25)" : "none",
+                }}
+              >
+                {plan.highlighted && (
+                  <div
+                    className="absolute top-0 right-0 text-white text-xs font-bold px-4 py-1 rounded-bl-xl"
+                    style={{ background: "#9CAF88" }}
+                  >
+                    POPULAR
                   </div>
-              }
-                <div className="mb-6">
-                  <h3 className={`font-display font-bold text-xl mb-1 ${plan.highlighted ? 'text-white' : ''}`}>{plan.name}</h3>
-                  <p className={`text-sm mb-4 ${plan.highlighted ? 'text-white/70' : 'text-muted-foreground'}`}>{plan.desc}</p>
-                  <div className="flex items-baseline gap-1">
-                    <span className={`text-4xl font-display font-bold ${plan.highlighted ? 'text-white' : ''}`}>{plan.price}</span>
-                    <span className={`text-sm ${plan.highlighted ? 'text-white/70' : 'text-muted-foreground'}`}>{plan.period}</span>
-                  </div>
-                </div>
-                <ul className="space-y-3 mb-8">
-                  {plan.features.map((feat) =>
-                <li key={feat} className="flex items-center gap-2">
-                      <CheckCircle2 className={`w-4 h-4 flex-shrink-0 ${plan.highlighted ? 'text-white/80' : 'text-success'}`} />
-                      <span className={`text-sm ${plan.highlighted ? 'text-white/80' : 'text-foreground/80'}`}>{feat}</span>
-                    </li>
                 )}
-                </ul>
-                <Link to="/role-select">
-                  <Button
-                  className={`w-full font-semibold ${
-                  plan.highlighted ?
-                  'bg-white text-primary hover:bg-white/90' :
-                  'gradient-hero text-white border-0 hover:opacity-90 shadow-primary'}`
-                  }>
-                    {plan.cta}
-                  </Button>
-                </Link>
-              </MotionDiv>
-            </Suspense>
-            )}
+                {!plan.dark && (
+                  <div
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-3xl"
+                    style={{ background: "linear-gradient(135deg, transparent, rgba(232,220,196,0.5))" }}
+                  />
+                )}
+                <div className="relative">
+                  <h3
+                    className="text-xl font-bold mb-2"
+                    style={{ fontFamily: "'Bricolage Grotesque', serif", color: plan.dark ? "white" : "#3D2B1F" }}
+                  >
+                    {plan.name}
+                  </h3>
+                  <p className="text-sm mb-6" style={{ color: plan.dark ? "#D4C4B0" : "#8B6F4E" }}>
+                    {plan.desc}
+                  </p>
+                  <div className="flex items-baseline gap-1 mb-1">
+                    <span className="text-5xl font-bold" style={{ color: plan.dark ? "white" : "#3D2B1F" }}>
+                      {plan.price}
+                    </span>
+                    {plan.priceSuffix && (
+                      <span className="text-base" style={{ color: plan.dark ? "#D4C4B0" : "#8B6F4E" }}>
+                        {plan.priceSuffix}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs mb-6" style={{ color: plan.dark ? "#D4C4B0" : "#8B6F4E" }}>
+                    {plan.sub}
+                  </p>
+                  <ul className="space-y-3 mb-8">
+                    {plan.features.map((feat) => (
+                      <li key={feat} className="flex items-center gap-3 text-sm">
+                        <Check className="w-5 h-5 flex-shrink-0" style={{ color: "#9CAF88" }} />
+                        <span style={{ color: plan.dark ? "white" : "#3D2B1F" }}>{feat}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link to="/role-select">
+                    <button
+                      className="w-full py-3 rounded-full font-semibold transition-all duration-300"
+                      style={
+                        plan.dark
+                          ? { background: "#9CAF88", color: "white", boxShadow: "0 4px 15px rgba(156,175,136,0.3)" }
+                          : { border: "2px solid #8B6F4E", color: "#3D2B1F", background: "transparent" }
+                      }
+                      onMouseEnter={(e) => {
+                        if (!plan.dark) {
+                          (e.currentTarget as HTMLButtonElement).style.background = "#8B6F4E";
+                          (e.currentTarget as HTMLButtonElement).style.color = "white";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!plan.dark) {
+                          (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                          (e.currentTarget as HTMLButtonElement).style.color = "#3D2B1F";
+                        }
+                      }}
+                    >
+                      {plan.cta}
+                    </button>
+                  </Link>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          <p className="text-center text-sm mt-10" style={{ color: "#8B6F4E" }}>
+            All plans include GST. Annual billing saves 20%. 🎁
+          </p>
+        </div>
+      </section>
+
+      {/* ══════════════════ FAQ ══════════════════ */}
+      <section id="faq" className="py-24" style={{ background: "#FDFCFA" }}>
+        <div className="max-w-3xl mx-auto px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="text-center mb-14"
+          >
+            <h2
+              className="text-3xl md:text-4xl font-bold mb-4"
+              style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+            >
+              Common Questions
+            </h2>
+            <p className="text-lg" style={{ color: "#8B6F4E" }}>
+              Everything you need to know before you start
+            </p>
+          </motion.div>
+
+          <div className="space-y-3">
+            {faqs.map((faq, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 12 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: i * 0.05 }}
+                className="rounded-2xl overflow-hidden"
+                style={{ border: "1px solid #E8DCC4", background: "#FDFCFA" }}
+              >
+                <button
+                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                  className="w-full flex items-center justify-between p-5 text-left transition-colors duration-200"
+                  style={{ background: openFaq === i ? "#F5F1E8" : "transparent" }}
+                >
+                  <span className="font-semibold pr-4" style={{ color: "#3D2B1F" }}>
+                    {faq.q}
+                  </span>
+                  <ChevronDown
+                    className="w-5 h-5 flex-shrink-0 transition-transform duration-300"
+                    style={{ color: "#8B6F4E", transform: openFaq === i ? "rotate(180deg)" : "rotate(0deg)" }}
+                  />
+                </button>
+                <AnimatePresence>
+                  {openFaq === i && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      <div
+                        className="px-5 pb-5 pt-4 text-sm leading-relaxed"
+                        style={{ color: "#8B6F4E", borderTop: "1px solid #E8DCC4" }}
+                      >
+                        {faq.a}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-20 md:py-28 relative overflow-hidden">
-        <div className="absolute inset-0 gradient-hero opacity-5 -z-10" />
-        <div className="container mx-auto px-4 text-center">
-          <Suspense fallback={<AnimFallback><h2 className="text-3xl md:text-5xl font-display font-bold mb-4">Ready to transform your institute?</h2></AnimFallback>}>
-            <MotionDiv
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}>
-              <h2 className="text-3xl md:text-5xl font-display font-bold mb-4">
-                Ready to transform your institute?
-              </h2>
-              <p className="text-muted-foreground max-w-xl mx-auto mb-10 text-lg">
-                Join 2,400+ institutes already running smarter with BatchHub.
-              </p>
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link to="/role-select">
-                  <Button size="lg" className="gradient-hero text-white shadow-primary border-0 hover:opacity-90 px-10 h-12 text-base font-semibold">
-                    Start Free Trial
-                    <ArrowRight className="ml-2 w-4 h-4" />
-                  </Button>
-                </Link>
-                <Link to="/admin">
-                  <Button size="lg" variant="outline" className="px-10 h-12 text-base font-semibold">
-                    Explore Demo
-                  </Button>
-                </Link>
-              </div>
-            </MotionDiv>
-          </Suspense>
+      {/* ══════════════════ FINAL CTA ══════════════════ */}
+      <section className="py-24 relative overflow-hidden">
+        {/* Background */}
+        <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, #F5F1E8, #E8DCC4)" }} />
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute top-20 left-10 w-64 h-64 rounded-full blur-3xl" style={{ background: "#9CAF88" }} />
+          <div
+            className="absolute bottom-20 right-10 w-96 h-96 rounded-full blur-3xl"
+            style={{ background: "#E6C2A0" }}
+          />
+        </div>
+        {/* Floating elements */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div
+            className="absolute top-1/4 left-10 w-20 h-20 bg-white rounded-2xl shadow-2xl opacity-60"
+            style={{ animation: "floatEl 10s ease-in-out infinite" }}
+          >
+            <div className="p-2 space-y-1">
+              <div className="h-1.5 rounded" style={{ background: "#D4C4B0", width: "75%" }} />
+              <div className="h-1.5 rounded" style={{ background: "#E8DCC4", width: "100%" }} />
+            </div>
+          </div>
+          <div
+            className="absolute bottom-1/4 right-20 text-8xl font-bold"
+            style={{ color: "rgba(139,111,78,0.1)", animation: "floatEl 12s ease-in-out infinite" }}
+          >
+            ₹
+          </div>
+          <div
+            className="absolute top-1/3 right-1/4 w-16 h-16 rounded-full flex items-center justify-center shadow-xl"
+            style={{ background: "#9CAF88", animation: "floatEl 8s ease-in-out infinite 2s" }}
+          >
+            <Check className="w-8 h-8 text-white" />
+          </div>
+        </div>
+
+        <div className="relative max-w-4xl mx-auto px-6 lg:px-8 text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <div
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
+              style={{ background: "rgba(255,255,255,0.5)", border: "1px solid rgba(139,111,78,0.2)" }}
+            >
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#9CAF88" }} />
+              <span className="text-sm font-medium" style={{ color: "#3D2B1F" }}>
+                Join institutes already using BatchHub
+              </span>
+            </div>
+
+            <h2
+              className="text-5xl md:text-7xl font-bold mb-6 leading-tight"
+              style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
+            >
+              Ready to transform your
+              <br />
+              <span
+                className="italic"
+                style={{
+                  background: "linear-gradient(135deg, #3D2B1F, #8B6F4E)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                }}
+              >
+                coaching institute?
+              </span>
+            </h2>
+
+            <p className="text-xl mb-10 max-w-2xl mx-auto" style={{ color: "#8B6F4E" }}>
+              Join educators who have already moved from chaos to clarity. Start your free trial today.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <Link to="/role-select">
+                <button
+                  className="px-10 py-5 rounded-full text-lg font-semibold text-white flex items-center gap-3 group transition-all duration-300 hover:-translate-y-1"
+                  style={{ background: "#9CAF88", boxShadow: "0 8px 30px -5px rgba(156,175,136,0.5)" }}
+                >
+                  Start Free Trial
+                  <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                </button>
+              </Link>
+              <Link to="/demo/admin">
+                <button
+                  className="px-10 py-5 rounded-full text-lg font-semibold flex items-center gap-2 transition-all duration-300 hover:-translate-y-1"
+                  style={{ border: "2px solid #8B6F4E", color: "#3D2B1F" }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "#8B6F4E";
+                    (e.currentTarget as HTMLButtonElement).style.color = "white";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+                    (e.currentTarget as HTMLButtonElement).style.color = "#3D2B1F";
+                  }}
+                >
+                  Schedule Demo
+                </button>
+              </Link>
+            </div>
+
+            <div
+              className="mt-12 flex flex-wrap items-center justify-center gap-8 text-sm"
+              style={{ color: "#8B6F4E" }}
+            >
+              {["No credit card required", "14-day free trial", "Cancel anytime"].map((t) => (
+                <div key={t} className="flex items-center gap-2">
+                  <Check className="w-4 h-4" style={{ color: "#9CAF88" }} />
+                  {t}
+                </div>
+              ))}
+            </div>
+          </motion.div>
         </div>
       </section>
 
-      {/* Mobile Install Banner */}
-      {showBanner &&
-      <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
-          <div className="bg-card border-t border-border/60 shadow-2xl px-4 py-3">
+      {/* ══════════════════ FOOTER ══════════════════ */}
+      <footer className="py-16 pb-24 md:pb-16" style={{ background: "#3D2B1F", color: "#E8DCC4" }}>
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="grid md:grid-cols-4 gap-12 mb-12">
+            {/* Brand */}
+            <div className="col-span-2">
+              <div className="flex items-center gap-3 mb-6">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xl"
+                  style={{ background: "linear-gradient(135deg, #9CAF88, #8B6F4E)" }}
+                >
+                  B
+                </div>
+                <span className="text-2xl font-bold" style={{ fontFamily: "'Bricolage Grotesque', serif" }}>
+                  BatchHub
+                </span>
+              </div>
+              <p className="max-w-sm mb-6" style={{ color: "#D4C4B0" }}>
+                The complete coaching institute management platform built for Indian educators. Replace chaos with
+                clarity.
+              </p>
+              <div className="flex gap-4">
+                {[
+                  { href: "#", label: "Twitter" },
+                  { href: "#", label: "Instagram" },
+                  { href: "#", label: "LinkedIn" },
+                ].map((s) => (
+                  <a
+                    key={s.label}
+                    href={s.href}
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-colors duration-200"
+                    style={{ background: "rgba(139,111,78,0.2)", color: "#D4C4B0" }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.background = "#9CAF88";
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLAnchorElement).style.background = "rgba(139,111,78,0.2)";
+                    }}
+                  >
+                    {s.label[0]}
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Product links */}
+            <div>
+              <h4 className="text-white font-semibold mb-4">Product</h4>
+              <ul className="space-y-3 text-sm">
+                <li>
+                  <a
+                    href="#features"
+                    className="transition-colors"
+                    style={{ color: "#D4C4B0" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
+                  >
+                    Features
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="#pricing"
+                    className="transition-colors"
+                    style={{ color: "#D4C4B0" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
+                  >
+                    Pricing
+                  </a>
+                </li>
+                <li>
+                  <Link
+                    to="/demo/admin"
+                    className="transition-colors"
+                    style={{ color: "#D4C4B0" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
+                  >
+                    Demo
+                  </Link>
+                </li>
+                <li>
+                  <a
+                    href="#faq"
+                    className="transition-colors"
+                    style={{ color: "#D4C4B0" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
+                  >
+                    FAQ
+                  </a>
+                </li>
+              </ul>
+            </div>
+
+            {/* Company links */}
+            <div>
+              <h4 className="text-white font-semibold mb-4">Company</h4>
+              <ul className="space-y-3 text-sm">
+                <li>
+                  <a
+                    href="mailto:hello@batchhub.in"
+                    className="transition-colors"
+                    style={{ color: "#D4C4B0" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
+                  >
+                    Contact
+                  </a>
+                </li>
+                <li>
+                  <Link
+                    to="/apply/city-partner"
+                    className="transition-colors"
+                    style={{ color: "#D4C4B0" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
+                  >
+                    Become a City Partner
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/auth/superadmin"
+                    className="transition-colors"
+                    style={{ color: "#D4C4B0" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
+                  >
+                    City Partner Login
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div
+            className="flex flex-col md:flex-row justify-between items-center gap-4 pt-8"
+            style={{ borderTop: "1px solid rgba(139,111,78,0.2)" }}
+          >
+            <p className="text-sm" style={{ color: "#8B6F4E" }}>
+              © 2025 BatchHub. All rights reserved. Built for India's coaching ecosystem.
+            </p>
+            <div className="flex gap-6 text-sm">
+              <a
+                href="#"
+                className="transition-colors"
+                style={{ color: "#8B6F4E" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#8B6F4E")}
+              >
+                Privacy Policy
+              </a>
+              <a
+                href="#"
+                className="transition-colors"
+                style={{ color: "#8B6F4E" }}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                onMouseLeave={(e) => (e.currentTarget.style.color = "#8B6F4E")}
+              >
+                Terms of Service
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* ══════════════════ MOBILE INSTALL BANNER ══════════════════ */}
+      {showBanner && (
+        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+          <div
+            className="border-t shadow-2xl px-4 py-3"
+            style={{
+              background: "rgba(253,252,250,0.95)",
+              backdropFilter: "blur(20px)",
+              borderColor: "rgba(139,111,78,0.2)",
+            }}
+          >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl gradient-hero flex items-center justify-center flex-shrink-0">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "linear-gradient(135deg, #9CAF88, #8B6F4E)" }}
+              >
                 <Zap className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground">Install BatchHub App</p>
-                <p className="text-xs text-muted-foreground">Add to home screen for the best experience</p>
+                <p className="text-sm font-semibold" style={{ color: "#3D2B1F" }}>
+                  Install BatchHub
+                </p>
+                <p className="text-xs" style={{ color: "#8B6F4E" }}>
+                  Add to home screen — no Play Store needed
+                </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {installPrompt ?
-              <Button
-                size="sm"
-                className="h-8 text-xs gradient-hero text-white border-0 hover:opacity-90 gap-1.5"
-                onClick={handleNativeInstall}>
-                    <Download className="w-3.5 h-3.5" />
-                    Install
-                  </Button> :
-              <Link to="/install">
-                    <Button size="sm" className="h-8 text-xs gradient-hero text-white border-0 hover:opacity-90 gap-1.5">
-                      <Download className="w-3.5 h-3.5" />
-                      How to Install
-                    </Button>
+                {installPrompt ? (
+                  <button
+                    onClick={handleNativeInstall}
+                    className="h-8 px-3 text-xs text-white rounded-lg flex items-center gap-1.5"
+                    style={{ background: "#9CAF88" }}
+                  >
+                    <Download className="w-3.5 h-3.5" /> Install
+                  </button>
+                ) : (
+                  <Link to="/install">
+                    <button
+                      className="h-8 px-3 text-xs text-white rounded-lg flex items-center gap-1.5"
+                      style={{ background: "#9CAF88" }}
+                    >
+                      <Download className="w-3.5 h-3.5" /> How to Install
+                    </button>
                   </Link>
-              }
+                )}
                 <button
-                onClick={() => setShowBanner(false)}
-                className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                  onClick={() => setShowBanner(false)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-all"
+                  style={{ background: "rgba(139,111,78,0.15)", color: "#8B6F4E" }}
+                >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
           </div>
         </div>
-      }
+      )}
 
-      {/* Footer */}
-      <footer className="border-t border-border/50 py-10 bg-card pb-20 md:pb-10">
-        <div className="container mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg gradient-hero flex items-center justify-center">
-              <Zap className="w-3.5 h-3.5 text-white" />
-            </div>
-            <span className="font-display font-bold text-gradient">BatchHub</span>
-          </div>
-          <p className="text-sm text-muted-foreground">© 2025 BatchHub. Built for India's coaching ecosystem.</p>
-          <div className="flex flex-wrap gap-6 text-sm text-muted-foreground justify-center">
-            <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
-            <a href="#" className="hover:text-foreground transition-colors">Terms</a>
-            <a href="#" className="hover:text-foreground transition-colors">Contact</a>
-            <Link to="/auth/superadmin" className="hover:text-foreground transition-colors">
-              City Partner Login
-            </Link>
-            <Link to="/apply/city-partner" className="hover:text-foreground transition-colors">
-              Become a City Partner
-            </Link>
-          </div>
-        </div>
-      </footer>
-    </div>);
+      {/* Keyframe animations injected via style tag */}
+      <style>{`
+        @keyframes floatEl {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+        @keyframes pageFly {
+          0% { transform: rotateY(0deg); }
+          100% { transform: rotateY(-180deg); }
+        }
+        @keyframes bounce {
+          0%, 20%, 50%, 80%, 100% { transform: translateX(-50%) translateY(0); }
+          40% { transform: translateX(-50%) translateY(-10px); }
+          60% { transform: translateX(-50%) translateY(-5px); }
+        }
+      `}</style>
+    </div>
+  );
 }
