@@ -956,7 +956,7 @@ export default function AdminFees() {
         title: "Marked as Paid ✓",
         description: `Cycle ${newPaidCyclesCount} paid. Next due: ${nextDue ? new Date(nextDue).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" }) : "—"}`,
       });
-      fetchData();
+      fetchData(0, true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to update";
       toast({ title: "Error", description: msg, variant: "destructive" });
