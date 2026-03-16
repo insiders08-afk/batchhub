@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 // Critical landing page — loaded eagerly
 import Index from "./pages/Index";
@@ -55,66 +56,74 @@ const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="w-7 h-7 border-3 border-primary border-t-transparent rounded-full animate-spin" /></div>}>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/role-select" element={<RoleSelection />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            {/* Demo routes — pure fake data, no DB */}
-            <Route path="/demo/admin" element={<AdminDemo />} />
-            {/* Admin */}
-            <Route path="/admin" element={<AdminDashboard />} />
-            <Route path="/admin/batches" element={<AdminBatches />} />
-            <Route path="/admin/students" element={<AdminStudents />} />
-            <Route path="/admin/attendance" element={<AdminAttendance />} />
-            <Route path="/admin/fees" element={<AdminFees />} />
-            <Route path="/admin/announcements" element={<AdminAnnouncements />} />
-            <Route path="/admin/tests" element={<AdminTests />} />
-            <Route path="/admin/settings" element={<AdminSettings />} />
-            <Route path="/admin/approvals" element={<AdminApprovals />} />
-            <Route path="/admin/team" element={<AdminTeam />} />
-            <Route path="/admin/batch-applications" element={<AdminBatchApplications />} />
-            <Route path="/auth/admin" element={<AdminAuth />} />
-            <Route path="/auth/superadmin" element={<SuperAdminAuth />} />
-            <Route path="/superadmin" element={<SuperAdminDashboard />} />
-            <Route path="/auth/teacher" element={<TeacherAuth />} />
-            <Route path="/auth/student" element={<StudentAuth />} />
-            <Route path="/auth/parent" element={<ParentAuth />} />
-            <Route path="/auth/owner" element={<OwnerAuth />} />
-            <Route path="/owner" element={<OwnerDashboard />} />
-            <Route path="/apply/city-partner" element={<CityPartnerApply />} />
-            <Route path="/install" element={<Install />} />
-            <Route path="/batch/:id" element={<BatchWorkspace />} />
-            {/* Teacher */}
-            <Route path="/teacher" element={<TeacherDashboard />} />
-            <Route path="/teacher/settings" element={<TeacherSettings />} />
-            <Route path="/teacher/attendance" element={<TeacherAttendance />} />
-            <Route path="/teacher/announcements" element={<TeacherAnnouncements />} />
-            <Route path="/teacher/tests" element={<TeacherTests />} />
-            <Route path="/teacher/homework" element={<TeacherHomework />} />
-            {/* Student */}
-            <Route path="/student" element={<StudentDashboard />} />
-            <Route path="/student/settings" element={<StudentSettings />} />
-            <Route path="/student/attendance" element={<StudentAttendance />} />
-            <Route path="/student/tests" element={<StudentTests />} />
-            <Route path="/student/homework" element={<StudentHomework />} />
-            <Route path="/student/announcements" element={<StudentAnnouncements />} />
-            <Route path="/student/apply-batch" element={<StudentBatchApply />} />
-            <Route path="/student/fees" element={<StudentFees />} />
-            {/* Parent */}
-            <Route path="/parent" element={<ParentDashboard />} />
-            <Route path="/parent/fees" element={<ParentFees />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Suspense
+            fallback={
+              <div className="flex items-center justify-center min-h-screen">
+                <div className="w-7 h-7 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            }
+          >
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/role-select" element={<RoleSelection />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              {/* Demo routes — pure fake data, no DB */}
+              <Route path="/demo/admin" element={<AdminDemo />} />
+              {/* Admin */}
+              <Route path="/admin" element={<AdminDashboard />} />
+              <Route path="/admin/batches" element={<AdminBatches />} />
+              <Route path="/admin/students" element={<AdminStudents />} />
+              <Route path="/admin/attendance" element={<AdminAttendance />} />
+              <Route path="/admin/fees" element={<AdminFees />} />
+              <Route path="/admin/announcements" element={<AdminAnnouncements />} />
+              <Route path="/admin/tests" element={<AdminTests />} />
+              <Route path="/admin/settings" element={<AdminSettings />} />
+              <Route path="/admin/approvals" element={<AdminApprovals />} />
+              <Route path="/admin/team" element={<AdminTeam />} />
+              <Route path="/admin/batch-applications" element={<AdminBatchApplications />} />
+              <Route path="/auth/admin" element={<AdminAuth />} />
+              <Route path="/auth/superadmin" element={<SuperAdminAuth />} />
+              <Route path="/superadmin" element={<SuperAdminDashboard />} />
+              <Route path="/auth/teacher" element={<TeacherAuth />} />
+              <Route path="/auth/student" element={<StudentAuth />} />
+              <Route path="/auth/parent" element={<ParentAuth />} />
+              <Route path="/auth/owner" element={<OwnerAuth />} />
+              <Route path="/owner" element={<OwnerDashboard />} />
+              <Route path="/apply/city-partner" element={<CityPartnerApply />} />
+              <Route path="/install" element={<Install />} />
+              <Route path="/batch/:id" element={<BatchWorkspace />} />
+              {/* Teacher */}
+              <Route path="/teacher" element={<TeacherDashboard />} />
+              <Route path="/teacher/settings" element={<TeacherSettings />} />
+              <Route path="/teacher/attendance" element={<TeacherAttendance />} />
+              <Route path="/teacher/announcements" element={<TeacherAnnouncements />} />
+              <Route path="/teacher/tests" element={<TeacherTests />} />
+              <Route path="/teacher/homework" element={<TeacherHomework />} />
+              {/* Student */}
+              <Route path="/student" element={<StudentDashboard />} />
+              <Route path="/student/settings" element={<StudentSettings />} />
+              <Route path="/student/attendance" element={<StudentAttendance />} />
+              <Route path="/student/tests" element={<StudentTests />} />
+              <Route path="/student/homework" element={<StudentHomework />} />
+              <Route path="/student/announcements" element={<StudentAnnouncements />} />
+              <Route path="/student/apply-batch" element={<StudentBatchApply />} />
+              <Route path="/student/fees" element={<StudentFees />} />
+              {/* Parent */}
+              <Route path="/parent" element={<ParentDashboard />} />
+              <Route path="/parent/fees" element={<ParentFees />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
