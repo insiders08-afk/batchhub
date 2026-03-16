@@ -6,27 +6,62 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  CheckCircle2, XCircle, Clock, BookOpen, GraduationCap,
-  UserCircle, Search, Loader2, RotateCcw, Link2, ShieldOff
+  CheckCircle2,
+  XCircle,
+  Clock,
+  BookOpen,
+  GraduationCap,
+  UserCircle,
+  Search,
+  Loader2,
+  RotateCcw,
+  Link2,
+  ShieldOff,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Tables } from "@/integrations/supabase/types";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type PendingRequest = Tables<"pending_requests">;
 
 const roleConfig = {
-  teacher: { icon: BookOpen, gradient: "from-success to-emerald-400", label: "Teacher", bg: "bg-success-light", text: "text-success" },
-  student: { icon: GraduationCap, gradient: "from-accent to-orange-400", label: "Student", bg: "bg-accent-light", text: "text-accent" },
-  parent: { icon: UserCircle, gradient: "from-violet-500 to-purple-600", label: "Parent", bg: "bg-violet-100", text: "text-violet-600" },
-  admin: { icon: CheckCircle2, gradient: "from-primary to-primary", label: "Admin", bg: "bg-primary-light", text: "text-primary" },
-  super_admin: { icon: CheckCircle2, gradient: "from-primary to-primary", label: "Super Admin", bg: "bg-primary-light", text: "text-primary" },
+  teacher: {
+    icon: BookOpen,
+    gradient: "from-success to-emerald-400",
+    label: "Teacher",
+    bg: "bg-success-light",
+    text: "text-success",
+  },
+  student: {
+    icon: GraduationCap,
+    gradient: "from-accent to-orange-400",
+    label: "Student",
+    bg: "bg-accent-light",
+    text: "text-accent",
+  },
+  parent: {
+    icon: UserCircle,
+    gradient: "from-violet-500 to-purple-600",
+    label: "Parent",
+    bg: "bg-violet-100",
+    text: "text-violet-600",
+  },
+  admin: {
+    icon: CheckCircle2,
+    gradient: "from-primary to-primary",
+    label: "Admin",
+    bg: "bg-primary-light",
+    text: "text-primary",
+  },
+  super_admin: {
+    icon: CheckCircle2,
+    gradient: "from-primary to-primary",
+    label: "Super Admin",
+    bg: "bg-primary-light",
+    text: "text-primary",
+  },
 };
 
 function timeAgo(iso: string) {
@@ -47,7 +82,10 @@ export default function AdminApprovals() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   // Parent-child link dialog state
-  const [linkDialog, setLinkDialog] = useState<{ open: boolean; req: PendingRequest | null }>({ open: false, req: null });
+  const [linkDialog, setLinkDialog] = useState<{ open: boolean; req: PendingRequest | null }>({
+    open: false,
+    req: null,
+  });
   const [studentProfiles, setStudentProfiles] = useState<{ user_id: string; full_name: string; email: string }[]>([]);
   const [selectedChildId, setSelectedChildId] = useState<string>("");
 
@@ -55,10 +93,7 @@ export default function AdminApprovals() {
     try {
       // BUG-01 fix: explicitly filter by institute_code (RLS also enforces this, but code should be correct)
       const { data: myInstituteCode } = await supabase.rpc("get_my_institute_code");
-      const query = supabase
-        .from("pending_requests")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const query = supabase.from("pending_requests").select("*").order("created_at", { ascending: false });
       if (myInstituteCode) query.eq("institute_code", myInstituteCode);
       const { data, error } = await query;
       if (error) throw error;
@@ -94,13 +129,9 @@ export default function AdminApprovals() {
         .select("user_id, role")
         .eq("institute_code", myInstCode);
 
-      const existingSet = new Set(
-        (existingRoles || []).map((r) => `${r.user_id}::${r.role}`)
-      );
+      const existingSet = new Set((existingRoles || []).map((r) => `${r.user_id}::${r.role}`));
 
-      const missing = approved.filter(
-        (p) => !existingSet.has(`${p.user_id}::${p.role}`)
-      );
+      const missing = approved.filter((p) => !existingSet.has(`${p.user_id}::${p.role}`));
 
       if (missing.length === 0) return;
 
@@ -110,7 +141,7 @@ export default function AdminApprovals() {
           user_id: p.user_id,
           role: p.role,
           institute_code: p.institute_code,
-        }))
+        })),
       );
 
       console.log(`Auto-repaired ${missing.length} missing user_roles entries`);
@@ -127,13 +158,17 @@ export default function AdminApprovals() {
 
     const channel = supabase
       .channel("admin-approvals-realtime")
-      .on("postgres_changes", {
-        event: "*",
-        schema: "public",
-        table: "pending_requests",
-      }, () => {
-        fetchRequests();
-      })
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pending_requests",
+        },
+        () => {
+          fetchRequests();
+        },
+      )
       .subscribe();
 
     return () => {
@@ -162,16 +197,32 @@ export default function AdminApprovals() {
 
   // INC-05: Revoke an approved teacher/student/parent role
   const handleRevoke = async (req: PendingRequest) => {
-    if (!confirm(`Revoke ${req.role} access for ${req.full_name}? They will no longer be able to log in as ${req.role}.`)) return;
+    if (
+      !confirm(`Revoke ${req.role} access for ${req.full_name}? They will no longer be able to log in as ${req.role}.`)
+    )
+      return;
     setActionLoading(req.id);
     try {
-      await supabase.from("user_roles").delete().eq("user_id", req.user_id).eq("role", req.role).eq("institute_code", req.institute_code);
-      await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", req.user_id).eq("institute_code", req.institute_code);
+      await supabase
+        .from("user_roles")
+        .delete()
+        .eq("user_id", req.user_id)
+        .eq("role", req.role)
+        .eq("institute_code", req.institute_code);
+      await supabase
+        .from("profiles")
+        .update({ status: "rejected" })
+        .eq("user_id", req.user_id)
+        .eq("institute_code", req.institute_code);
       await supabase.from("pending_requests").update({ status: "rejected" }).eq("id", req.id);
       toast({ title: "Access revoked", description: `${req.full_name}'s ${req.role} access has been removed.` });
-      setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: "rejected" } : r));
+      setRequests((prev) => prev.map((r) => (r.id === req.id ? { ...r, status: "rejected" } : r)));
     } catch (err: unknown) {
-      toast({ title: "Error", description: err instanceof Error ? err.message : "Revoke failed", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Revoke failed",
+        variant: "destructive",
+      });
     } finally {
       setActionLoading(null);
     }
@@ -180,7 +231,9 @@ export default function AdminApprovals() {
   const executeApproval = async (req: PendingRequest, action: "approved" | "rejected", childId: string | null) => {
     setActionLoading(req.id);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
       // 1. Update pending_request status
       const { error: reqError } = await supabase
@@ -199,17 +252,46 @@ export default function AdminApprovals() {
         if (profError) throw profError;
 
         // 3. INSERT into user_roles — ignore if already exists (duplicate = fine)
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({
-            user_id: req.user_id,
-            role: req.role,
-            institute_code: req.institute_code,
-          });
+        const { error: roleError } = await supabase.from("user_roles").insert({
+          user_id: req.user_id,
+          role: req.role,
+          institute_code: req.institute_code,
+        });
 
         // Only ignore duplicate key errors — all other errors must be surfaced
+        // BUG-06 fix: If role insert fails (non-duplicate), rollback profile to pending
         if (roleError && !roleError.code?.includes("23505") && !roleError.message?.includes("duplicate")) {
-          throw new Error(`Failed to assign role: ${roleError.message}`);
+          // Rollback: revert profile status back to pending
+          await supabase
+            .from("profiles")
+            .update({ status: "pending" })
+            .eq("user_id", req.user_id)
+            .eq("institute_code", req.institute_code);
+          // Rollback: revert pending_request status back to pending
+          await supabase.from("pending_requests").update({ status: "pending", reviewed_by: null }).eq("id", req.id);
+          throw new Error(`Failed to assign role (rolled back profile status): ${roleError.message}`);
+        }
+
+        // BUG-06 fix: Verify the role actually exists now (guard against silent failure)
+        const { data: roleCheck } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("user_id", req.user_id)
+          .eq("role", req.role)
+          .eq("institute_code", req.institute_code)
+          .maybeSingle();
+
+        if (!roleCheck) {
+          // Role didn't persist — rollback everything
+          await supabase
+            .from("profiles")
+            .update({ status: "pending" })
+            .eq("user_id", req.user_id)
+            .eq("institute_code", req.institute_code);
+          await supabase.from("pending_requests").update({ status: "pending", reviewed_by: null }).eq("id", req.id);
+          throw new Error(
+            "Role assignment could not be verified. The approval has been rolled back. Please try again.",
+          );
         }
 
         // 4. For parent: store child_id in pending_request extra_data
@@ -224,17 +306,23 @@ export default function AdminApprovals() {
         toast({ title: "Approved!", description: `${req.full_name} has been granted ${req.role} access.` });
       } else {
         // Fix #13: scope profile update + role delete to this institute
-        await supabase.from("profiles").update({ status: "rejected" }).eq("user_id", req.user_id).eq("institute_code", req.institute_code);
+        await supabase
+          .from("profiles")
+          .update({ status: "rejected" })
+          .eq("user_id", req.user_id)
+          .eq("institute_code", req.institute_code);
         // Remove from user_roles if previously approved
-        await supabase.from("user_roles").delete()
-          .eq("user_id", req.user_id).eq("role", req.role).eq("institute_code", req.institute_code);
+        await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", req.user_id)
+          .eq("role", req.role)
+          .eq("institute_code", req.institute_code);
         toast({ title: "Rejected", description: `${req.full_name}'s request has been rejected.` });
       }
 
       // Always update local state immediately (don't wait for realtime)
-      setRequests((prev) =>
-        prev.map((r) => r.id === req.id ? { ...r, status: action } : r)
-      );
+      setRequests((prev) => prev.map((r) => (r.id === req.id ? { ...r, status: action } : r)));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Action failed";
       toast({ title: "Error", description: message, variant: "destructive" });
@@ -267,7 +355,9 @@ export default function AdminApprovals() {
     <DashboardLayout title="Approval Requests">
       <div className="space-y-5">
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
-          <p className="text-muted-foreground text-sm">Review and approve teacher, student, and parent access requests.</p>
+          <p className="text-muted-foreground text-sm">
+            Review and approve teacher, student, and parent access requests.
+          </p>
           {pendingCount > 0 && (
             <Badge className="bg-danger-light text-danger border-danger/20 text-sm px-3 py-1">
               {pendingCount} pending approval{pendingCount > 1 ? "s" : ""}
@@ -297,9 +387,7 @@ export default function AdminApprovals() {
               >
                 {f.charAt(0).toUpperCase() + f.slice(1)}
                 {f !== "all" && (
-                  <span className="ml-1.5 text-xs opacity-70">
-                    ({requests.filter((r) => r.status === f).length})
-                  </span>
+                  <span className="ml-1.5 text-xs opacity-70">({requests.filter((r) => r.status === f).length})</span>
                 )}
               </Button>
             ))}
@@ -308,13 +396,15 @@ export default function AdminApprovals() {
 
         {/* Role summary cards */}
         <div className="grid grid-cols-3 gap-3">
-          {([
+          {[
             { role: "teacher", count: teacherPending, cfg: roleConfig.teacher },
             { role: "student", count: studentPending, cfg: roleConfig.student },
             { role: "parent", count: parentPending, cfg: roleConfig.parent },
-          ]).map(({ role, count, cfg }) => (
+          ].map(({ role, count, cfg }) => (
             <Card key={role} className="p-4 shadow-card border-border/50 flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center flex-shrink-0`}>
+              <div
+                className={`w-9 h-9 rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center flex-shrink-0`}
+              >
                 <cfg.icon className="w-4 h-4 text-white" />
               </div>
               <div>
@@ -355,7 +445,9 @@ export default function AdminApprovals() {
                 >
                   <Card className="p-4 shadow-card border-border/50 hover:border-primary/20 transition-colors">
                     <div className="flex items-start gap-4">
-                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center flex-shrink-0`}>
+                      <div
+                        className={`w-10 h-10 rounded-xl bg-gradient-to-br ${cfg.gradient} flex items-center justify-center flex-shrink-0`}
+                      >
                         <cfg.icon className="w-5 h-5 text-white" />
                       </div>
 
@@ -387,14 +479,42 @@ export default function AdminApprovals() {
                         </div>
 
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span>Institute: <strong className="text-foreground">{req.institute_code}</strong></span>
-                          <span>Email: <strong className="text-foreground">{req.email}</strong></span>
-                          {extra.teacherId && <span>Teacher ID: <strong className="text-foreground">{extra.teacherId}</strong></span>}
-                          {extra.studentId && <span>Student ID: <strong className="text-foreground">{extra.studentId}</strong></span>}
-                          {extra.subject && <span>Subject: <strong className="text-foreground">{extra.subject}</strong></span>}
-                          {extra.batchName && <span>Batch: <strong className="text-foreground">{extra.batchName}</strong></span>}
-                          {extra.relation && <span>Relation: <strong className="text-foreground">{extra.relation}</strong></span>}
-                          {extra.phone && <span>Phone: <strong className="text-foreground">{extra.phone}</strong></span>}
+                          <span>
+                            Institute: <strong className="text-foreground">{req.institute_code}</strong>
+                          </span>
+                          <span>
+                            Email: <strong className="text-foreground">{req.email}</strong>
+                          </span>
+                          {extra.teacherId && (
+                            <span>
+                              Teacher ID: <strong className="text-foreground">{extra.teacherId}</strong>
+                            </span>
+                          )}
+                          {extra.studentId && (
+                            <span>
+                              Student ID: <strong className="text-foreground">{extra.studentId}</strong>
+                            </span>
+                          )}
+                          {extra.subject && (
+                            <span>
+                              Subject: <strong className="text-foreground">{extra.subject}</strong>
+                            </span>
+                          )}
+                          {extra.batchName && (
+                            <span>
+                              Batch: <strong className="text-foreground">{extra.batchName}</strong>
+                            </span>
+                          )}
+                          {extra.relation && (
+                            <span>
+                              Relation: <strong className="text-foreground">{extra.relation}</strong>
+                            </span>
+                          )}
+                          {extra.phone && (
+                            <span>
+                              Phone: <strong className="text-foreground">{extra.phone}</strong>
+                            </span>
+                          )}
                           <span className="text-muted-foreground/60">{timeAgo(req.created_at)}</span>
                         </div>
                       </div>
@@ -439,7 +559,11 @@ export default function AdminApprovals() {
                           className="text-danger border-danger/30 hover:bg-danger-light h-8 text-xs gap-1 flex-shrink-0"
                           onClick={() => handleRevoke(req)}
                         >
-                          {actionLoading === req.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldOff className="w-3.5 h-3.5" />}
+                          {actionLoading === req.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <ShieldOff className="w-3.5 h-3.5" />
+                          )}
                           Revoke
                         </Button>
                       )}
@@ -461,12 +585,18 @@ export default function AdminApprovals() {
               Link Parent to Child
             </DialogTitle>
             <DialogDescription>
-              Select which student <strong>{linkDialog.req?.full_name}</strong> is the parent of. This enables the parent to view their child's attendance, fees, and announcements.
+              Select which student <strong>{linkDialog.req?.full_name}</strong> is the parent of. This enables the
+              parent to view their child's attendance, fees, and announcements.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="space-y-1.5">
-              <p className="text-sm font-medium">Child's Student ID from request: <span className="font-mono text-primary">{(linkDialog.req?.extra_data as Record<string, string>)?.studentId || "Not provided"}</span></p>
+              <p className="text-sm font-medium">
+                Child's Student ID from request:{" "}
+                <span className="font-mono text-primary">
+                  {(linkDialog.req?.extra_data as Record<string, string>)?.studentId || "Not provided"}
+                </span>
+              </p>
             </div>
             <div className="space-y-1.5">
               <p className="text-sm font-medium">Select child from approved students:</p>
@@ -476,7 +606,9 @@ export default function AdminApprovals() {
                 </SelectTrigger>
                 <SelectContent>
                   {studentProfiles.length === 0 ? (
-                    <SelectItem value="none" disabled>No approved students found</SelectItem>
+                    <SelectItem value="none" disabled>
+                      No approved students found
+                    </SelectItem>
                   ) : (
                     studentProfiles.map((s) => (
                       <SelectItem key={s.user_id} value={s.user_id}>
