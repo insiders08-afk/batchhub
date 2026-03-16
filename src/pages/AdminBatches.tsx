@@ -1160,7 +1160,7 @@ export default function AdminBatches() {
                     <EnrollStudentsDialog
                       batch={batch}
                       instituteCode={instituteCode}
-                      onDone={() => fetchBatches(instituteCode)}
+                      onDone={() => fetchBatches(instituteCodeRef, 0, true)}
                     />
                     <div className="flex gap-2">
                       <DayOffDialog
