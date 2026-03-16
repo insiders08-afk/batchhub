@@ -6,8 +6,21 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  Crown, LogOut, Users, Building2, MapPin, CheckCircle, XCircle, Clock,
-  Globe, Loader2, Phone, Mail, Briefcase, ArrowLeft, X
+  Crown,
+  LogOut,
+  Users,
+  Building2,
+  MapPin,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Globe,
+  Loader2,
+  Phone,
+  Mail,
+  Briefcase,
+  ArrowLeft,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -39,13 +52,21 @@ export default function OwnerDashboard() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [applications, setApplications] = useState<Application[]>([]);
-  const [stats, setStats] = useState<Stats>({ totalInstitutes: 0, pendingInstitutes: 0, approvedInstitutes: 0, totalSuperAdmins: 0, totalCities: 0 });
+  const [stats, setStats] = useState<Stats>({
+    totalInstitutes: 0,
+    pendingInstitutes: 0,
+    approvedInstitutes: 0,
+    totalSuperAdmins: 0,
+    totalCities: 0,
+  });
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "pending" | "approved" | "rejected">("pending");
   const [ownerName, setOwnerName] = useState<string>("Krishna");
   const [drilldown, setDrilldown] = useState<{ title: string; items: DrilldownItem[] } | null>(null);
-  const [allInstitutes, setAllInstitutes] = useState<{ id: string; institute_name: string; owner_name: string; city: string | null; status: string }[]>([]);
+  const [allInstitutes, setAllInstitutes] = useState<
+    { id: string; institute_name: string; owner_name: string; city: string | null; status: string }[]
+  >([]);
   const [allSuperAdmins, setAllSuperAdmins] = useState<{ city: string | null }[]>([]);
 
   useEffect(() => {
@@ -53,8 +74,13 @@ export default function OwnerDashboard() {
   }, []);
 
   const checkOwnerAccess = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { navigate("/auth/owner"); return; }
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      navigate("/auth/owner");
+      return;
+    }
 
     const { data: role } = await supabase
       .from("user_roles")
@@ -63,14 +89,13 @@ export default function OwnerDashboard() {
       .eq("role", "app_owner")
       .maybeSingle();
 
-    if (!role) { navigate("/auth/owner"); return; }
+    if (!role) {
+      navigate("/auth/owner");
+      return;
+    }
 
     // Fetch owner name
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("full_name")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", user.id).maybeSingle();
     if (profile?.full_name) setOwnerName(profile.full_name);
 
     fetchAll();
@@ -87,17 +112,23 @@ export default function OwnerDashboard() {
 
       if (appsRes.data) setApplications(appsRes.data);
 
-      const institutes = (institutesRes.data || []) as { id: string; institute_name: string; owner_name: string; city: string | null; status: string }[];
+      const institutes = (institutesRes.data || []) as {
+        id: string;
+        institute_name: string;
+        owner_name: string;
+        city: string | null;
+        status: string;
+      }[];
       const superAdmins = rolesRes.data || [];
-      const cities = new Set(superAdmins.map(r => r.city).filter(Boolean));
+      const cities = new Set(superAdmins.map((r) => r.city).filter(Boolean));
 
       setAllInstitutes(institutes);
       setAllSuperAdmins(superAdmins);
 
       setStats({
         totalInstitutes: institutes.length,
-        pendingInstitutes: institutes.filter(i => i.status === "pending").length,
-        approvedInstitutes: institutes.filter(i => i.status === "approved").length,
+        pendingInstitutes: institutes.filter((i) => i.status === "pending").length,
+        approvedInstitutes: institutes.filter((i) => i.status === "approved").length,
         totalSuperAdmins: superAdmins.length,
         totalCities: cities.size,
       });
@@ -113,26 +144,33 @@ export default function OwnerDashboard() {
     switch (type) {
       case "totalInstitutes":
         title = "All Institutes";
-        items = allInstitutes.map(i => ({ label: i.institute_name, sublabel: `Owner: ${i.owner_name} · City: ${i.city || "—"} · ${i.status}` }));
+        items = allInstitutes.map((i) => ({
+          label: i.institute_name,
+          sublabel: `Owner: ${i.owner_name} · City: ${i.city || "—"} · ${i.status}`,
+        }));
         break;
       case "pendingInstitutes":
         title = "Pending Institutes";
-        items = allInstitutes.filter(i => i.status === "pending").map(i => ({ label: i.institute_name, sublabel: `Owner: ${i.owner_name} · City: ${i.city || "—"}` }));
+        items = allInstitutes
+          .filter((i) => i.status === "pending")
+          .map((i) => ({ label: i.institute_name, sublabel: `Owner: ${i.owner_name} · City: ${i.city || "—"}` }));
         break;
       case "approvedInstitutes":
         title = "Approved Institutes";
-        items = allInstitutes.filter(i => i.status === "approved").map(i => ({ label: i.institute_name, sublabel: `Owner: ${i.owner_name} · City: ${i.city || "—"}` }));
+        items = allInstitutes
+          .filter((i) => i.status === "approved")
+          .map((i) => ({ label: i.institute_name, sublabel: `Owner: ${i.owner_name} · City: ${i.city || "—"}` }));
         break;
       case "totalSuperAdmins":
         title = "City Super Admins";
-        items = allSuperAdmins.map(sa => ({ label: `City: ${sa.city || "—"}`, sublabel: "Super Admin" }));
+        items = allSuperAdmins.map((sa) => ({ label: `City: ${sa.city || "—"}`, sublabel: "Super Admin" }));
         break;
       case "totalCities": {
-        const cities = [...new Set(allSuperAdmins.map(sa => sa.city).filter(Boolean))] as string[];
+        const cities = [...new Set(allSuperAdmins.map((sa) => sa.city).filter(Boolean))] as string[];
         title = "Active Cities";
-        items = cities.map(city => ({
+        items = cities.map((city) => ({
           label: city,
-          sublabel: `${allInstitutes.filter(i => i.city === city).length} institute(s)`
+          sublabel: `${allInstitutes.filter((i) => i.city === city).length} institute(s)`,
         }));
         break;
       }
@@ -163,17 +201,40 @@ export default function OwnerDashboard() {
 
       const tempPassword = `BatchHub@${Math.random().toString(36).slice(2, 10)}`;
       await supabase.functions.invoke("fix-superadmin", {
-        body: { action: "create_super_admin", email: app.email, password: tempPassword, city: app.city, fullName: app.full_name }
+        body: {
+          action: "create_super_admin",
+          email: app.email,
+          password: tempPassword,
+          city: app.city,
+          fullName: app.full_name,
+        },
       });
 
+      // BUG-03 fix: Don't store plaintext password in DB notes
       const { error: updateError } = await supabase
         .from("super_admin_applications")
-        .update({ status: "approved", notes: `Approved. Temp password: ${tempPassword}` })
+        .update({
+          status: "approved",
+          notes: `Approved on ${new Date().toLocaleDateString("en-IN")}. Temp password shared securely.`,
+        })
         .eq("id", app.id);
 
       if (updateError) throw updateError;
 
-      toast({ title: "Application approved", description: `${app.full_name} is now a City Super Admin for ${app.city}. Temp password: ${tempPassword}` });
+      // BUG-03 fix: Copy password to clipboard instead of showing in toast
+      try {
+        await navigator.clipboard.writeText(tempPassword);
+        toast({
+          title: "Application approved ✓",
+          description: `${app.full_name} is now a City Super Admin for ${app.city}. Temporary password has been copied to your clipboard — share it securely with them.`,
+        });
+      } catch {
+        // Fallback if clipboard API fails (e.g. non-HTTPS)
+        toast({
+          title: "Application approved ✓",
+          description: `${app.full_name} is now a City Super Admin for ${app.city}. Temp password: ${tempPassword} — note it down now, it won't be shown again.`,
+        });
+      }
       fetchAll();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to approve";
@@ -186,10 +247,7 @@ export default function OwnerDashboard() {
   const rejectApplication = async (appId: string, name: string) => {
     setActionLoading(appId);
     try {
-      const { error } = await supabase
-        .from("super_admin_applications")
-        .update({ status: "rejected" })
-        .eq("id", appId);
+      const { error } = await supabase.from("super_admin_applications").update({ status: "rejected" }).eq("id", appId);
       if (error) throw error;
       toast({ title: "Application rejected", description: `${name}'s application has been rejected.` });
       fetchAll();
@@ -206,11 +264,12 @@ export default function OwnerDashboard() {
     navigate("/");
   };
 
-  const filteredApps = applications.filter(a => filter === "all" ? true : a.status === filter);
+  const filteredApps = applications.filter((a) => (filter === "all" ? true : a.status === filter));
 
   const statusBadge = (status: string) => {
     if (status === "approved") return <Badge className="bg-success/10 text-success border-success/20">Approved</Badge>;
-    if (status === "rejected") return <Badge className="bg-destructive/10 text-destructive border-destructive/20">Rejected</Badge>;
+    if (status === "rejected")
+      return <Badge className="bg-destructive/10 text-destructive border-destructive/20">Rejected</Badge>;
     return <Badge className="bg-accent/10 text-accent border-accent/20">Pending</Badge>;
   };
 
@@ -234,7 +293,12 @@ export default function OwnerDashboard() {
                 <ArrowLeft className="w-4 h-4" /> Home
               </Button>
             </Link>
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="gap-2 text-muted-foreground hover:text-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="gap-2 text-muted-foreground hover:text-foreground"
+            >
               <LogOut className="w-4 h-4" /> Logout
             </Button>
           </div>
@@ -249,13 +313,47 @@ export default function OwnerDashboard() {
         ) : (
           <>
             {/* Stats — clickable */}
-            <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8"
+            >
               {[
-                { label: "Total Institutes", value: stats.totalInstitutes, icon: Building2, color: "text-primary", key: "totalInstitutes" },
-                { label: "Pending Review", value: stats.pendingInstitutes, icon: Clock, color: "text-accent", key: "pendingInstitutes" },
-                { label: "Approved", value: stats.approvedInstitutes, icon: CheckCircle, color: "text-success", key: "approvedInstitutes" },
-                { label: "Super Admins", value: stats.totalSuperAdmins, icon: Users, color: "text-primary", key: "totalSuperAdmins" },
-                { label: "Cities Active", value: stats.totalCities, icon: Globe, color: "text-purple-500", key: "totalCities" },
+                {
+                  label: "Total Institutes",
+                  value: stats.totalInstitutes,
+                  icon: Building2,
+                  color: "text-primary",
+                  key: "totalInstitutes",
+                },
+                {
+                  label: "Pending Review",
+                  value: stats.pendingInstitutes,
+                  icon: Clock,
+                  color: "text-accent",
+                  key: "pendingInstitutes",
+                },
+                {
+                  label: "Approved",
+                  value: stats.approvedInstitutes,
+                  icon: CheckCircle,
+                  color: "text-success",
+                  key: "approvedInstitutes",
+                },
+                {
+                  label: "Super Admins",
+                  value: stats.totalSuperAdmins,
+                  icon: Users,
+                  color: "text-primary",
+                  key: "totalSuperAdmins",
+                },
+                {
+                  label: "Cities Active",
+                  value: stats.totalCities,
+                  icon: Globe,
+                  color: "text-purple-500",
+                  key: "totalCities",
+                },
               ].map((stat) => (
                 <Card
                   key={stat.label}
@@ -282,7 +380,9 @@ export default function OwnerDashboard() {
                 >
                   <Card className="border-primary/20 bg-primary/5">
                     <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                      <CardTitle className="text-base font-display">{drilldown.title} ({drilldown.items.length})</CardTitle>
+                      <CardTitle className="text-base font-display">
+                        {drilldown.title} ({drilldown.items.length})
+                      </CardTitle>
                       <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => setDrilldown(null)}>
                         <X className="w-4 h-4" />
                       </Button>
@@ -311,7 +411,7 @@ export default function OwnerDashboard() {
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-display font-bold">City Partner Applications</h2>
                 <div className="flex gap-2">
-                  {(["pending", "approved", "rejected", "all"] as const).map(f => (
+                  {(["pending", "approved", "rejected", "all"] as const).map((f) => (
                     <Button
                       key={f}
                       size="sm"
@@ -350,13 +450,27 @@ export default function OwnerDashboard() {
                               {statusBadge(app.status)}
                             </div>
                             <div className="space-y-0.5 text-sm text-muted-foreground">
-                              <p className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" />{app.email}</p>
-                              <p className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5" />{app.phone}</p>
-                              <p className="flex items-center gap-1.5"><Briefcase className="w-3.5 h-3.5" />{app.position}</p>
-                              <p className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{app.city}</p>
+                              <p className="flex items-center gap-1.5">
+                                <Mail className="w-3.5 h-3.5" />
+                                {app.email}
+                              </p>
+                              <p className="flex items-center gap-1.5">
+                                <Phone className="w-3.5 h-3.5" />
+                                {app.phone}
+                              </p>
+                              <p className="flex items-center gap-1.5">
+                                <Briefcase className="w-3.5 h-3.5" />
+                                {app.position}
+                              </p>
+                              <p className="flex items-center gap-1.5">
+                                <MapPin className="w-3.5 h-3.5" />
+                                {app.city}
+                              </p>
                             </div>
                             {app.notes && (
-                              <p className="text-xs text-muted-foreground mt-2 bg-muted rounded p-2 font-mono break-all">{app.notes}</p>
+                              <p className="text-xs text-muted-foreground mt-2 bg-muted rounded p-2 font-mono break-all">
+                                {app.notes}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -368,7 +482,11 @@ export default function OwnerDashboard() {
                               disabled={actionLoading === app.id}
                               onClick={() => approveApplication(app)}
                             >
-                              {actionLoading === app.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5" />}
+                              {actionLoading === app.id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle className="w-3.5 h-3.5" />
+                              )}
                               Approve
                             </Button>
                             <Button
