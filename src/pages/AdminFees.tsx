@@ -881,7 +881,7 @@ export default function AdminFees() {
       });
       setShowAdd(false);
       resetAddFeeDialog();
-      fetchData();
+      fetchData(0, true);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add fee";
       toast({ title: "Error", description: msg, variant: "destructive" });
