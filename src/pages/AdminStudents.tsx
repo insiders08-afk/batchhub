@@ -149,7 +149,7 @@ export default function AdminStudents() {
           </div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Users className="w-4 h-4" />
-            <span>{students.length} total students</span>
+            <span>{students.length}{totalCount > students.length ? ` of ${totalCount}` : ""} students</span>
           </div>
         </div>
 
