@@ -1064,7 +1064,7 @@ export default function AdminBatches() {
           teachers={teachers}
           instituteCode={instituteCode}
           editBatch={editBatch}
-          onSaved={() => fetchBatches(instituteCode)}
+          onSaved={() => fetchBatches(instituteCodeRef, 0, true)}
         />
 
         {loading ? (
