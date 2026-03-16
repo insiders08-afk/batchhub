@@ -447,21 +447,6 @@ export default function Index() {
 
           {/* Chat bubbles */}
           <div
-            className="absolute rounded-2xl rounded-tr-sm px-4 py-2 shadow-lg"
-            style={{
-              top: "33%",
-              right: "22%",
-              background: "rgba(253,252,250,0.75)",
-              backdropFilter: "blur(20px)",
-              border: "1px solid rgba(139,111,78,0.1)",
-              animation: "floatEl 6s ease-in-out infinite",
-            }}
-          >
-            <p className="text-xs font-medium" style={{ color: "#3D2B1F" }}>
-              Batch A attendance updated ✓
-            </p>
-          </div>
-          <div
             className="absolute rounded-2xl rounded-tl-sm px-4 py-2 shadow-lg"
             style={{
               bottom: "35%",
