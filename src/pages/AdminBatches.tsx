@@ -933,6 +933,8 @@ function EnrollStudentsDialog({
   );
 }
 
+const BATCHES_PAGE_SIZE = 20;
+
 // ---- Main Page ----
 export default function AdminBatches() {
   const { toast } = useToast();
@@ -942,15 +944,32 @@ export default function AdminBatches() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [batchPage, setBatchPage] = useState(0);
+  const [batchTotal, setBatchTotal] = useState(0);
   const [instituteCode, setInstituteCode] = useState("");
+  const [instituteCodeRef, setInstituteCodeRef] = useState("");
 
-  const fetchBatches = async (code: string) => {
-    const { data } = await supabase
+  const fetchBatches = async (code: string, pageNum = 0, reset = true) => {
+    if (reset) setLoading(true); else setLoadingMore(true);
+
+    const from = pageNum * BATCHES_PAGE_SIZE;
+    const to = from + BATCHES_PAGE_SIZE - 1;
+
+    const { data, count } = await supabase
       .from("batches")
-      .select("id, name, course, teacher_name, teacher_id, pending_teacher_name, schedule, is_active, institute_code")
+      .select("id, name, course, teacher_name, teacher_id, pending_teacher_name, schedule, is_active, institute_code", { count: "exact" })
       .eq("institute_code", code)
-      .order("created_at", { ascending: false });
-    if (!data) return;
+      .order("created_at", { ascending: false })
+      .range(from, to);
+
+    if (!data) {
+      setLoading(false);
+      setLoadingMore(false);
+      return;
+    }
+
     // Aggregate student counts in one query instead of N+1
     const batchIds = data.map((b) => b.id);
     let countMap: Record<string, number> = {};
@@ -961,7 +980,19 @@ export default function AdminBatches() {
       });
     }
     const enriched = data.map((b) => ({ ...b, studentCount: countMap[b.id] || 0 }));
-    setBatches(enriched);
+
+    if (reset) {
+      setBatches(enriched);
+    } else {
+      setBatches((prev) => [...prev, ...enriched]);
+    }
+
+    const total = count ?? 0;
+    setBatchTotal(total);
+    setHasMore(from + BATCHES_PAGE_SIZE < total);
+    setBatchPage(pageNum);
+    setLoading(false);
+    setLoadingMore(false);
   };
 
   useEffect(() => {
@@ -972,6 +1003,7 @@ export default function AdminBatches() {
         return;
       }
       setInstituteCode(code);
+      setInstituteCodeRef(code);
       const { data: teacherData } = await supabase
         .from("profiles")
         .select("user_id, full_name")
@@ -979,8 +1011,7 @@ export default function AdminBatches() {
         .eq("role", "teacher")
         .in("status", ["approved", "active"]);
       setTeachers(teacherData || []);
-      await fetchBatches(code);
-      setLoading(false);
+      await fetchBatches(code, 0, true);
     };
     init();
   }, []);
