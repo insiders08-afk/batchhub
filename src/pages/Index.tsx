@@ -367,19 +367,30 @@ export default function Index() {
                 <button
                   className="text-sm font-medium px-4 py-2 transition-colors duration-200"
                   style={{ color: "#3D2B1F" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "#8B6F4E")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "#3D2B1F")}
                 >
-                  Sign In
+                  Log In
                 </button>
               </Link>
               <Link to="/role-select">
                 <button
-                  className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5"
+                  className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hidden sm:block"
                   style={{
                     background: "#9CAF88",
                     boxShadow: "0 4px 15px -3px rgba(156,175,136,0.5)",
                   }}
                 >
                   Start Free Trial
+                </button>
+              </Link>
+              {/* Mobile: just show login */}
+              <Link to="/role-select" className="sm:hidden">
+                <button
+                  className="px-4 py-2 rounded-full text-sm font-semibold text-white"
+                  style={{ background: "#9CAF88" }}
+                >
+                  Login
                 </button>
               </Link>
             </div>
@@ -1542,6 +1553,17 @@ export default function Index() {
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
                   >
                     City Partner Login
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    to="/owner"
+                    className="transition-colors"
+                    style={{ color: "#D4C4B0" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
+                  >
+                    Owner Login
                   </Link>
                 </li>
               </ul>
