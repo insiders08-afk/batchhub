@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Building2, Bell, Users, Loader2, Save, Lock, Mail, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -11,6 +12,15 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Institute = Tables<"institutes">;
 type Profile = Tables<"profiles">;
+
+const NOTIF_STORAGE_KEY = "batchhub_admin_notif_prefs";
+
+const defaultNotifPrefs = {
+  feeOverdue: true,
+  lowAttendance: true,
+  newStudents: false,
+  testScores: true,
+};
 
 function ReadOnlyField({ label, value, icon }: { label: string; value: string; icon?: React.ReactNode }) {
   return (
@@ -39,6 +49,23 @@ export default function AdminSettings() {
   const [adminFullName, setAdminFullName] = useState("");
   const [editAdminName, setEditAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
+
+  // Notification preferences (persisted to localStorage)
+  const [notifPrefs, setNotifPrefs] = useState(() => {
+    try {
+      const stored = localStorage.getItem(NOTIF_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : defaultNotifPrefs;
+    } catch {
+      return defaultNotifPrefs;
+    }
+  });
+
+  const updateNotif = (key: keyof typeof defaultNotifPrefs, value: boolean) => {
+    const updated = { ...notifPrefs, [key]: value };
+    setNotifPrefs(updated);
+    localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(updated));
+    toast({ title: value ? "🔔 Notification enabled" : "🔕 Notification disabled" });
+  };
 
   useEffect(() => {
     fetchData();
@@ -118,15 +145,6 @@ export default function AdminSettings() {
     }
   };
 
-  const handleContactSuperAdmin = () => {
-    const subject = encodeURIComponent("Request to update institute details");
-    const body = encodeURIComponent(
-      `Institute Code: ${institute?.institute_code || ""}\nInstitute Name: ${institute?.institute_name || ""}\n\nDetails I'd like to change:\n\n`
-    );
-    window.open(`mailto:support@batchhub.app?subject=${subject}&body=${body}`);
-    toast({ title: "Opening email client", description: "Write to us with the changes you need." });
-  };
-
   if (loading) {
     return (
       <DashboardLayout title="Settings">
@@ -136,6 +154,29 @@ export default function AdminSettings() {
       </DashboardLayout>
     );
   }
+
+  const notifItems = [
+    {
+      key: "feeOverdue" as const,
+      label: "Fee overdue alerts",
+      desc: "Admin notified when fees are overdue by 30+ days",
+    },
+    {
+      key: "lowAttendance" as const,
+      label: "Low attendance alerts",
+      desc: "Alert when student attendance drops below 75%",
+    },
+    {
+      key: "newStudents" as const,
+      label: "New student registrations",
+      desc: "Notify when a new student joins the institute",
+    },
+    {
+      key: "testScores" as const,
+      label: "Test score notifications",
+      desc: "Send score updates to students and parents",
+    },
+  ];
 
   return (
     <DashboardLayout title="Settings">
@@ -246,38 +287,35 @@ export default function AdminSettings() {
           </div>
         </Card>
 
-        {/* Notifications */}
-        <Card className="p-5 shadow-card border-border/50 opacity-60">
-          <div className="flex items-center gap-3 mb-4">
+        {/* Notification Preferences */}
+        <Card className="p-5 shadow-card border-border/50">
+          <div className="flex items-center gap-3 mb-5">
             <div className="w-9 h-9 rounded-xl bg-accent-light flex items-center justify-center">
               <Bell className="w-4 h-4 text-accent" />
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="font-display font-semibold">Notifications</h3>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">Coming Soon</span>
-              </div>
-              <p className="text-xs text-muted-foreground">Notification preferences will be available in a future update</p>
+            <div>
+              <h3 className="font-display font-semibold">Notification Preferences</h3>
+              <p className="text-xs text-muted-foreground">Choose which alerts you want to receive</p>
             </div>
           </div>
           <div className="space-y-3">
-            {[
-              { label: "Fee overdue alerts", desc: "Admin notified when fees are overdue by 30+ days", on: true },
-              { label: "Low attendance alerts", desc: "Alert when student attendance drops below 75%", on: true },
-              { label: "New student registrations", desc: "Notify when a new student joins the institute", on: false },
-              { label: "Test score notifications", desc: "Send score updates to students and parents", on: true },
-            ].map((n) => (
-              <div key={n.label} className="flex items-center justify-between gap-4 p-3 rounded-lg bg-muted/30 border border-border/30">
-                <div>
-                  <p className="text-sm font-medium">{n.label}</p>
-                  <p className="text-xs text-muted-foreground">{n.desc}</p>
+            {notifItems.map((item) => (
+              <div
+                key={item.key}
+                className="flex items-center justify-between gap-4 p-3 rounded-lg bg-muted/30 border border-border/30"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <p className="text-xs text-muted-foreground">{item.desc}</p>
                 </div>
-                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${n.on ? "bg-success-light text-success" : "bg-muted text-muted-foreground"}`}>
-                  {n.on ? "On" : "Off"}
-                </span>
+                <Switch
+                  checked={notifPrefs[item.key]}
+                  onCheckedChange={(v) => updateNotif(item.key, v)}
+                />
               </div>
             ))}
           </div>
+          <p className="text-xs text-muted-foreground mt-3">Preferences are saved locally on this device.</p>
         </Card>
 
         {/* Team Members */}

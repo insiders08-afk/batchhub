@@ -1555,6 +1555,17 @@ export default function Index() {
                     City Partner Login
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    to="/owner"
+                    className="transition-colors"
+                    style={{ color: "#D4C4B0" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
+                  >
+                    Owner Login
+                  </Link>
+                </li>
               </ul>
             </div>
           </div>
