@@ -160,7 +160,7 @@ const pricingPlans = [
   {
     name: "Starter",
     price: "Free",
-    sub: "First month on us",
+    sub: "First 15 days on us",
     desc: "Perfect for new or small institutes",
     features: ["Up to 3 batches", "Up to 60 students", "Attendance + Chat", "Basic fee tracking", "Email support"],
     cta: "Start Free",
