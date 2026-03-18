@@ -93,7 +93,7 @@ export default function TeacherAuth() {
       let userId: string;
 
       if (authError) {
-        // If user already exists, sign them in and re-submit the request
+        // If user already exists (e.g. admin registering as teacher), sign them in
         if (authError.message?.includes("already registered") || authError.status === 422) {
           const { data: loginData, error: loginErr } = await supabase.auth.signInWithPassword({
             email: form.email,
@@ -102,11 +102,33 @@ export default function TeacherAuth() {
           if (loginErr) throw new Error("Email already registered. Please use Sign In tab or check your password.");
           userId = loginData.user.id;
 
-          // BUG-10 fix: Update existing profile back to pending (role-scoped)
-          await supabase.from("profiles")
-            .update({ status: "pending", full_name: form.name, phone: form.phone, institute_code: instituteCode })
+          // Check if a teacher profile already exists for this user
+          const { data: existingTeacherProfile } = await supabase
+            .from("profiles")
+            .select("id")
             .eq("user_id", userId)
-            .eq("role", "teacher");
+            .eq("role", "teacher")
+            .maybeSingle();
+
+          if (existingTeacherProfile) {
+            // Update existing teacher profile back to pending
+            await supabase.from("profiles")
+              .update({ status: "pending", full_name: form.name, phone: form.phone, institute_code: instituteCode })
+              .eq("user_id", userId)
+              .eq("role", "teacher");
+          } else {
+            // Insert a new teacher profile (user has a different role already, e.g. admin)
+            const { error: profInsertErr } = await supabase.from("profiles").insert({
+              user_id: userId,
+              full_name: form.name,
+              email: form.email,
+              phone: form.phone,
+              role: "teacher",
+              institute_code: instituteCode,
+              status: "pending",
+            });
+            if (profInsertErr) throw profInsertErr;
+          }
 
           // Upsert pending request back to pending
           const { error: reqError } = await supabase.from("pending_requests").upsert({
