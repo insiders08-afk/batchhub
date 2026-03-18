@@ -344,25 +344,39 @@ export default function AdminAuth() {
 
       const userId = data.user?.id;
 
-      const { data: roleData } = await supabase.
-      from("user_roles").
-      select("role").
-      eq("user_id", userId).
-      eq("role", "super_admin").
-      maybeSingle();
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "super_admin")
+        .maybeSingle();
 
-      if (roleData) {navigate("/superadmin");return;}
+      if (roleData) { navigate("/superadmin"); return; }
 
-      const { data: institute, error: instErr } = await supabase.
-      from("institutes").
-      select("status, institute_name, city").
-      eq("owner_user_id", userId).
-      maybeSingle();
+      // Check if this user has an admin role (covers dual-role users)
+      const { data: adminRole } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "admin")
+        .maybeSingle();
+
+      const { data: institute, error: instErr } = await supabase
+        .from("institutes")
+        .select("status, institute_name, city")
+        .eq("owner_user_id", userId)
+        .maybeSingle();
 
       if (instErr) throw instErr;
 
-      if (!institute) {
+      if (!institute && !adminRole) {
         toast({ title: "No institute found", description: "No institute is linked to this account.", variant: "destructive" });
+        return;
+      }
+
+      // If user has admin role but institute lookup found nothing (edge case), redirect anyway
+      if (!institute && adminRole) {
+        navigate("/admin");
         return;
       }
 
