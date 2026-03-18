@@ -206,10 +206,25 @@ export default function TeacherAuth() {
         sessionStorage.setItem("batchhub_session_only", "true");
       }
 
+      const userId = data.user.id;
+
+      // First check if user already has an approved teacher role (e.g. admin who also registered as teacher)
+      const { data: approvedRole } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .eq("role", "teacher")
+        .maybeSingle();
+
+      if (approvedRole) {
+        navigate("/teacher");
+        return;
+      }
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("status, institute_code, full_name")
-        .eq("user_id", data.user.id)
+        .eq("user_id", userId)
         .eq("role", "teacher")
         .maybeSingle();
 
@@ -222,7 +237,7 @@ export default function TeacherAuth() {
       if (profile.status === "approved" || profile.status === "active") {
         navigate("/teacher");
       } else {
-        setCurrentUserId(data.user.id);
+        setCurrentUserId(userId);
         setSubmittedName(profile.full_name);
         setSubmittedInstitute(profile.institute_code || "");
         setPendingStatus(profile.status === "rejected" ? "rejected" : "pending");
