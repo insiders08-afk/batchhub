@@ -319,8 +319,12 @@ export default function TeacherAuth() {
                     <p className="text-xs text-muted-foreground">Ask your institute admin for this ID.</p>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="teacherId">Teacher ID *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="teacherId">Teacher ID *</Label>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800 px-2 py-0.5 rounded-full">🔒 Permanent — cannot be changed</span>
+                    </div>
                     <Input id="teacherId" name="teacherId" placeholder="e.g. TCH-001" required onChange={handleChange} value={form.teacherId} />
+                    <p className="text-xs text-muted-foreground">Choose carefully — this ID is fixed forever and will identify you across all institutes.</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="name">Full Name *</Label>

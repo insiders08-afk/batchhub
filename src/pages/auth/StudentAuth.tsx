@@ -291,8 +291,12 @@ export default function StudentAuth() {
                     <p className="text-xs text-muted-foreground">Provided by your institute at time of admission.</p>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="studentId">Student ID / Roll Number *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="studentId">Student ID / Roll Number *</Label>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800 px-2 py-0.5 rounded-full">🔒 Permanent — cannot be changed</span>
+                    </div>
                     <Input id="studentId" name="studentId" placeholder="e.g. STU-2024-045" required onChange={handleChange} value={form.studentId} />
+                    <p className="text-xs text-muted-foreground">Choose carefully — this ID is fixed forever and links you across all institutes.</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="name">Full Name *</Label>
