@@ -30,7 +30,7 @@ export default function StudentAuth() {
     name: "", studentId: "", instituteId: "", batchName: "",
     phone: "", email: "", password: "",
   });
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [loginForm, setLoginForm] = useState({ email: "", password: "", instituteCode: "" });
   const [rememberMe, setRememberMe] = useState(true);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
@@ -165,6 +165,10 @@ export default function StudentAuth() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!loginForm.instituteCode.trim()) {
+      toast({ title: "Institute ID required", description: "Enter your institute code to sign in.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -179,15 +183,20 @@ export default function StudentAuth() {
         sessionStorage.setItem("batchhub_session_only", "true");
       }
 
+      const userId = data.user.id;
+      const instituteCode = normalizeInstituteCode(loginForm.instituteCode);
+
+      // Find student profile for the specific institute entered
       const { data: profile } = await supabase
         .from("profiles")
         .select("status, institute_code, full_name")
-        .eq("user_id", data.user.id)
+        .eq("user_id", userId)
         .eq("role", "student")
+        .eq("institute_code", instituteCode)
         .maybeSingle();
 
       if (!profile) {
-        toast({ title: "Account not found", description: "No student account linked to this email.", variant: "destructive" });
+        toast({ title: "Account not found", description: `No student account found for institute "${instituteCode}". Check the institute code or register first.`, variant: "destructive" });
         await supabase.auth.signOut();
         return;
       }
@@ -195,7 +204,7 @@ export default function StudentAuth() {
       if (profile.status === "approved" || profile.status === "active") {
         navigate("/student");
       } else {
-        setCurrentUserId(data.user.id);
+        setCurrentUserId(userId);
         setSubmittedName(profile.full_name);
         setSubmittedInstitute(profile.institute_code || "");
         setPendingStatus(profile.status === "rejected" ? "rejected" : "pending");
@@ -282,8 +291,12 @@ export default function StudentAuth() {
                     <p className="text-xs text-muted-foreground">Provided by your institute at time of admission.</p>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="studentId">Student ID / Roll Number *</Label>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="studentId">Student ID / Roll Number *</Label>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-400 border border-amber-200 dark:border-amber-800 px-2 py-0.5 rounded-full">🔒 Permanent — cannot be changed</span>
+                    </div>
                     <Input id="studentId" name="studentId" placeholder="e.g. STU-2024-045" required onChange={handleChange} value={form.studentId} />
+                    <p className="text-xs text-muted-foreground">Choose carefully — this ID is fixed forever and links you across all institutes.</p>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="name">Full Name *</Label>
@@ -354,6 +367,11 @@ export default function StudentAuth() {
                 </div>
               ) : (
                 <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="loginInstituteCode">Institute ID *</Label>
+                    <Input id="loginInstituteCode" name="instituteCode" placeholder="e.g. APEX-KOTA-001" required onChange={handleLoginChange} value={loginForm.instituteCode} />
+                    <p className="text-xs text-muted-foreground">Enter the institute you want to sign into.</p>
+                  </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="loginEmail">Email *</Label>
                     <Input id="loginEmail" name="email" type="email" placeholder="student@email.com" required onChange={handleLoginChange} value={loginForm.email} />
