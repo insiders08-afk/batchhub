@@ -192,6 +192,10 @@ export default function TeacherAuth() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!loginForm.instituteCode.trim()) {
+      toast({ title: "Institute ID required", description: "Enter your institute code to sign in.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -207,29 +211,19 @@ export default function TeacherAuth() {
       }
 
       const userId = data.user.id;
+      const instituteCode = normalizeInstituteCode(loginForm.instituteCode);
 
-      // First check if user already has an approved teacher role (e.g. admin who also registered as teacher)
-      const { data: approvedRole } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .eq("role", "teacher")
-        .maybeSingle();
-
-      if (approvedRole) {
-        navigate("/teacher");
-        return;
-      }
-
+      // Find the teacher profile for this specific institute
       const { data: profile } = await supabase
         .from("profiles")
         .select("status, institute_code, full_name")
         .eq("user_id", userId)
         .eq("role", "teacher")
+        .eq("institute_code", instituteCode)
         .maybeSingle();
 
       if (!profile) {
-        toast({ title: "Account not found", description: "No teacher account linked to this email.", variant: "destructive" });
+        toast({ title: "Account not found", description: `No teacher account found for institute "${instituteCode}". Check the institute code or register first.`, variant: "destructive" });
         await supabase.auth.signOut();
         return;
       }
