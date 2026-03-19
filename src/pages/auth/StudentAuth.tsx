@@ -30,7 +30,7 @@ export default function StudentAuth() {
     name: "", studentId: "", instituteId: "", batchName: "",
     phone: "", email: "", password: "",
   });
-  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [loginForm, setLoginForm] = useState({ email: "", password: "", instituteCode: "" });
   const [rememberMe, setRememberMe] = useState(true);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
