@@ -270,7 +270,7 @@ export default function Index() {
         className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
         style={{
           borderBottom: scrolled ? "1px solid rgba(139,111,78,0.15)" : "none",
-          background: scrolled ? "rgba(253,252,250,0.85)" : "transparent",
+          background: scrolled ? "rgba(237,232,220,0.85)" : "transparent",
           backdropFilter: scrolled ? "blur(20px)" : "none",
         }}
       >
@@ -370,7 +370,7 @@ export default function Index() {
           <div
             className="absolute top-32 left-10 w-28 h-36 rounded-lg shadow-2xl opacity-60"
             style={{
-              background: "#FDFCFA",
+              background: "#EDE8DC",
               animation: "pageFly 3s ease-in-out infinite alternate",
               transformStyle: "preserve-3d",
             }}
@@ -410,7 +410,7 @@ export default function Index() {
             style={{
               bottom: "35%",
               left: "22%",
-              background: "rgba(253,252,250,0.75)",
+              background: "rgba(237,232,220,0.75)",
               backdropFilter: "blur(20px)",
               border: "1px solid rgba(139,111,78,0.1)",
               animation: "floatEl 6s ease-in-out infinite 2s",
@@ -559,14 +559,14 @@ export default function Index() {
             <div
               className="rounded-3xl p-2 shadow-2xl hover:scale-[1.01] transition-transform duration-500"
               style={{
-                background: "rgba(253,252,250,0.7)",
+                background: "rgba(237,232,220,0.7)",
                 backdropFilter: "blur(20px)",
                 border: "1px solid rgba(139,111,78,0.1)",
               }}
             >
               <div
                 className="rounded-2xl overflow-hidden"
-                style={{ background: "#FDFCFA", border: "1px solid #E8DCC4" }}
+                style={{ background: "#EDE8DC", border: "1px solid #E8DCC4" }}
               >
                 {/* Browser chrome */}
                 <div
@@ -608,7 +608,7 @@ export default function Index() {
                   {/* Batch list */}
                   <div
                     className="md:col-span-2 rounded-xl p-4"
-                    style={{ background: "#FDFCFA", border: "1px solid #E8DCC4" }}
+                    style={{ background: "#EDE8DC", border: "1px solid #E8DCC4" }}
                   >
                     <h3 className="font-semibold text-sm mb-3" style={{ color: "#3D2B1F" }}>
                       Active Batches
@@ -646,7 +646,7 @@ export default function Index() {
                     </div>
                   </div>
                   {/* Attendance chart */}
-                  <div className="rounded-xl p-4" style={{ background: "#FDFCFA", border: "1px solid #E8DCC4" }}>
+                  <div className="rounded-xl p-4" style={{ background: "#EDE8DC", border: "1px solid #E8DCC4" }}>
                     <h3 className="font-semibold text-sm mb-3" style={{ color: "#3D2B1F" }}>
                       Today's Attendance
                     </h3>
@@ -686,7 +686,7 @@ export default function Index() {
       </section>
 
       {/* ══════════════════ PROBLEM → SOLUTION ══════════════════ */}
-      <section id="problem-solution" className="py-24 relative" style={{ background: "#FDFCFA" }}>
+      <section id="problem-solution" className="py-24 relative" style={{ background: "#EDE8DC" }}>
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -742,7 +742,7 @@ export default function Index() {
               />
               <div
                 className="relative rounded-3xl p-8 h-full"
-                style={{ background: "#FDFCFA", border: "2px solid #e2e8f0" }}
+                style={{ background: "#EDE8DC", border: "2px solid #e2e8f0" }}
               >
                 <div className="flex items-center gap-3 mb-6">
                   <div
@@ -798,7 +798,7 @@ export default function Index() {
               />
               <div
                 className="relative rounded-3xl p-8 h-full shadow-xl"
-                style={{ background: "#FDFCFA", border: "2px solid rgba(14,165,233,0.3)" }}
+                style={{ background: "#EDE8DC", border: "2px solid rgba(14,165,233,0.3)" }}
               >
                 <div className="flex items-center gap-3 mb-6">
                   <div
@@ -1067,7 +1067,7 @@ export default function Index() {
       </section>
 
       {/* ══════════════════ FAQ ══════════════════ */}
-      <section id="faq" className="py-24" style={{ background: "#FDFCFA" }}>
+      <section id="faq" className="py-24" style={{ background: "#EDE8DC" }}>
         <div className="max-w-3xl mx-auto px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1095,7 +1095,7 @@ export default function Index() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.05 }}
                 className="rounded-2xl overflow-hidden"
-                style={{ border: "1px solid #E8DCC4", background: "#FDFCFA" }}
+                style={{ border: "1px solid #E8DCC4", background: "#EDE8DC" }}
               >
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
@@ -1437,7 +1437,7 @@ export default function Index() {
           <div
             className="border-t shadow-2xl px-4 py-3"
             style={{
-              background: "rgba(253,252,250,0.95)",
+              background: "rgba(237,232,220,0.95)",
               backdropFilter: "blur(20px)",
               borderColor: "rgba(139,111,78,0.2)",
             }}
