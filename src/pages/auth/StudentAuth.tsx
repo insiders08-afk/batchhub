@@ -368,6 +368,11 @@ export default function StudentAuth() {
               ) : (
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-1.5">
+                    <Label htmlFor="loginInstituteCode">Institute ID *</Label>
+                    <Input id="loginInstituteCode" name="instituteCode" placeholder="e.g. APEX-KOTA-001" required onChange={handleLoginChange} value={loginForm.instituteCode} />
+                    <p className="text-xs text-muted-foreground">Enter the institute you want to sign into.</p>
+                  </div>
+                  <div className="space-y-1.5">
                     <Label htmlFor="loginEmail">Email *</Label>
                     <Input id="loginEmail" name="email" type="email" placeholder="student@email.com" required onChange={handleLoginChange} value={loginForm.email} />
                   </div>
