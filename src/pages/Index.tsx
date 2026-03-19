@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, Suspense, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { Float, MeshDistortMaterial } from "@react-three/drei";
 import * as THREE from "three";
 import {
   BarChart3,
@@ -182,144 +180,521 @@ const faqs = [
   },
 ];
 
-// ─── 3D Hero Scene Components ────────────────────────────────────────────────
+// ─── 3D Coaching-Domain Scene Components ─────────────────────────────────────
 
-function CursorOrb() {
-  const mesh = useRef<THREE.Mesh>(null!);
-  const { viewport, mouse } = useThree();
-  const targetX = useRef(0);
-  const targetY = useRef(0);
-
-  useFrame((state) => {
-    targetX.current += (mouse.x * viewport.width * 0.35 - targetX.current) * 0.05;
-    targetY.current += (mouse.y * viewport.height * 0.35 - targetY.current) * 0.05;
-    mesh.current.position.x = targetX.current;
-    mesh.current.position.y = targetY.current;
-    mesh.current.rotation.x = state.clock.elapsedTime * 0.3;
-    mesh.current.rotation.y = state.clock.elapsedTime * 0.2;
-  });
-
-  return (
-    <mesh ref={mesh}>
-      <sphereGeometry args={[0.9, 64, 64]} />
-      <MeshDistortMaterial
-        color="#2DB5C8"
-        attach="material"
-        distort={0.45}
-        speed={2.5}
-        roughness={0}
-        metalness={0.1}
-        transparent
-        opacity={0.55}
-      />
-    </mesh>
-  );
+/** Shared lerp helper */
+function useMouse() {
+  const { mouse } = useThree();
+  return mouse;
 }
 
-function FloatingRing({
-  position,
-  color,
-  speed,
-}: {
-  position: [number, number, number];
-  color: string;
-  speed: number;
-}) {
-  const mesh = useRef<THREE.Mesh>(null!);
+/**
+ * BATCH MANAGEMENT — 6 student avatar spheres arranged in a 2×3 grid on a card.
+ * Tilts to follow cursor.
+ */
+function StudentBatchCard() {
+  const group = useRef<THREE.Group>(null!);
+  const mouse = useMouse();
+  const targetRY = useRef(0);
+  const targetRX = useRef(0);
+
   useFrame((state) => {
-    mesh.current.rotation.x = state.clock.elapsedTime * speed * 0.6;
-    mesh.current.rotation.z = state.clock.elapsedTime * speed * 0.4;
+    targetRY.current += (mouse.x * 0.45 - targetRY.current) * 0.06;
+    targetRX.current += (-mouse.y * 0.3 - targetRX.current) * 0.06;
+    group.current.rotation.y = targetRY.current;
+    group.current.rotation.x = targetRX.current;
+    group.current.position.y = -3.2 + Math.sin(state.clock.elapsedTime * 0.6) * 0.12;
   });
+
+  const seats: [number, number, number][] = [
+    [-0.55, 0.28, 0.06],
+    [0, 0.28, 0.06],
+    [0.55, 0.28, 0.06],
+    [-0.55, -0.18, 0.06],
+    [0, -0.18, 0.06],
+    [0.55, -0.18, 0.06],
+  ];
+  const avatarColors = ["#2DB5C8", "#8B6F4E", "#E6C2A0", "#2DB5C8", "#D4C4B0", "#8B6F4E"];
+
   return (
-    <Float speed={speed} rotationIntensity={0.4} floatIntensity={0.8}>
-      <mesh ref={mesh} position={position}>
-        <torusGeometry args={[0.55, 0.06, 16, 60]} />
-        <meshStandardMaterial color={color} transparent opacity={0.45} roughness={0.2} metalness={0.5} />
+    <group ref={group} position={[-4, -3.2, 0.5]}>
+      {/* Card backing */}
+      <mesh castShadow>
+        <boxGeometry args={[1.9, 0.9, 0.05]} />
+        <meshStandardMaterial color="#3D2B1F" roughness={0.4} metalness={0.1} transparent opacity={0.85} />
       </mesh>
-    </Float>
+      {/* "BATCH A" label line */}
+      <mesh position={[0, 0.52, 0.04]}>
+        <boxGeometry args={[0.7, 0.07, 0.01]} />
+        <meshStandardMaterial color="#2DB5C8" roughness={0.5} />
+      </mesh>
+      {seats.map((pos, i) => (
+        <group key={i} position={pos}>
+          <mesh>
+            <sphereGeometry args={[0.13, 16, 16]} />
+            <meshStandardMaterial color={avatarColors[i]} roughness={0.3} metalness={0.2} />
+          </mesh>
+          {/* small halo ring */}
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[0.16, 0.015, 8, 24]} />
+            <meshStandardMaterial color={avatarColors[i]} transparent opacity={0.4} />
+          </mesh>
+        </group>
+      ))}
+    </group>
   );
 }
 
-function ParticleField() {
-  const count = 80;
+/**
+ * DIGITAL ATTENDANCE — Clipboard with rows of ✓ marks and a glowing check badge.
+ * Leans toward cursor.
+ */
+function AttendanceClipboard() {
+  const group = useRef<THREE.Group>(null!);
+  const badge = useRef<THREE.Mesh>(null!);
+  const mouse = useMouse();
+  const targetRY = useRef(0);
+  const targetRX = useRef(0);
+
+  useFrame((state) => {
+    targetRY.current += (mouse.x * 0.5 - targetRY.current) * 0.05;
+    targetRX.current += (-mouse.y * 0.35 - targetRX.current) * 0.05;
+    group.current.rotation.y = targetRY.current;
+    group.current.rotation.x = targetRX.current;
+    group.current.position.y = 2.5 + Math.sin(state.clock.elapsedTime * 0.7 + 1) * 0.1;
+    // pulse badge scale
+    const pulse = 1 + Math.sin(state.clock.elapsedTime * 2.5) * 0.07;
+    badge.current.scale.setScalar(pulse);
+  });
+
+  const rows = [0.42, 0.18, -0.06, -0.3];
+  const checked = [true, true, true, false];
+
+  return (
+    <group ref={group} position={[4.2, 2.5, 0.3]}>
+      {/* clipboard board */}
+      <mesh>
+        <boxGeometry args={[1.3, 1.5, 0.06]} />
+        <meshStandardMaterial color="#EDE8DC" roughness={0.65} />
+      </mesh>
+      {/* clip */}
+      <mesh position={[0, 0.82, 0.07]}>
+        <boxGeometry args={[0.45, 0.14, 0.08]} />
+        <meshStandardMaterial color="#8B6F4E" metalness={0.6} roughness={0.2} />
+      </mesh>
+      {/* clip hole */}
+      <mesh position={[0, 0.82, 0.12]}>
+        <cylinderGeometry args={[0.06, 0.06, 0.06, 16]} />
+        <meshStandardMaterial color="#3D2B1F" />
+      </mesh>
+      {rows.map((y, i) => (
+        <group key={i} position={[0, y, 0.05]}>
+          {/* name line */}
+          <mesh position={[-0.18, 0, 0]}>
+            <boxGeometry args={[0.65, 0.055, 0.01]} />
+            <meshStandardMaterial color="#D4C4B0" />
+          </mesh>
+          {/* check/cross box */}
+          <mesh position={[0.45, 0, 0]}>
+            <boxGeometry args={[0.18, 0.18, 0.02]} />
+            <meshStandardMaterial color={checked[i] ? "#2DB5C8" : "#E6C2A0"} roughness={0.3} />
+          </mesh>
+          {/* checkmark inner bar */}
+          {checked[i] && (
+            <mesh position={[0.45, 0, 0.02]} rotation={[0, 0, -0.6]}>
+              <boxGeometry args={[0.14, 0.04, 0.01]} />
+              <meshStandardMaterial color="white" />
+            </mesh>
+          )}
+        </group>
+      ))}
+      {/* glowing notification badge */}
+      <mesh ref={badge} position={[0.75, 0.75, 0.12]}>
+        <sphereGeometry args={[0.18, 20, 20]} />
+        <meshStandardMaterial
+          color="#2DB5C8"
+          roughness={0}
+          metalness={0.3}
+          emissive="#2DB5C8"
+          emissiveIntensity={0.5}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * LEADERBOARD / TEST & RANKINGS — Three rising podium bars with rank spheres.
+ * Rotates with cursor to show 3D depth.
+ */
+function LeaderboardPodium() {
+  const group = useRef<THREE.Group>(null!);
+  const mouse = useMouse();
+  const targetRY = useRef(0);
+  const targetRX = useRef(0);
+
+  useFrame((state) => {
+    targetRY.current += (mouse.x * 0.55 - targetRY.current) * 0.055;
+    targetRX.current += (-mouse.y * 0.3 - targetRX.current) * 0.055;
+    group.current.rotation.y = targetRY.current;
+    group.current.rotation.x = targetRX.current;
+    group.current.position.y = -1.2 + Math.sin(state.clock.elapsedTime * 0.55 + 2) * 0.1;
+  });
+
+  const bars = [
+    { h: 0.75, color: "#D4C4B0", x: -0.45, emissive: "#D4C4B0", label: "2" },
+    { h: 1.2, color: "#2DB5C8", x: 0, emissive: "#2DB5C8", label: "1" },
+    { h: 0.55, color: "#E6C2A0", x: 0.45, emissive: "#E6C2A0", label: "3" },
+  ];
+
+  return (
+    <group ref={group} position={[4.0, -1.2, 0.2]}>
+      {bars.map((b, i) => (
+        <group key={i} position={[b.x, b.h / 2 - 0.6, 0]}>
+          <mesh castShadow>
+            <boxGeometry args={[0.32, b.h, 0.18]} />
+            <meshStandardMaterial
+              color={b.color}
+              roughness={0.25}
+              metalness={0.25}
+              emissive={b.emissive}
+              emissiveIntensity={i === 1 ? 0.2 : 0.05}
+            />
+          </mesh>
+          {/* trophy sphere on top */}
+          <mesh position={[0, b.h / 2 + 0.14, 0]}>
+            <sphereGeometry args={[0.12, 18, 18]} />
+            <meshStandardMaterial
+              color={b.color}
+              roughness={0.05}
+              metalness={0.8}
+              emissive={b.emissive}
+              emissiveIntensity={0.3}
+            />
+          </mesh>
+        </group>
+      ))}
+      {/* base platform */}
+      <mesh position={[0, -0.6, 0]}>
+        <boxGeometry args={[1.35, 0.06, 0.25]} />
+        <meshStandardMaterial color="#8B6F4E" roughness={0.5} metalness={0.3} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * BATCH CHAT — Two speech bubble planes floating with message line contents.
+ * Tilts toward cursor.
+ */
+function ChatBubbles3D() {
+  const group = useRef<THREE.Group>(null!);
+  const mouse = useMouse();
+  const targetRY = useRef(0);
+  const targetRX = useRef(0);
+
+  useFrame((state) => {
+    targetRY.current += (mouse.x * 0.4 - targetRY.current) * 0.05;
+    targetRX.current += (-mouse.y * 0.25 - targetRX.current) * 0.05;
+    group.current.rotation.y = targetRY.current;
+    group.current.rotation.x = targetRX.current;
+    group.current.position.y = 2.0 + Math.sin(state.clock.elapsedTime * 0.8 + 3) * 0.12;
+  });
+
+  return (
+    <group ref={group} position={[-4.2, 2.0, 0.2]}>
+      {/* Bubble 1 (sent) */}
+      <group position={[-0.05, 0.28, 0]}>
+        <mesh>
+          <boxGeometry args={[1.05, 0.4, 0.1]} />
+          <meshStandardMaterial color="#2DB5C8" roughness={0.3} transparent opacity={0.9} />
+        </mesh>
+        {/* tail bottom-left */}
+        <mesh position={[-0.58, -0.25, 0]} rotation={[0, 0, 0.5]}>
+          <boxGeometry args={[0.12, 0.18, 0.08]} />
+          <meshStandardMaterial color="#2DB5C8" roughness={0.3} transparent opacity={0.9} />
+        </mesh>
+        {/* content lines */}
+        {[-0.15, 0.05].map((x, i) => (
+          <mesh key={i} position={[x, 0, 0.06]}>
+            <boxGeometry args={[0.28, 0.05, 0.01]} />
+            <meshStandardMaterial color="white" transparent opacity={0.75} />
+          </mesh>
+        ))}
+      </group>
+      {/* Bubble 2 (received) */}
+      <group position={[0.08, -0.28, 0]}>
+        <mesh>
+          <boxGeometry args={[0.88, 0.38, 0.1]} />
+          <meshStandardMaterial color="#E6C2A0" roughness={0.3} transparent opacity={0.9} />
+        </mesh>
+        {/* tail bottom-right */}
+        <mesh position={[0.5, -0.22, 0]} rotation={[0, 0, -0.5]}>
+          <boxGeometry args={[0.12, 0.18, 0.08]} />
+          <meshStandardMaterial color="#E6C2A0" roughness={0.3} transparent opacity={0.9} />
+        </mesh>
+        {/* content lines */}
+        {[-0.1, 0.08].map((x, i) => (
+          <mesh key={i} position={[x, 0, 0.06]}>
+            <boxGeometry args={[0.22, 0.05, 0.01]} />
+            <meshStandardMaterial color="#8B6F4E" transparent opacity={0.6} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+}
+
+/**
+ * FEE TRACKING — Dark card with a glowing ₹ symbol (torus + bars).
+ * Flips with cursor like a payment terminal.
+ */
+function FeeCard3D() {
+  const group = useRef<THREE.Group>(null!);
+  const mouse = useMouse();
+  const targetRY = useRef(0);
+  const targetRX = useRef(0);
+
+  useFrame((state) => {
+    targetRY.current += (mouse.x * 0.5 - targetRY.current) * 0.055;
+    targetRX.current += (-mouse.y * 0.32 - targetRX.current) * 0.055;
+    group.current.rotation.y = targetRY.current;
+    group.current.rotation.x = targetRX.current;
+    group.current.position.y = 0.2 + Math.sin(state.clock.elapsedTime * 0.5 + 4) * 0.1;
+  });
+
+  return (
+    <group ref={group} position={[0.5, 0.2, -0.5]}>
+      {/* card body */}
+      <mesh>
+        <boxGeometry args={[1.6, 0.95, 0.06]} />
+        <meshStandardMaterial color="#3D2B1F" roughness={0.35} metalness={0.15} />
+      </mesh>
+      {/* card stripe */}
+      <mesh position={[0, -0.27, 0.04]}>
+        <boxGeometry args={[1.6, 0.18, 0.01]} />
+        <meshStandardMaterial color="#2D2018" roughness={0.8} />
+      </mesh>
+      {/* ₹ ring part */}
+      <mesh position={[-0.2, 0.12, 0.05]} rotation={[0, 0, 0]}>
+        <torusGeometry args={[0.18, 0.04, 12, 40, Math.PI * 1.8]} />
+        <meshStandardMaterial
+          color="#2DB5C8"
+          roughness={0.1}
+          metalness={0.6}
+          emissive="#2DB5C8"
+          emissiveIntensity={0.35}
+        />
+      </mesh>
+      {/* ₹ vertical bar */}
+      <mesh position={[-0.2, 0.05, 0.05]}>
+        <boxGeometry args={[0.045, 0.44, 0.025]} />
+        <meshStandardMaterial
+          color="#2DB5C8"
+          roughness={0.1}
+          metalness={0.6}
+          emissive="#2DB5C8"
+          emissiveIntensity={0.35}
+        />
+      </mesh>
+      {/* ₹ two horizontal bars */}
+      {[0.15, 0.04].map((y, i) => (
+        <mesh key={i} position={[-0.2, y, 0.05]}>
+          <boxGeometry args={[0.32, 0.04, 0.02]} />
+          <meshStandardMaterial color="#E6C2A0" roughness={0.3} />
+        </mesh>
+      ))}
+      {/* amount placeholder */}
+      <mesh position={[0.3, 0.12, 0.04]}>
+        <boxGeometry args={[0.55, 0.09, 0.01]} />
+        <meshStandardMaterial color="#D4C4B0" transparent opacity={0.5} />
+      </mesh>
+      <mesh position={[0.3, -0.04, 0.04]}>
+        <boxGeometry args={[0.4, 0.07, 0.01]} />
+        <meshStandardMaterial color="#8B6F4E" transparent opacity={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * HOMEWORK / DPP — Open book with ruled lines on pages.
+ * Gently fans pages with cursor movement.
+ */
+function OpenBook3D() {
+  const group = useRef<THREE.Group>(null!);
+  const leftPage = useRef<THREE.Mesh>(null!);
+  const rightPage = useRef<THREE.Mesh>(null!);
+  const mouse = useMouse();
+  const targetRY = useRef(0);
+  const targetRX = useRef(0);
+
+  useFrame((state) => {
+    targetRY.current += (mouse.x * 0.4 - targetRY.current) * 0.05;
+    targetRX.current += (-mouse.y * 0.28 - targetRX.current) * 0.05;
+    group.current.rotation.y = targetRY.current;
+    group.current.rotation.x = targetRX.current;
+    group.current.position.y = -3.2 + Math.sin(state.clock.elapsedTime * 0.6 + 5) * 0.1;
+    // gentle page fan
+    const fan = Math.sin(state.clock.elapsedTime * 0.8) * 0.04;
+    leftPage.current.rotation.y = 0.22 + fan;
+    rightPage.current.rotation.y = -0.22 - fan;
+  });
+
+  return (
+    <group ref={group} position={[3.8, -3.2, 0.3]}>
+      {/* spine */}
+      <mesh position={[0, 0, -0.08]}>
+        <boxGeometry args={[0.1, 1.15, 0.18]} />
+        <meshStandardMaterial color="#8B6F4E" roughness={0.5} />
+      </mesh>
+      {/* left page */}
+      <mesh ref={leftPage} position={[-0.43, 0, 0]} rotation={[0, 0.22, 0]}>
+        <boxGeometry args={[0.8, 1.15, 0.04]} />
+        <meshStandardMaterial color="#EDE8DC" roughness={0.75} />
+      </mesh>
+      {/* right page */}
+      <mesh ref={rightPage} position={[0.43, 0, 0]} rotation={[0, -0.22, 0]}>
+        <boxGeometry args={[0.8, 1.15, 0.04]} />
+        <meshStandardMaterial color="#FAF6ED" roughness={0.75} />
+      </mesh>
+      {/* ruled lines on right page */}
+      {[0.35, 0.18, 0.01, -0.16, -0.33].map((y, i) => (
+        <mesh key={i} position={[0.55, y, 0.03]}>
+          <boxGeometry args={[0.55, 0.035, 0.01]} />
+          <meshStandardMaterial color="#D4C4B0" roughness={0.8} />
+        </mesh>
+      ))}
+      {/* PDF badge */}
+      <mesh position={[-0.44, -0.42, 0.06]}>
+        <boxGeometry args={[0.28, 0.16, 0.03]} />
+        <meshStandardMaterial color="#2DB5C8" roughness={0.3} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * Floating particles — dots that drift like chalk dust in a classroom.
+ */
+function ChalkDustParticles() {
+  const count = 55;
   const positions = useMemo(() => {
     const arr = new Float32Array(count * 3);
     for (let i = 0; i < count; i++) {
-      arr[i * 3] = (Math.random() - 0.5) * 14;
+      arr[i * 3] = (Math.random() - 0.5) * 16;
       arr[i * 3 + 1] = (Math.random() - 0.5) * 10;
-      arr[i * 3 + 2] = (Math.random() - 0.5) * 6 - 2;
+      arr[i * 3 + 2] = (Math.random() - 0.5) * 5 - 1.5;
     }
     return arr;
   }, []);
   const geo = useRef<THREE.BufferGeometry>(null!);
+
   useFrame((state) => {
     const t = state.clock.elapsedTime;
     const pos = geo.current.attributes.position.array as Float32Array;
     for (let i = 0; i < count; i++) {
-      pos[i * 3 + 1] += Math.sin(t * 0.4 + i * 0.3) * 0.001;
+      pos[i * 3 + 1] += Math.sin(t * 0.35 + i * 0.5) * 0.0008;
+      pos[i * 3] += Math.cos(t * 0.25 + i * 0.4) * 0.0005;
     }
     geo.current.attributes.position.needsUpdate = true;
   });
+
   return (
     <points>
       <bufferGeometry ref={geo}>
         <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
       </bufferGeometry>
-      <pointsMaterial size={0.04} color="#2DB5C8" transparent opacity={0.6} sizeAttenuation />
+      <pointsMaterial size={0.038} color="#2DB5C8" transparent opacity={0.45} sizeAttenuation />
     </points>
   );
 }
 
+/**
+ * Complete Hero 3D Scene — all coaching objects with shared mouse reactivity.
+ */
 function HeroScene() {
   return (
     <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[5, 5, 5]} intensity={1.2} color="#FAF6ED" />
-      <pointLight position={[-4, 2, 3]} intensity={0.8} color="#2DB5C8" />
-      <pointLight position={[4, -3, 2]} intensity={0.5} color="#E6C2A0" />
-      <ParticleField />
-      <CursorOrb />
-      <FloatingRing position={[-3.5, 1.5, -1]} color="#2DB5C8" speed={0.8} />
-      <FloatingRing position={[3.2, -1.2, -1.5]} color="#8B6F4E" speed={1.1} />
-      <FloatingRing position={[-2.5, -2, -0.5]} color="#E6C2A0" speed={0.6} />
-      <Float speed={1.4} rotationIntensity={0.3} floatIntensity={1}>
-        <mesh position={[4, 2, -2]}>
-          <octahedronGeometry args={[0.5]} />
-          <meshStandardMaterial color="#2DB5C8" transparent opacity={0.35} roughness={0.1} metalness={0.8} />
-        </mesh>
-      </Float>
-      <Float speed={0.9} rotationIntensity={0.5} floatIntensity={0.6}>
-        <mesh position={[-4, -1.5, -1]}>
-          <icosahedronGeometry args={[0.4]} />
-          <meshStandardMaterial color="#E6C2A0" transparent opacity={0.4} roughness={0.2} metalness={0.6} />
-        </mesh>
-      </Float>
+      <ambientLight intensity={0.55} />
+      <directionalLight position={[6, 6, 4]} intensity={1.1} color="#FFF8EE" />
+      <pointLight position={[-3, 3, 3]} intensity={0.9} color="#2DB5C8" />
+      <pointLight position={[4, -2, 2]} intensity={0.6} color="#E6C2A0" />
+      <pointLight position={[0, 0, 5]} intensity={0.3} color="#F5F1E8" />
+
+      <ChalkDustParticles />
+      <StudentBatchCard />
+      <AttendanceClipboard />
+      <LeaderboardPodium />
+      <ChatBubbles3D />
+      <FeeCard3D />
+      <OpenBook3D />
     </>
   );
 }
 
+/**
+ * Features section side-panel scene — fee card + batch grid orbiting together.
+ */
 function FeatureOrbScene() {
-  const mesh = useRef<THREE.Mesh>(null!);
+  const group = useRef<THREE.Group>(null!);
   const { mouse } = useThree();
+  const targetRY = useRef(0);
+  const targetRX = useRef(0);
+
   useFrame((state) => {
-    mesh.current.rotation.y = state.clock.elapsedTime * 0.4 + mouse.x * 0.5;
-    mesh.current.rotation.x = state.clock.elapsedTime * 0.25 + mouse.y * 0.3;
+    targetRY.current += (mouse.x * 0.6 - targetRY.current) * 0.06;
+    targetRX.current += (-mouse.y * 0.4 - targetRX.current) * 0.06;
+    group.current.rotation.y = targetRY.current;
+    group.current.rotation.x = targetRX.current;
+    group.current.rotation.z = Math.sin(state.clock.elapsedTime * 0.4) * 0.06;
   });
+
+  // Mini student cluster
+  const seats: [number, number, number][] = [
+    [-0.4, 0.25, 0],
+    [0, 0.25, 0],
+    [0.4, 0.25, 0],
+    [-0.4, -0.2, 0],
+    [0, -0.2, 0],
+    [0.4, -0.2, 0],
+  ];
+  const avatarColors = ["#2DB5C8", "#8B6F4E", "#E6C2A0", "#2DB5C8", "#D4C4B0", "#8B6F4E"];
+
   return (
     <>
-      <ambientLight intensity={0.5} />
+      <ambientLight intensity={0.6} />
       <pointLight position={[3, 3, 3]} intensity={1} color="#2DB5C8" />
-      <pointLight position={[-3, -2, 2]} intensity={0.6} color="#E6C2A0" />
-      <mesh ref={mesh}>
-        <icosahedronGeometry args={[1.1, 4]} />
-        <meshStandardMaterial color="#2DB5C8" wireframe transparent opacity={0.35} />
-      </mesh>
-      <Float speed={1.5} floatIntensity={0.5}>
-        <mesh position={[2, 0.5, -1]}>
-          <octahedronGeometry args={[0.35]} />
-          <meshStandardMaterial color="#E6C2A0" roughness={0.1} metalness={0.8} />
+      <pointLight position={[-3, -2, 2]} intensity={0.5} color="#E6C2A0" />
+
+      <group ref={group}>
+        {/* Card */}
+        <mesh>
+          <boxGeometry args={[1.2, 0.7, 0.06]} />
+          <meshStandardMaterial color="#3D2B1F" roughness={0.4} transparent opacity={0.8} />
         </mesh>
-      </Float>
+        {/* Label bar */}
+        <mesh position={[0, 0.4, 0.05]}>
+          <boxGeometry args={[0.6, 0.06, 0.01]} />
+          <meshStandardMaterial color="#2DB5C8" emissive="#2DB5C8" emissiveIntensity={0.4} />
+        </mesh>
+        {seats.map((pos, i) => (
+          <mesh key={i} position={pos}>
+            <sphereGeometry args={[0.1, 14, 14]} />
+            <meshStandardMaterial color={avatarColors[i]} roughness={0.3} metalness={0.2} />
+          </mesh>
+        ))}
+
+        {/* Orbiting torus ring */}
+        <mesh position={[0, 0, 0]} rotation={[Math.PI / 3, 0, 0]}>
+          <torusGeometry args={[0.9, 0.025, 10, 60]} />
+          <meshStandardMaterial color="#2DB5C8" transparent opacity={0.3} />
+        </mesh>
+        <mesh position={[0, 0, 0]} rotation={[-Math.PI / 4, Math.PI / 4, 0]}>
+          <torusGeometry args={[1.1, 0.018, 8, 60]} />
+          <meshStandardMaterial color="#E6C2A0" transparent opacity={0.25} />
+        </mesh>
+      </group>
     </>
   );
 }
@@ -421,7 +796,7 @@ export default function Index() {
           backdropFilter: scrolled ? "blur(20px)" : "none",
         }}
       >
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 group">
@@ -494,11 +869,11 @@ export default function Index() {
       </nav>
 
       {/* ══════════════════ HERO ══════════════════ */}
-      <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
-        {/* Three.js 3D Background Canvas */}
-        <div className="absolute inset-0 z-0 pointer-events-none">
+      <section className="relative min-h-screen flex items-center justify-center pt-20 pb-16 sm:pb-0 overflow-hidden">
+        {/* Three.js 3D Background Canvas — hidden on mobile for performance */}
+        <div className="absolute inset-0 z-0 pointer-events-none hidden sm:block">
           <Canvas
-            camera={{ position: [0, 0, 6], fov: 60 }}
+            camera={{ position: [0, 0, 9], fov: 65 }}
             style={{ background: "transparent" }}
             gl={{ antialias: true, alpha: true }}
             dpr={[1, 1.5]}
@@ -612,18 +987,18 @@ export default function Index() {
         </div>
 
         {/* Main hero content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-8 text-center">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center w-full">
           {/* Trust badge */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
+            className="inline-flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 rounded-full mb-6 sm:mb-8 max-w-xs sm:max-w-none"
             style={{ background: "rgba(139,111,78,0.1)", border: "1px solid rgba(139,111,78,0.2)" }}
           >
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#2DB5C8" }} />
-            <span className="text-sm font-medium" style={{ color: "#3D2B1F" }}>
-              Made in India, Made by Indian, Made for Indian Institute
+            <span className="w-2 h-2 flex-shrink-0 rounded-full animate-pulse" style={{ background: "#2DB5C8" }} />
+            <span className="text-xs sm:text-sm font-medium leading-tight" style={{ color: "#3D2B1F" }}>
+              Made in India · Made for Indian Institutes
             </span>
           </motion.div>
 
@@ -632,7 +1007,7 @@ export default function Index() {
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-5xl md:text-7xl lg:text-8xl font-bold leading-tight mb-6"
+            className="text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold leading-tight mb-6"
             style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
           >
             Run your coaching
@@ -655,11 +1030,11 @@ export default function Index() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed"
+            className="text-base sm:text-lg md:text-xl max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed px-2 sm:px-0"
             style={{ color: "rgba(61,43,31,0.7)" }}
           >
             BatchHub replaces paper registers, scattered WhatsApp groups, and manual fee tracking with one clean
-            platform built for how Indian coaching institutes actually work.
+            platform built for Indian coaching institutes.
           </motion.p>
 
           {/* CTA buttons */}
@@ -667,20 +1042,20 @@ export default function Index() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-4"
+            className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center mb-4 px-4 sm:px-0"
           >
-            <Link to="/role-select">
+            <Link to="/role-select" className="w-full sm:w-auto">
               <button
-                className="px-8 py-4 rounded-full text-base font-semibold text-white flex items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
+                className="w-full sm:w-auto px-8 py-4 rounded-full text-base font-semibold text-white flex items-center justify-center gap-2 group transition-all duration-300 hover:-translate-y-1"
                 style={{ background: "#2DB5C8", boxShadow: "0 4px 20px -4px rgba(45,181,200,0.5)" }}
               >
                 Get Started Free
                 <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
               </button>
             </Link>
-            <Link to="/demo/admin">
+            <Link to="/demo/admin" className="w-full sm:w-auto">
               <button
-                className="px-8 py-4 rounded-full text-base font-semibold flex items-center gap-2 transition-all duration-300 hover:-translate-y-1"
+                className="w-full sm:w-auto px-8 py-4 rounded-full text-base font-semibold flex items-center justify-center gap-2 transition-all duration-300 hover:-translate-y-1"
                 style={{ border: "2px solid #8B6F4E", color: "#3D2B1F", background: "transparent" }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.background = "#8B6F4E";
@@ -705,12 +1080,12 @@ export default function Index() {
             No credit card required · Setup in under 5 minutes
           </motion.p>
 
-          {/* Dashboard mockup */}
+          {/* Dashboard mockup — hidden on mobile to prevent layout overflow */}
           <motion.div
             initial={{ opacity: 0, y: 40, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="mt-20 relative max-w-5xl mx-auto"
+            className="hidden sm:block mt-16 sm:mt-20 relative max-w-5xl mx-auto"
           >
             {/* Fade-out gradient at bottom */}
             <div
@@ -847,13 +1222,13 @@ export default function Index() {
       </section>
 
       {/* ══════════════════ PROBLEM → SOLUTION ══════════════════ */}
-      <section id="problem-solution" className="py-24 relative" style={{ background: "#EDE8DC" }}>
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+      <section id="problem-solution" className="py-14 sm:py-24 relative" style={{ background: "#EDE8DC" }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-16"
+            className="text-center mb-10 sm:mb-16"
           >
             {/* Why Us button */}
             <Link to="/owner">
@@ -869,7 +1244,7 @@ export default function Index() {
               </button>
             </Link>
             <h2
-              className="text-4xl md:text-5xl font-bold mb-4"
+              className="text-2xl sm:text-4xl md:text-5xl font-bold mb-4"
               style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
             >
               The Old Way vs{" "}
@@ -889,7 +1264,7 @@ export default function Index() {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 gap-8 items-stretch max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 items-stretch max-w-5xl mx-auto">
             {/* Old */}
             <motion.div
               initial={{ opacity: 0, x: -20 }}
@@ -902,7 +1277,7 @@ export default function Index() {
                 style={{ background: "linear-gradient(135deg, #e2e8f0, #cbd5e1)" }}
               />
               <div
-                className="relative rounded-3xl p-8 h-full"
+                className="relative rounded-3xl p-5 sm:p-8 h-full"
                 style={{ background: "#EDE8DC", border: "2px solid #e2e8f0" }}
               >
                 <div className="flex items-center gap-3 mb-6">
@@ -958,7 +1333,7 @@ export default function Index() {
                 style={{ background: "linear-gradient(135deg, #2DB5C8, #8B6F4E)" }}
               />
               <div
-                className="relative rounded-3xl p-8 h-full shadow-xl"
+                className="relative rounded-3xl p-5 sm:p-8 h-full shadow-xl"
                 style={{ background: "#EDE8DC", border: "2px solid rgba(45,181,200,0.3)" }}
               >
                 <div className="flex items-center gap-3 mb-6">
@@ -1004,18 +1379,18 @@ export default function Index() {
           </div>
 
           {/* Mid CTA */}
-          <div className="mt-14 flex flex-col sm:flex-row gap-4 justify-center">
-            <Link to="/role-select">
+          <div className="mt-10 sm:mt-14 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
+            <Link to="/role-select" className="w-full sm:w-auto">
               <button
-                className="px-8 py-4 rounded-full text-base font-semibold text-white flex items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
+                className="w-full sm:w-auto px-8 py-4 rounded-full text-base font-semibold text-white flex items-center justify-center gap-2 group transition-all duration-300 hover:-translate-y-1"
                 style={{ background: "#2DB5C8", boxShadow: "0 4px 20px -4px rgba(45,181,200,0.5)" }}
               >
                 Get Started Free <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
             </Link>
-            <Link to="/demo/admin">
+            <Link to="/demo/admin" className="w-full sm:w-auto">
               <button
-                className="px-8 py-4 rounded-full text-base font-semibold flex items-center gap-2 transition-all duration-300 hover:-translate-y-1"
+                className="w-full sm:w-auto px-8 py-4 rounded-full text-base font-semibold flex items-center justify-center gap-2 transition-all duration-300 hover:-translate-y-1"
                 style={{ border: "2px solid #8B6F4E", color: "#3D2B1F" }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.background = "#8B6F4E";
@@ -1034,24 +1409,24 @@ export default function Index() {
       </section>
 
       {/* ══════════════════ FEATURES ══════════════════ */}
-      <section id="features" className="py-24 relative overflow-hidden" style={{ background: "#F5F1E8" }}>
-        {/* Mini 3D orb — decorative, right side */}
-        <div className="absolute right-0 top-0 bottom-0 w-72 pointer-events-none hidden lg:block opacity-60 z-0">
+      <section id="features" className="py-14 sm:py-24 relative overflow-hidden" style={{ background: "#F5F1E8" }}>
+        {/* Mini 3D orb — decorative, right side, only on large screens */}
+        <div className="absolute right-0 top-0 bottom-0 w-72 pointer-events-none hidden xl:block opacity-60 z-0">
           <Canvas camera={{ position: [0, 0, 5], fov: 50 }} gl={{ antialias: true, alpha: true }} dpr={[1, 1.5]}>
             <Suspense fallback={null}>
               <FeatureOrbScene />
             </Suspense>
           </Canvas>
         </div>
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-16"
+            className="text-center mb-10 sm:mb-16"
           >
             <h2
-              className="text-4xl md:text-5xl font-bold mb-4"
+              className="text-2xl sm:text-4xl md:text-5xl font-bold mb-4"
               style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
             >
               Everything you need to{" "}
@@ -1064,7 +1439,7 @@ export default function Index() {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
             {featureCards.map((f, i) => (
               <motion.div
                 key={f.title}
@@ -1072,7 +1447,7 @@ export default function Index() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.06 }}
-                className="group cursor-pointer h-64 relative"
+                className="group cursor-pointer h-56 sm:h-64 relative"
                 style={{ perspective: "1000px" }}
               >
                 <div
@@ -1119,16 +1494,16 @@ export default function Index() {
       </section>
 
       {/* ══════════════════ PRICING ══════════════════ */}
-      <section id="pricing" className="py-24 relative" style={{ background: "#F5F1E8" }}>
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+      <section id="pricing" className="py-14 sm:py-24 relative" style={{ background: "#F5F1E8" }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-16"
+            className="text-center mb-10 sm:mb-16"
           >
             <h2
-              className="text-4xl md:text-5xl font-bold mb-4"
+              className="text-2xl sm:text-4xl md:text-5xl font-bold mb-4"
               style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
             >
               Simple, transparent{" "}
@@ -1141,7 +1516,7 @@ export default function Index() {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 max-w-3xl mx-auto">
             {pricingPlans.map((plan, i) => (
               <motion.div
                 key={plan.name}
@@ -1149,7 +1524,7 @@ export default function Index() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.1 }}
-                className={`relative rounded-3xl p-8 hover:-translate-y-2 transition-all duration-300 overflow-hidden group ${plan.dark ? "md:-translate-y-4" : ""}`}
+                className={`relative rounded-3xl p-6 sm:p-8 hover:-translate-y-2 transition-all duration-300 overflow-hidden group ${plan.dark ? "sm:-translate-y-4" : ""}`}
                 style={{
                   background: plan.dark ? "#3D2B1F" : "#F5F1E8",
                   border: plan.dark ? "1px solid #3D2B1F" : "1px solid #E8DCC4",
@@ -1181,7 +1556,7 @@ export default function Index() {
                     {plan.desc}
                   </p>
                   <div className="flex items-baseline gap-1 mb-1">
-                    <span className="text-5xl font-bold" style={{ color: plan.dark ? "white" : "#3D2B1F" }}>
+                    <span className="text-4xl sm:text-5xl font-bold" style={{ color: plan.dark ? "white" : "#3D2B1F" }}>
                       {plan.price}
                     </span>
                     {plan.priceSuffix && (
@@ -1236,16 +1611,16 @@ export default function Index() {
       </section>
 
       {/* ══════════════════ FAQ ══════════════════ */}
-      <section id="faq" className="py-24" style={{ background: "#EDE8DC" }}>
-        <div className="max-w-3xl mx-auto px-6 lg:px-8">
+      <section id="faq" className="py-14 sm:py-24" style={{ background: "#EDE8DC" }}>
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            className="text-center mb-14"
+            className="text-center mb-10 sm:mb-14"
           >
             <h2
-              className="text-3xl md:text-4xl font-bold mb-4"
+              className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4"
               style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
             >
               Common Questions
@@ -1268,7 +1643,7 @@ export default function Index() {
               >
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full flex items-center justify-between p-5 text-left transition-colors duration-200"
+                  className="w-full flex items-center justify-between p-4 sm:p-5 text-left transition-colors duration-200"
                   style={{ background: openFaq === i ? "#F5F1E8" : "transparent" }}
                 >
                   <span className="font-semibold pr-4" style={{ color: "#3D2B1F" }}>
@@ -1303,7 +1678,7 @@ export default function Index() {
       </section>
 
       {/* ══════════════════ FINAL CTA ══════════════════ */}
-      <section className="py-24 relative overflow-hidden">
+      <section className="py-14 sm:py-24 relative overflow-hidden">
         {/* Background */}
         <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, #F5F1E8, #E8DCC4)" }} />
         <div className="absolute inset-0 opacity-30">
@@ -1338,7 +1713,7 @@ export default function Index() {
           </div>
         </div>
 
-        <div className="relative max-w-4xl mx-auto px-6 lg:px-8 text-center">
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <motion.div
             initial={{ opacity: 0, scale: 0.97 }}
             whileInView={{ opacity: 1, scale: 1 }}
@@ -1356,7 +1731,7 @@ export default function Index() {
             </div>
 
             <h2
-              className="text-5xl md:text-7xl font-bold mb-6 leading-tight"
+              className="text-3xl sm:text-5xl md:text-7xl font-bold mb-6 leading-tight"
               style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
             >
               Ready to transform your
@@ -1374,23 +1749,26 @@ export default function Index() {
               </span>
             </h2>
 
-            <p className="text-xl mb-10 max-w-2xl mx-auto" style={{ color: "#8B6F4E" }}>
+            <p
+              className="text-base sm:text-xl mb-8 sm:mb-10 max-w-2xl mx-auto px-4 sm:px-0"
+              style={{ color: "#8B6F4E" }}
+            >
               Join educators who have already moved from chaos to clarity. Start your free trial today.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link to="/role-select">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center items-center px-4 sm:px-0">
+              <Link to="/role-select" className="w-full sm:w-auto">
                 <button
-                  className="px-10 py-5 rounded-full text-lg font-semibold text-white flex items-center gap-3 group transition-all duration-300 hover:-translate-y-1"
+                  className="w-full sm:w-auto px-8 sm:px-10 py-4 sm:py-5 rounded-full text-base sm:text-lg font-semibold text-white flex items-center justify-center gap-3 group transition-all duration-300 hover:-translate-y-1"
                   style={{ background: "#2DB5C8", boxShadow: "0 8px 30px -5px rgba(45,181,200,0.5)" }}
                 >
                   Start Free Trial
                   <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
                 </button>
               </Link>
-              <Link to="/demo/admin">
+              <Link to="/demo/admin" className="w-full sm:w-auto">
                 <button
-                  className="px-10 py-5 rounded-full text-lg font-semibold flex items-center gap-2 transition-all duration-300 hover:-translate-y-1"
+                  className="w-full sm:w-auto px-8 sm:px-10 py-4 sm:py-5 rounded-full text-base sm:text-lg font-semibold flex items-center justify-center gap-2 transition-all duration-300 hover:-translate-y-1"
                   style={{ border: "2px solid #8B6F4E", color: "#3D2B1F" }}
                   onMouseEnter={(e) => {
                     (e.currentTarget as HTMLButtonElement).style.background = "#8B6F4E";
@@ -1407,12 +1785,12 @@ export default function Index() {
             </div>
 
             <div
-              className="mt-12 flex flex-wrap items-center justify-center gap-8 text-sm"
+              className="mt-8 sm:mt-12 flex flex-wrap items-center justify-center gap-4 sm:gap-8 text-sm px-4 sm:px-0"
               style={{ color: "#8B6F4E" }}
             >
               {["No credit card required", "14-day free trial", "Cancel anytime"].map((t) => (
                 <div key={t} className="flex items-center gap-2">
-                  <Check className="w-4 h-4" style={{ color: "#2DB5C8" }} />
+                  <Check className="w-4 h-4 flex-shrink-0" style={{ color: "#2DB5C8" }} />
                   {t}
                 </div>
               ))}
@@ -1423,10 +1801,10 @@ export default function Index() {
 
       {/* ══════════════════ FOOTER ══════════════════ */}
       <footer className="py-16 pb-24 md:pb-16" style={{ background: "#3D2B1F", color: "#E8DCC4" }}>
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="grid md:grid-cols-4 gap-12 mb-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 sm:gap-12 mb-10 sm:mb-12">
             {/* Brand */}
-            <div className="col-span-2">
+            <div className="col-span-1 sm:col-span-2">
               <div className="flex items-center gap-3 mb-6">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xl"
@@ -1673,6 +2051,16 @@ export default function Index() {
           40% { transform: translateX(-50%) translateY(-10px); }
           60% { transform: translateX(-50%) translateY(-5px); }
         }
+        /* Mobile overflow safety */
+        * { box-sizing: border-box; }
+        img, canvas, video { max-width: 100%; }
+        /* Prevent long words from overflowing */
+        p, h1, h2, h3, h4, span, li, a {
+          overflow-wrap: break-word;
+          word-break: break-word;
+        }
+        /* Smooth scroll */
+        html { scroll-behavior: smooth; }
       `}</style>
     </div>
   );
