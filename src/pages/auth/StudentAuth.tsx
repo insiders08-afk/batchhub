@@ -165,6 +165,10 @@ export default function StudentAuth() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!loginForm.instituteCode.trim()) {
+      toast({ title: "Institute ID required", description: "Enter your institute code to sign in.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -179,15 +183,20 @@ export default function StudentAuth() {
         sessionStorage.setItem("batchhub_session_only", "true");
       }
 
+      const userId = data.user.id;
+      const instituteCode = normalizeInstituteCode(loginForm.instituteCode);
+
+      // Find student profile for the specific institute entered
       const { data: profile } = await supabase
         .from("profiles")
         .select("status, institute_code, full_name")
-        .eq("user_id", data.user.id)
+        .eq("user_id", userId)
         .eq("role", "student")
+        .eq("institute_code", instituteCode)
         .maybeSingle();
 
       if (!profile) {
-        toast({ title: "Account not found", description: "No student account linked to this email.", variant: "destructive" });
+        toast({ title: "Account not found", description: `No student account found for institute "${instituteCode}". Check the institute code or register first.`, variant: "destructive" });
         await supabase.auth.signOut();
         return;
       }
@@ -195,7 +204,7 @@ export default function StudentAuth() {
       if (profile.status === "approved" || profile.status === "active") {
         navigate("/student");
       } else {
-        setCurrentUserId(data.user.id);
+        setCurrentUserId(userId);
         setSubmittedName(profile.full_name);
         setSubmittedInstitute(profile.institute_code || "");
         setPendingStatus(profile.status === "rejected" ? "rejected" : "pending");
