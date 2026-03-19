@@ -1,7 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Float, MeshDistortMaterial } from "@react-three/drei";
+import * as THREE from "three";
 import {
   BarChart3,
   Users,
@@ -54,14 +57,6 @@ const navLinks = [
   { label: "Features", href: "#features" },
   { label: "Why Us", href: "#problem-solution" },
   { label: "Pricing", href: "#pricing" },
-  { label: "Testimonials", href: "#testimonials" },
-];
-
-const stats = [
-  { value: "10+", label: "Institutes Onboarded", color: "#3D2B1F" },
-  { value: "150+", label: "Students Managed", color: "#3D2B1F" },
-  { value: "98%", label: "Attendance Accuracy", color: "#9CAF88" },
-  { value: "4.9★", label: "Average Rating", color: "#E6C2A0" },
 ];
 
 const oldProblems = [
@@ -90,7 +85,7 @@ const featureCards = [
     title: "Batch Management",
     desc: "Organize students into intelligent batches with simplicity.",
     tags: ["Scheduling", "Transfers"],
-    bg: "#9CAF88",
+    bg: "#2DB5C8",
   },
   {
     icon: CheckCircle2,
@@ -118,7 +113,7 @@ const featureCards = [
     title: "Fee Tracking",
     desc: "Automated reminders, digital receipts, and payment analytics.",
     tags: ["Auto Remind", "Receipts"],
-    bg: "#9CAF88",
+    bg: "#2DB5C8",
   },
   {
     icon: BookOpen,
@@ -126,33 +121,6 @@ const featureCards = [
     desc: "Digital assignment distribution and practice papers.",
     tags: ["PDF Upload", "Tracking"],
     bg: "#8B6F4E",
-  },
-];
-
-const testimonials = [
-  {
-    initial: "R",
-    name: "Rajesh Kumar",
-    title: "Director, Brilliant Academy",
-    quote:
-      "BatchHub transformed how we manage our 200+ students. Fee collection improved by 40% in the first month alone.",
-    color: "from-[#E6C2A0] to-[#D4C4B0]",
-  },
-  {
-    initial: "S",
-    name: "Sunita Sharma",
-    title: "Founder, Sharma Coaching",
-    quote:
-      "The attendance system is a game-changer. Parents love the instant notifications and real-time transparency.",
-    color: "from-[#9CAF88] to-[#8B6F4E]",
-  },
-  {
-    initial: "A",
-    name: "Amit Patel",
-    title: "Principal, Patel Classes",
-    quote:
-      "Finally, a platform that understands Indian coaching needs. The batch chat feature eliminated our WhatsApp chaos.",
-    color: "from-[#D4C4B0] to-[#8B6F4E]",
   },
 ];
 
@@ -185,23 +153,6 @@ const pricingPlans = [
     highlighted: true,
     dark: true,
   },
-  {
-    name: "Scaling",
-    price: "Custom",
-    sub: "Talk to us",
-    desc: "For large & multi-branch institutes",
-    features: [
-      "500+ students",
-      "Multiple co-admins",
-      "Advanced analytics",
-      "Parent portal",
-      "Dedicated onboarding",
-      "SLA guarantee",
-    ],
-    cta: "Contact Us",
-    highlighted: false,
-    dark: false,
-  },
 ];
 
 const faqs = [
@@ -230,6 +181,150 @@ const faqs = [
     a: "Yes! BatchHub is a PWA (Progressive Web App) — it works on any phone's browser and can be added to the home screen. No Play Store or App Store required.",
   },
 ];
+
+// ─── 3D Hero Scene Components ────────────────────────────────────────────────
+
+function CursorOrb() {
+  const mesh = useRef<THREE.Mesh>(null!);
+  const { viewport, mouse } = useThree();
+  const targetX = useRef(0);
+  const targetY = useRef(0);
+
+  useFrame((state) => {
+    targetX.current += (mouse.x * viewport.width * 0.35 - targetX.current) * 0.05;
+    targetY.current += (mouse.y * viewport.height * 0.35 - targetY.current) * 0.05;
+    mesh.current.position.x = targetX.current;
+    mesh.current.position.y = targetY.current;
+    mesh.current.rotation.x = state.clock.elapsedTime * 0.3;
+    mesh.current.rotation.y = state.clock.elapsedTime * 0.2;
+  });
+
+  return (
+    <mesh ref={mesh}>
+      <sphereGeometry args={[0.9, 64, 64]} />
+      <MeshDistortMaterial
+        color="#2DB5C8"
+        attach="material"
+        distort={0.45}
+        speed={2.5}
+        roughness={0}
+        metalness={0.1}
+        transparent
+        opacity={0.55}
+      />
+    </mesh>
+  );
+}
+
+function FloatingRing({
+  position,
+  color,
+  speed,
+}: {
+  position: [number, number, number];
+  color: string;
+  speed: number;
+}) {
+  const mesh = useRef<THREE.Mesh>(null!);
+  useFrame((state) => {
+    mesh.current.rotation.x = state.clock.elapsedTime * speed * 0.6;
+    mesh.current.rotation.z = state.clock.elapsedTime * speed * 0.4;
+  });
+  return (
+    <Float speed={speed} rotationIntensity={0.4} floatIntensity={0.8}>
+      <mesh ref={mesh} position={position}>
+        <torusGeometry args={[0.55, 0.06, 16, 60]} />
+        <meshStandardMaterial color={color} transparent opacity={0.45} roughness={0.2} metalness={0.5} />
+      </mesh>
+    </Float>
+  );
+}
+
+function ParticleField() {
+  const count = 80;
+  const positions = useMemo(() => {
+    const arr = new Float32Array(count * 3);
+    for (let i = 0; i < count; i++) {
+      arr[i * 3] = (Math.random() - 0.5) * 14;
+      arr[i * 3 + 1] = (Math.random() - 0.5) * 10;
+      arr[i * 3 + 2] = (Math.random() - 0.5) * 6 - 2;
+    }
+    return arr;
+  }, []);
+  const geo = useRef<THREE.BufferGeometry>(null!);
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    const pos = geo.current.attributes.position.array as Float32Array;
+    for (let i = 0; i < count; i++) {
+      pos[i * 3 + 1] += Math.sin(t * 0.4 + i * 0.3) * 0.001;
+    }
+    geo.current.attributes.position.needsUpdate = true;
+  });
+  return (
+    <points>
+      <bufferGeometry ref={geo}>
+        <bufferAttribute attach="attributes-position" count={count} array={positions} itemSize={3} />
+      </bufferGeometry>
+      <pointsMaterial size={0.04} color="#2DB5C8" transparent opacity={0.6} sizeAttenuation />
+    </points>
+  );
+}
+
+function HeroScene() {
+  return (
+    <>
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[5, 5, 5]} intensity={1.2} color="#FAF6ED" />
+      <pointLight position={[-4, 2, 3]} intensity={0.8} color="#2DB5C8" />
+      <pointLight position={[4, -3, 2]} intensity={0.5} color="#E6C2A0" />
+      <ParticleField />
+      <CursorOrb />
+      <FloatingRing position={[-3.5, 1.5, -1]} color="#2DB5C8" speed={0.8} />
+      <FloatingRing position={[3.2, -1.2, -1.5]} color="#8B6F4E" speed={1.1} />
+      <FloatingRing position={[-2.5, -2, -0.5]} color="#E6C2A0" speed={0.6} />
+      <Float speed={1.4} rotationIntensity={0.3} floatIntensity={1}>
+        <mesh position={[4, 2, -2]}>
+          <octahedronGeometry args={[0.5]} />
+          <meshStandardMaterial color="#2DB5C8" transparent opacity={0.35} roughness={0.1} metalness={0.8} />
+        </mesh>
+      </Float>
+      <Float speed={0.9} rotationIntensity={0.5} floatIntensity={0.6}>
+        <mesh position={[-4, -1.5, -1]}>
+          <icosahedronGeometry args={[0.4]} />
+          <meshStandardMaterial color="#E6C2A0" transparent opacity={0.4} roughness={0.2} metalness={0.6} />
+        </mesh>
+      </Float>
+    </>
+  );
+}
+
+function FeatureOrbScene() {
+  const mesh = useRef<THREE.Mesh>(null!);
+  const { mouse } = useThree();
+  useFrame((state) => {
+    mesh.current.rotation.y = state.clock.elapsedTime * 0.4 + mouse.x * 0.5;
+    mesh.current.rotation.x = state.clock.elapsedTime * 0.25 + mouse.y * 0.3;
+  });
+  return (
+    <>
+      <ambientLight intensity={0.5} />
+      <pointLight position={[3, 3, 3]} intensity={1} color="#2DB5C8" />
+      <pointLight position={[-3, -2, 2]} intensity={0.6} color="#E6C2A0" />
+      <mesh ref={mesh}>
+        <icosahedronGeometry args={[1.1, 4]} />
+        <meshStandardMaterial color="#2DB5C8" wireframe transparent opacity={0.35} />
+      </mesh>
+      <Float speed={1.5} floatIntensity={0.5}>
+        <mesh position={[2, 0.5, -1]}>
+          <octahedronGeometry args={[0.35]} />
+          <meshStandardMaterial color="#E6C2A0" roughness={0.1} metalness={0.8} />
+        </mesh>
+      </Float>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const fadeUp = {
   hidden: { opacity: 0, y: 24 },
@@ -322,7 +417,7 @@ export default function Index() {
         className="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
         style={{
           borderBottom: scrolled ? "1px solid rgba(139,111,78,0.15)" : "none",
-          background: scrolled ? "rgba(253,252,250,0.85)" : "transparent",
+          background: scrolled ? "rgba(237,232,220,0.85)" : "transparent",
           backdropFilter: scrolled ? "blur(20px)" : "none",
         }}
       >
@@ -377,8 +472,8 @@ export default function Index() {
                 <button
                   className="px-6 py-2.5 rounded-full text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hidden sm:block"
                   style={{
-                    background: "#9CAF88",
-                    boxShadow: "0 4px 15px -3px rgba(156,175,136,0.5)",
+                    background: "#2DB5C8",
+                    boxShadow: "0 4px 15px -3px rgba(45,181,200,0.5)",
                   }}
                 >
                   Start Free Trial
@@ -388,7 +483,7 @@ export default function Index() {
               <Link to="/role-select" className="sm:hidden">
                 <button
                   className="px-4 py-2 rounded-full text-sm font-semibold text-white"
-                  style={{ background: "#9CAF88" }}
+                  style={{ background: "#2DB5C8" }}
                 >
                   Login
                 </button>
@@ -400,11 +495,25 @@ export default function Index() {
 
       {/* ══════════════════ HERO ══════════════════ */}
       <section className="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
+        {/* Three.js 3D Background Canvas */}
+        <div className="absolute inset-0 z-0 pointer-events-none">
+          <Canvas
+            camera={{ position: [0, 0, 6], fov: 60 }}
+            style={{ background: "transparent" }}
+            gl={{ antialias: true, alpha: true }}
+            dpr={[1, 1.5]}
+          >
+            <Suspense fallback={null}>
+              <HeroScene />
+            </Suspense>
+          </Canvas>
+        </div>
+
         {/* Floating ambient orbs */}
-        <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute inset-0 pointer-events-none z-0">
           <div
             className="absolute top-32 left-10 w-80 h-80 rounded-full blur-3xl"
-            style={{ background: "radial-gradient(circle, rgba(156,175,136,0.18) 0%, transparent 70%)" }}
+            style={{ background: "radial-gradient(circle, rgba(45,181,200,0.14) 0%, transparent 70%)" }}
           />
           <div
             className="absolute top-40 right-20 w-96 h-96 rounded-full blur-3xl"
@@ -417,12 +526,12 @@ export default function Index() {
         </div>
 
         {/* Floating UI decorations */}
-        <div className="absolute inset-0 pointer-events-none hidden md:block">
+        <div className="absolute inset-0 pointer-events-none hidden md:block z-10">
           {/* Notebook page */}
           <div
             className="absolute top-32 left-10 w-28 h-36 rounded-lg shadow-2xl opacity-60"
             style={{
-              background: "#FDFCFA",
+              background: "#EDE8DC",
               animation: "pageFly 3s ease-in-out infinite alternate",
               transformStyle: "preserve-3d",
             }}
@@ -448,9 +557,9 @@ export default function Index() {
           <div
             className="absolute bottom-44 left-24 text-4xl font-bold"
             style={{
-              color: "#9CAF88",
+              color: "#2DB5C8",
               animation: "floatEl 7s ease-in-out infinite 1s",
-              filter: "drop-shadow(0 4px 6px rgba(156,175,136,0.2))",
+              filter: "drop-shadow(0 4px 6px rgba(45,181,200,0.2))",
             }}
           >
             ₹
@@ -462,7 +571,7 @@ export default function Index() {
             style={{
               bottom: "35%",
               left: "22%",
-              background: "rgba(253,252,250,0.75)",
+              background: "rgba(237,232,220,0.75)",
               backdropFilter: "blur(20px)",
               border: "1px solid rgba(139,111,78,0.1)",
               animation: "floatEl 6s ease-in-out infinite 2s",
@@ -476,7 +585,7 @@ export default function Index() {
           {/* Check circle */}
           <div
             className="absolute w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
-            style={{ top: "50%", right: "10%", background: "#9CAF88", animation: "floatEl 5s ease-in-out infinite" }}
+            style={{ top: "50%", right: "10%", background: "#2DB5C8", animation: "floatEl 5s ease-in-out infinite" }}
           >
             <Check className="w-6 h-6 text-white" strokeWidth={3} />
           </div>
@@ -489,7 +598,7 @@ export default function Index() {
             {[
               { l: "A", bg: "#E6C2A0" },
               { l: "R", bg: "#D4C4B0" },
-              { l: "S", bg: "#9CAF88" },
+              { l: "S", bg: "#2DB5C8" },
             ].map((a) => (
               <div
                 key={a.l}
@@ -512,9 +621,9 @@ export default function Index() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
             style={{ background: "rgba(139,111,78,0.1)", border: "1px solid rgba(139,111,78,0.2)" }}
           >
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#9CAF88" }} />
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#2DB5C8" }} />
             <span className="text-sm font-medium" style={{ color: "#3D2B1F" }}>
-              Trusted by 10+ Institutes across India
+              Made in India, Made by Indian, Made for Indian Institute
             </span>
           </motion.div>
 
@@ -563,7 +672,7 @@ export default function Index() {
             <Link to="/role-select">
               <button
                 className="px-8 py-4 rounded-full text-base font-semibold text-white flex items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
-                style={{ background: "#9CAF88", boxShadow: "0 4px 20px -4px rgba(156,175,136,0.5)" }}
+                style={{ background: "#2DB5C8", boxShadow: "0 4px 20px -4px rgba(45,181,200,0.5)" }}
               >
                 Get Started Free
                 <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
@@ -606,19 +715,19 @@ export default function Index() {
             {/* Fade-out gradient at bottom */}
             <div
               className="absolute inset-0 z-10 pointer-events-none"
-              style={{ background: "linear-gradient(to top, #F5F1E8 0%, transparent 60%)" }}
+              style={{ background: "linear-gradient(to top, #EDE8DC 0%, transparent 60%)" }}
             />
             <div
               className="rounded-3xl p-2 shadow-2xl hover:scale-[1.01] transition-transform duration-500"
               style={{
-                background: "rgba(253,252,250,0.7)",
+                background: "rgba(237,232,220,0.7)",
                 backdropFilter: "blur(20px)",
                 border: "1px solid rgba(139,111,78,0.1)",
               }}
             >
               <div
                 className="rounded-2xl overflow-hidden"
-                style={{ background: "#FDFCFA", border: "1px solid #E8DCC4" }}
+                style={{ background: "#EDE8DC", border: "1px solid #E8DCC4" }}
               >
                 {/* Browser chrome */}
                 <div
@@ -628,7 +737,7 @@ export default function Index() {
                   <div className="flex gap-1.5">
                     <div className="w-3 h-3 rounded-full" style={{ background: "#E6C2A0" }} />
                     <div className="w-3 h-3 rounded-full" style={{ background: "#D4C4B0" }} />
-                    <div className="w-3 h-3 rounded-full" style={{ background: "#9CAF88" }} />
+                    <div className="w-3 h-3 rounded-full" style={{ background: "#2DB5C8" }} />
                   </div>
                   <div className="flex-1 text-center text-xs font-medium" style={{ color: "#8B6F4E" }}>
                     BatchHub Dashboard
@@ -639,7 +748,7 @@ export default function Index() {
                   <div className="col-span-3 grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
                     {[
                       { v: "156", l: "Total Students", c: "#3D2B1F" },
-                      { v: "94%", l: "Attendance", c: "#9CAF88" },
+                      { v: "94%", l: "Attendance", c: "#2DB5C8" },
                       { v: "₹2.4L", l: "Fee Collected", c: "#8B6F4E" },
                       { v: "12", l: "Active Batches", c: "#E6C2A0" },
                     ].map((s) => (
@@ -660,14 +769,14 @@ export default function Index() {
                   {/* Batch list */}
                   <div
                     className="md:col-span-2 rounded-xl p-4"
-                    style={{ background: "#FDFCFA", border: "1px solid #E8DCC4" }}
+                    style={{ background: "#EDE8DC", border: "1px solid #E8DCC4" }}
                   >
                     <h3 className="font-semibold text-sm mb-3" style={{ color: "#3D2B1F" }}>
                       Active Batches
                     </h3>
                     <div className="space-y-2">
                       {[
-                        { l: "JEE Advanced 2025", s: "42 students · Physics", c: "#9CAF88" },
+                        { l: "JEE Advanced 2025", s: "42 students · Physics", c: "#2DB5C8" },
                         { l: "NEET Crash Course", s: "32 students · Biology", c: "#E6C2A0" },
                         { l: "Foundation XI", s: "55 students · Maths", c: "#8B6F4E" },
                       ].map((b) => (
@@ -692,19 +801,19 @@ export default function Index() {
                               </div>
                             </div>
                           </div>
-                          <span className="w-2 h-2 rounded-full" style={{ background: "#9CAF88" }} />
+                          <span className="w-2 h-2 rounded-full" style={{ background: "#2DB5C8" }} />
                         </div>
                       ))}
                     </div>
                   </div>
                   {/* Attendance chart */}
-                  <div className="rounded-xl p-4" style={{ background: "#FDFCFA", border: "1px solid #E8DCC4" }}>
+                  <div className="rounded-xl p-4" style={{ background: "#EDE8DC", border: "1px solid #E8DCC4" }}>
                     <h3 className="font-semibold text-sm mb-3" style={{ color: "#3D2B1F" }}>
                       Today's Attendance
                     </h3>
                     <div className="space-y-3">
                       {[
-                        { l: "Batch A", v: 92, c: "#9CAF88" },
+                        { l: "Batch A", v: 92, c: "#2DB5C8" },
                         { l: "Batch B", v: 88, c: "#8B6F4E" },
                         { l: "Batch C", v: 95, c: "#E6C2A0" },
                       ].map((a) => (
@@ -737,40 +846,8 @@ export default function Index() {
         </div>
       </section>
 
-      {/* ══════════════════ STATS ══════════════════ */}
-      <section className="py-20" style={{ background: "#F5F1E8" }}>
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {stats.map((s, i) => (
-              <motion.div
-                key={s.label}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="text-center group"
-              >
-                <div
-                  className="text-4xl md:text-5xl font-bold mb-2"
-                  style={{ color: s.color, fontFamily: "'Bricolage Grotesque', serif" }}
-                >
-                  {s.value}
-                </div>
-                <div className="text-sm font-medium uppercase tracking-wider" style={{ color: "#8B6F4E" }}>
-                  {s.label}
-                </div>
-                <div
-                  className="mt-4 h-1 rounded-full mx-auto transition-all duration-300 group-hover:w-20 w-12"
-                  style={{ background: "#9CAF88" }}
-                />
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ══════════════════ PROBLEM → SOLUTION ══════════════════ */}
-      <section id="problem-solution" className="py-24 relative" style={{ background: "#FDFCFA" }}>
+      <section id="problem-solution" className="py-24 relative" style={{ background: "#EDE8DC" }}>
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -826,12 +903,12 @@ export default function Index() {
               />
               <div
                 className="relative rounded-3xl p-8 h-full"
-                style={{ background: "#FDFCFA", border: "2px solid #e2e8f0" }}
+                style={{ background: "#EDE8DC", border: "2px solid #e2e8f0" }}
               >
                 <div className="flex items-center gap-3 mb-6">
                   <div
                     className="w-12 h-12 rounded-full flex items-center justify-center"
-                    style={{ background: "#f1f5f9" }}
+                    style={{ background: "#EAE4D6" }}
                   >
                     <XCircle className="w-6 h-6" style={{ color: "#94a3b8" }} />
                   </div>
@@ -847,11 +924,11 @@ export default function Index() {
                     <div
                       key={p.title}
                       className="flex items-start gap-4 p-4 rounded-xl"
-                      style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}
+                      style={{ background: "#EDE8DC", border: "1px solid #E8DCC4" }}
                     >
                       <div
                         className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-                        style={{ background: "white", border: "1px solid #e2e8f0" }}
+                        style={{ background: "#F5F1E8", border: "1px solid #E8DCC4" }}
                       >
                         <p.icon className="w-5 h-5" style={{ color: "#94a3b8" }} />
                       </div>
@@ -878,16 +955,16 @@ export default function Index() {
             >
               <div
                 className="absolute inset-0 rounded-3xl transform -rotate-1 group-hover:-rotate-2 transition-transform duration-500 opacity-20"
-                style={{ background: "linear-gradient(135deg, #9CAF88, #8B6F4E)" }}
+                style={{ background: "linear-gradient(135deg, #2DB5C8, #8B6F4E)" }}
               />
               <div
                 className="relative rounded-3xl p-8 h-full shadow-xl"
-                style={{ background: "#FDFCFA", border: "2px solid rgba(156,175,136,0.3)" }}
+                style={{ background: "#EDE8DC", border: "2px solid rgba(45,181,200,0.3)" }}
               >
                 <div className="flex items-center gap-3 mb-6">
                   <div
                     className="w-12 h-12 rounded-full flex items-center justify-center"
-                    style={{ background: "#9CAF88" }}
+                    style={{ background: "#2DB5C8" }}
                   >
                     <CheckCircle2 className="w-6 h-6 text-white" />
                   </div>
@@ -907,7 +984,7 @@ export default function Index() {
                     >
                       <div
                         className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-white"
-                        style={{ background: i === 0 ? "#9CAF88" : i === 1 ? "#8B6F4E" : "#E6C2A0" }}
+                        style={{ background: i === 0 ? "#2DB5C8" : i === 1 ? "#8B6F4E" : "#E6C2A0" }}
                       >
                         <s.icon className="w-5 h-5" />
                       </div>
@@ -931,7 +1008,7 @@ export default function Index() {
             <Link to="/role-select">
               <button
                 className="px-8 py-4 rounded-full text-base font-semibold text-white flex items-center gap-2 group transition-all duration-300 hover:-translate-y-1"
-                style={{ background: "#9CAF88", boxShadow: "0 4px 20px -4px rgba(156,175,136,0.5)" }}
+                style={{ background: "#2DB5C8", boxShadow: "0 4px 20px -4px rgba(45,181,200,0.5)" }}
               >
                 Get Started Free <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
               </button>
@@ -957,7 +1034,15 @@ export default function Index() {
       </section>
 
       {/* ══════════════════ FEATURES ══════════════════ */}
-      <section id="features" className="py-24 relative" style={{ background: "#F5F1E8" }}>
+      <section id="features" className="py-24 relative overflow-hidden" style={{ background: "#F5F1E8" }}>
+        {/* Mini 3D orb — decorative, right side */}
+        <div className="absolute right-0 top-0 bottom-0 w-72 pointer-events-none hidden lg:block opacity-60 z-0">
+          <Canvas camera={{ position: [0, 0, 5], fov: 50 }} gl={{ antialias: true, alpha: true }} dpr={[1, 1.5]}>
+            <Suspense fallback={null}>
+              <FeatureOrbScene />
+            </Suspense>
+          </Canvas>
+        </div>
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1033,92 +1118,6 @@ export default function Index() {
         </div>
       </section>
 
-      {/* ══════════════════ TESTIMONIALS ══════════════════ */}
-      <section id="testimonials" className="py-24 relative overflow-hidden" style={{ background: "#FDFCFA" }}>
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center mb-16"
-          >
-            <h2
-              className="text-4xl md:text-5xl font-bold mb-4"
-              style={{ fontFamily: "'Bricolage Grotesque', serif", color: "#3D2B1F" }}
-            >
-              Loved by{" "}
-              <span
-                className="italic"
-                style={{
-                  background: "linear-gradient(135deg, #3D2B1F, #8B6F4E)",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
-                educators
-              </span>
-            </h2>
-            <p className="text-lg" style={{ color: "#8B6F4E" }}>
-              See what institute owners say about BatchHub
-            </p>
-          </motion.div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.map((t, i) => (
-              <motion.div
-                key={t.name}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="relative rounded-3xl p-8 hover:-translate-y-2 transition-transform duration-400 cursor-default"
-                style={{
-                  background: "rgba(253,252,250,0.7)",
-                  backdropFilter: "blur(20px)",
-                  border: "1px solid rgba(139,111,78,0.1)",
-                  boxShadow: "0 4px 20px rgba(61,43,31,0.06)",
-                  animation: `floatEl ${8 + i}s ease-in-out infinite`,
-                  animationDelay: `${i}s`,
-                }}
-              >
-                <div
-                  className="absolute -top-4 -right-4 w-12 h-12 rounded-full flex items-center justify-center text-white text-2xl font-bold"
-                  style={{ background: i === 0 ? "#9CAF88" : i === 1 ? "#8B6F4E" : "#E6C2A0", fontFamily: "serif" }}
-                >
-                  "
-                </div>
-                <div className="flex items-center gap-4 mb-6">
-                  <div
-                    className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl bg-gradient-to-br ${t.color}`}
-                  >
-                    {t.initial}
-                  </div>
-                  <div>
-                    <h4 className="font-bold" style={{ color: "#3D2B1F" }}>
-                      {t.name}
-                    </h4>
-                    <p className="text-sm" style={{ color: "#8B6F4E" }}>
-                      {t.title}
-                    </p>
-                  </div>
-                </div>
-                <p className="leading-relaxed" style={{ color: "rgba(61,43,31,0.8)" }}>
-                  "{t.quote}"
-                </p>
-                <div className="flex gap-1 mt-4">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <span key={n} style={{ color: "#E6C2A0" }}>
-                      ★
-                    </span>
-                  ))}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ══════════════════ PRICING ══════════════════ */}
       <section id="pricing" className="py-24 relative" style={{ background: "#F5F1E8" }}>
         <div className="max-w-7xl mx-auto px-6 lg:px-8">
@@ -1142,7 +1141,7 @@ export default function Index() {
             </p>
           </motion.div>
 
-          <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto">
             {pricingPlans.map((plan, i) => (
               <motion.div
                 key={plan.name}
@@ -1160,7 +1159,7 @@ export default function Index() {
                 {plan.highlighted && (
                   <div
                     className="absolute top-0 right-0 text-white text-xs font-bold px-4 py-1 rounded-bl-xl"
-                    style={{ background: "#9CAF88" }}
+                    style={{ background: "#2DB5C8" }}
                   >
                     POPULAR
                   </div>
@@ -1197,7 +1196,7 @@ export default function Index() {
                   <ul className="space-y-3 mb-8">
                     {plan.features.map((feat) => (
                       <li key={feat} className="flex items-center gap-3 text-sm">
-                        <Check className="w-5 h-5 flex-shrink-0" style={{ color: "#9CAF88" }} />
+                        <Check className="w-5 h-5 flex-shrink-0" style={{ color: "#2DB5C8" }} />
                         <span style={{ color: plan.dark ? "white" : "#3D2B1F" }}>{feat}</span>
                       </li>
                     ))}
@@ -1207,7 +1206,7 @@ export default function Index() {
                       className="w-full py-3 rounded-full font-semibold transition-all duration-300"
                       style={
                         plan.dark
-                          ? { background: "#9CAF88", color: "white", boxShadow: "0 4px 15px rgba(156,175,136,0.3)" }
+                          ? { background: "#2DB5C8", color: "white", boxShadow: "0 4px 15px rgba(45,181,200,0.3)" }
                           : { border: "2px solid #8B6F4E", color: "#3D2B1F", background: "transparent" }
                       }
                       onMouseEnter={(e) => {
@@ -1237,7 +1236,7 @@ export default function Index() {
       </section>
 
       {/* ══════════════════ FAQ ══════════════════ */}
-      <section id="faq" className="py-24" style={{ background: "#FDFCFA" }}>
+      <section id="faq" className="py-24" style={{ background: "#EDE8DC" }}>
         <div className="max-w-3xl mx-auto px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1265,7 +1264,7 @@ export default function Index() {
                 viewport={{ once: true }}
                 transition={{ delay: i * 0.05 }}
                 className="rounded-2xl overflow-hidden"
-                style={{ border: "1px solid #E8DCC4", background: "#FDFCFA" }}
+                style={{ border: "1px solid #E8DCC4", background: "#EDE8DC" }}
               >
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
@@ -1308,7 +1307,7 @@ export default function Index() {
         {/* Background */}
         <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, #F5F1E8, #E8DCC4)" }} />
         <div className="absolute inset-0 opacity-30">
-          <div className="absolute top-20 left-10 w-64 h-64 rounded-full blur-3xl" style={{ background: "#9CAF88" }} />
+          <div className="absolute top-20 left-10 w-64 h-64 rounded-full blur-3xl" style={{ background: "#2DB5C8" }} />
           <div
             className="absolute bottom-20 right-10 w-96 h-96 rounded-full blur-3xl"
             style={{ background: "#E6C2A0" }}
@@ -1333,7 +1332,7 @@ export default function Index() {
           </div>
           <div
             className="absolute top-1/3 right-1/4 w-16 h-16 rounded-full flex items-center justify-center shadow-xl"
-            style={{ background: "#9CAF88", animation: "floatEl 8s ease-in-out infinite 2s" }}
+            style={{ background: "#2DB5C8", animation: "floatEl 8s ease-in-out infinite 2s" }}
           >
             <Check className="w-8 h-8 text-white" />
           </div>
@@ -1350,7 +1349,7 @@ export default function Index() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
               style={{ background: "rgba(255,255,255,0.5)", border: "1px solid rgba(139,111,78,0.2)" }}
             >
-              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#9CAF88" }} />
+              <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "#2DB5C8" }} />
               <span className="text-sm font-medium" style={{ color: "#3D2B1F" }}>
                 Join institutes already using BatchHub
               </span>
@@ -1383,7 +1382,7 @@ export default function Index() {
               <Link to="/role-select">
                 <button
                   className="px-10 py-5 rounded-full text-lg font-semibold text-white flex items-center gap-3 group transition-all duration-300 hover:-translate-y-1"
-                  style={{ background: "#9CAF88", boxShadow: "0 8px 30px -5px rgba(156,175,136,0.5)" }}
+                  style={{ background: "#2DB5C8", boxShadow: "0 8px 30px -5px rgba(45,181,200,0.5)" }}
                 >
                   Start Free Trial
                   <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
@@ -1413,7 +1412,7 @@ export default function Index() {
             >
               {["No credit card required", "14-day free trial", "Cancel anytime"].map((t) => (
                 <div key={t} className="flex items-center gap-2">
-                  <Check className="w-4 h-4" style={{ color: "#9CAF88" }} />
+                  <Check className="w-4 h-4" style={{ color: "#2DB5C8" }} />
                   {t}
                 </div>
               ))}
@@ -1431,7 +1430,7 @@ export default function Index() {
               <div className="flex items-center gap-3 mb-6">
                 <div
                   className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-xl"
-                  style={{ background: "linear-gradient(135deg, #9CAF88, #8B6F4E)" }}
+                  style={{ background: "linear-gradient(135deg, #2DB5C8, #8B6F4E)" }}
                 >
                   B
                 </div>
@@ -1455,7 +1454,7 @@ export default function Index() {
                     className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-colors duration-200"
                     style={{ background: "rgba(139,111,78,0.2)", color: "#D4C4B0" }}
                     onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLAnchorElement).style.background = "#9CAF88";
+                      (e.currentTarget as HTMLAnchorElement).style.background = "#2DB5C8";
                     }}
                     onMouseLeave={(e) => {
                       (e.currentTarget as HTMLAnchorElement).style.background = "rgba(139,111,78,0.2)";
@@ -1476,7 +1475,7 @@ export default function Index() {
                     href="#features"
                     className="transition-colors"
                     style={{ color: "#D4C4B0" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
                   >
                     Features
@@ -1487,7 +1486,7 @@ export default function Index() {
                     href="#pricing"
                     className="transition-colors"
                     style={{ color: "#D4C4B0" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
                   >
                     Pricing
@@ -1498,7 +1497,7 @@ export default function Index() {
                     to="/demo/admin"
                     className="transition-colors"
                     style={{ color: "#D4C4B0" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
                   >
                     Demo
@@ -1509,7 +1508,7 @@ export default function Index() {
                     href="#faq"
                     className="transition-colors"
                     style={{ color: "#D4C4B0" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
                   >
                     FAQ
@@ -1527,7 +1526,7 @@ export default function Index() {
                     href="mailto:hello@batchhub.in"
                     className="transition-colors"
                     style={{ color: "#D4C4B0" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
                   >
                     Contact
@@ -1538,7 +1537,7 @@ export default function Index() {
                     to="/apply/city-partner"
                     className="transition-colors"
                     style={{ color: "#D4C4B0" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
                   >
                     Become a City Partner
@@ -1549,7 +1548,7 @@ export default function Index() {
                     to="/auth/superadmin"
                     className="transition-colors"
                     style={{ color: "#D4C4B0" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
                   >
                     City Partner Login
@@ -1560,7 +1559,7 @@ export default function Index() {
                     to="/owner"
                     className="transition-colors"
                     style={{ color: "#D4C4B0" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                     onMouseLeave={(e) => (e.currentTarget.style.color = "#D4C4B0")}
                   >
                     Owner Login
@@ -1582,7 +1581,7 @@ export default function Index() {
                 href="#"
                 className="transition-colors"
                 style={{ color: "#8B6F4E" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "#8B6F4E")}
               >
                 Privacy Policy
@@ -1591,7 +1590,7 @@ export default function Index() {
                 href="#"
                 className="transition-colors"
                 style={{ color: "#8B6F4E" }}
-                onMouseEnter={(e) => (e.currentTarget.style.color = "#9CAF88")}
+                onMouseEnter={(e) => (e.currentTarget.style.color = "#2DB5C8")}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "#8B6F4E")}
               >
                 Terms of Service
@@ -1607,7 +1606,7 @@ export default function Index() {
           <div
             className="border-t shadow-2xl px-4 py-3"
             style={{
-              background: "rgba(253,252,250,0.95)",
+              background: "rgba(237,232,220,0.95)",
               backdropFilter: "blur(20px)",
               borderColor: "rgba(139,111,78,0.2)",
             }}
@@ -1615,7 +1614,7 @@ export default function Index() {
             <div className="flex items-center gap-3">
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: "linear-gradient(135deg, #9CAF88, #8B6F4E)" }}
+                style={{ background: "linear-gradient(135deg, #2DB5C8, #8B6F4E)" }}
               >
                 <Zap className="w-5 h-5 text-white" />
               </div>
@@ -1632,7 +1631,7 @@ export default function Index() {
                   <button
                     onClick={handleNativeInstall}
                     className="h-8 px-3 text-xs text-white rounded-lg flex items-center gap-1.5"
-                    style={{ background: "#9CAF88" }}
+                    style={{ background: "#2DB5C8" }}
                   >
                     <Download className="w-3.5 h-3.5" /> Install
                   </button>
@@ -1640,7 +1639,7 @@ export default function Index() {
                   <Link to="/install">
                     <button
                       className="h-8 px-3 text-xs text-white rounded-lg flex items-center gap-1.5"
-                      style={{ background: "#9CAF88" }}
+                      style={{ background: "#2DB5C8" }}
                     >
                       <Download className="w-3.5 h-3.5" /> How to Install
                     </button>
