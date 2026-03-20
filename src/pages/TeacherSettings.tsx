@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Building2, Lock, Loader2, Save, Phone, Mail, IdCard, Hash } from "lucide-react";
+import { User, Building2, Lock, Loader2, Save, Mail, IdCard, Hash } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -47,13 +47,14 @@ export default function TeacherSettings() {
       if (!user) return;
       setUserId(user.id);
 
-      const [profileRes, requestRes] = await Promise.all([
-        supabase.from("profiles").select("*").eq("user_id", user.id).single(),
-        supabase.from("pending_requests").select("extra_data").eq("user_id", user.id).eq("role", "teacher").maybeSingle(),
-      ]);
+      // Single query — role_based_code comes directly from profile, no extra pending_requests call
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
 
-      if (profileRes.data) {
-        const profile = profileRes.data;
+      if (profile) {
         setProfileId(profile.id);
         setFullName(profile.full_name);
         setEditName(profile.full_name);
@@ -61,6 +62,8 @@ export default function TeacherSettings() {
         setPhone(profile.phone || "");
         setEditPhone(profile.phone || "");
         setInstituteCode(profile.institute_code || "");
+        // Read teacher ID directly from profile
+        setTeacherId((profile as Record<string, unknown>).role_based_code as string || "");
 
         if (profile.institute_code) {
           const { data: inst } = await supabase
@@ -70,11 +73,6 @@ export default function TeacherSettings() {
             .single();
           if (inst) setInstituteName(`${inst.institute_name}${inst.city ? ", " + inst.city : ""}`);
         }
-      }
-
-      if (requestRes.data?.extra_data) {
-        const extra = requestRes.data.extra_data as Record<string, string>;
-        setTeacherId(extra.teacherId || "");
       }
     } catch (err: unknown) {
       toast({ title: "Error", description: err instanceof Error ? err.message : "Failed to load", variant: "destructive" });
