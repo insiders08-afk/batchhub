@@ -234,6 +234,7 @@ export default function StudentAuth() {
       }
 
       if (profile.status === "approved" || profile.status === "active") {
+        localStorage.setItem("batchhub_active_institute", instituteCode);
         navigate("/student");
       } else {
         setCurrentUserId(userId);

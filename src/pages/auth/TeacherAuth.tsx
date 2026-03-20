@@ -229,6 +229,7 @@ export default function TeacherAuth() {
       }
 
       if (profile.status === "approved" || profile.status === "active") {
+        localStorage.setItem("batchhub_active_institute", instituteCode);
         navigate("/teacher");
       } else {
         setCurrentUserId(userId);

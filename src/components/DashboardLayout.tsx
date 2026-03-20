@@ -174,6 +174,7 @@ export default function DashboardLayout({ children, title, role = "admin" }: Das
   }, [isAdmin, authChecked, instituteCode]);
 
   const handleLogout = async () => {
+    localStorage.removeItem("batchhub_active_institute");
     await supabase.auth.signOut();
     navigate("/");
   };

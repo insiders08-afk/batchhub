@@ -43,11 +43,17 @@ export default function StudentDashboard() {
       if (!user) { setLoading(false); return; }
       setUserId(user.id);
 
-      const { data: profile } = await supabase
+      const activeInstituteCode = localStorage.getItem("batchhub_active_institute");
+
+      const profileQuery = supabase
         .from("profiles")
         .select("full_name, institute_code")
         .eq("user_id", user.id)
-        .single();
+        .eq("role", "student");
+
+      const { data: profile } = activeInstituteCode
+        ? await profileQuery.eq("institute_code", activeInstituteCode).maybeSingle()
+        : await profileQuery.single();
 
       if (profile) {
         setUserName(profile.full_name);
