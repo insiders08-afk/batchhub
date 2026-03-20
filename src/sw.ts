@@ -1,11 +1,54 @@
 /// <reference lib="webworker" />
 import { cleanupOutdatedCaches, precacheAndRoute } from "workbox-precaching";
+import { registerRoute } from "workbox-routing";
+import { CacheFirst, StaleWhileRevalidate } from "workbox-strategies";
+import { ExpirationPlugin } from "workbox-expiration";
 
 declare let self: ServiceWorkerGlobalScope;
 
-// Workbox precache manifest injected at build time
+// Workbox precache manifest injected at build time — handles versioned /assets/* chunks
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
+
+// ─── Runtime caching: JS/CSS assets (cache-first, 1 year) ────────────────────
+// Catches any asset not in the precache manifest (e.g. dynamic imports loaded later)
+registerRoute(
+  ({ url }) => url.pathname.startsWith("/assets/"),
+  new CacheFirst({
+    cacheName: "assets-cache-v1",
+    plugins: [
+      new ExpirationPlugin({
+        maxAgeSeconds: 365 * 24 * 60 * 60, // 1 year
+        maxEntries: 100,
+      }),
+    ],
+  })
+);
+
+// ─── Runtime caching: Google Fonts stylesheets (stale-while-revalidate) ──────
+registerRoute(
+  ({ url }) => url.origin === "https://fonts.googleapis.com",
+  new StaleWhileRevalidate({
+    cacheName: "google-fonts-stylesheets-v1",
+    plugins: [
+      new ExpirationPlugin({ maxAgeSeconds: 60 * 60 * 24 * 30, maxEntries: 10 }),
+    ],
+  })
+);
+
+// ─── Runtime caching: Google Fonts files (cache-first, 1 year) ───────────────
+registerRoute(
+  ({ url }) => url.origin === "https://fonts.gstatic.com",
+  new CacheFirst({
+    cacheName: "google-fonts-webfonts-v1",
+    plugins: [
+      new ExpirationPlugin({
+        maxAgeSeconds: 365 * 24 * 60 * 60,
+        maxEntries: 20,
+      }),
+    ],
+  })
+);
 
 // ─── Push notification handler ───────────────────────────────────────────────
 self.addEventListener("push", (event: PushEvent) => {
