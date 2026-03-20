@@ -130,7 +130,8 @@ export default function AdminStudents() {
   const filtered = students.filter(s =>
     s.full_name.toLowerCase().includes(search.toLowerCase()) ||
     (s.email || "").toLowerCase().includes(search.toLowerCase()) ||
-    s.batchNames.join(" ").toLowerCase().includes(search.toLowerCase())
+    s.batchNames.join(" ").toLowerCase().includes(search.toLowerCase()) ||
+    ((s as Record<string, unknown>).role_based_code as string || "").toLowerCase().includes(search.toLowerCase())
   );
 
   const statusColor = (status: string) => {

@@ -96,7 +96,8 @@ export default function AdminTeam() {
 
   const filteredTeachers = teachers.filter(t =>
     t.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    (t.email || "").toLowerCase().includes(search.toLowerCase())
+    (t.email || "").toLowerCase().includes(search.toLowerCase()) ||
+    ((t as Record<string, unknown>).role_based_code as string || "").toLowerCase().includes(search.toLowerCase())
   );
   const filteredCoAdmins = coAdmins.filter(t =>
     t.full_name.toLowerCase().includes(search.toLowerCase()) ||
