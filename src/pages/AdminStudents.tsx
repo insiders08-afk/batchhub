@@ -252,16 +252,21 @@ export default function AdminStudents() {
           {selectedStudent && (
             <div className="space-y-4 pt-2">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full gradient-hero flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
-                  {selectedStudent.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                </div>
-                <div>
-                  <p className="font-semibold text-base">{selectedStudent.full_name}</p>
-                  <Badge className={`text-xs mt-1 ${statusColor(selectedStudent.status)}`}>
-                    {selectedStudent.status}
-                  </Badge>
-                </div>
-              </div>
+                 <div className="w-14 h-14 rounded-full gradient-hero flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
+                   {selectedStudent.full_name.split(" ").map(n => n[0]).join("").slice(0, 2)}
+                 </div>
+                 <div>
+                   <p className="font-semibold text-base">{selectedStudent.full_name}</p>
+                   {(selectedStudent as unknown as Record<string, unknown>).role_based_code && (
+                     <p className="text-xs font-mono text-primary font-semibold mt-0.5">
+                       ID: {(selectedStudent as unknown as Record<string, unknown>).role_based_code as string}
+                     </p>
+                   )}
+                   <Badge className={`text-xs mt-1 ${statusColor(selectedStudent.status)}`}>
+                     {selectedStudent.status}
+                   </Badge>
+                 </div>
+               </div>
               <div className="grid grid-cols-1 gap-3">
                 <div className="p-3 rounded-lg bg-muted/40 space-y-1">
                   <Label className="text-xs text-muted-foreground">Email</Label>
