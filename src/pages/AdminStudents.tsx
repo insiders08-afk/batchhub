@@ -178,7 +178,13 @@ export default function AdminStudents() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-sm truncate">{s.full_name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{s.email}</p>
+                      {(s as unknown as Record<string, unknown>).role_based_code ? (
+                        <p className="text-xs font-mono text-primary font-medium truncate">
+                          {(s as unknown as Record<string, unknown>).role_based_code as string}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground truncate">{s.email}</p>
+                      )}
                     </div>
                     <Badge className={`text-xs flex-shrink-0 ${statusColor(s.status)}`}>
                       {s.status.charAt(0).toUpperCase() + s.status.slice(1)}
