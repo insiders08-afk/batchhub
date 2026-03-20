@@ -565,6 +565,7 @@ export type Database = {
           institute_code: string | null
           phone: string | null
           role: Database["public"]["Enums"]["app_role"]
+          role_based_code: string | null
           status: Database["public"]["Enums"]["user_status"]
           updated_at: string
           user_id: string
@@ -578,6 +579,7 @@ export type Database = {
           institute_code?: string | null
           phone?: string | null
           role: Database["public"]["Enums"]["app_role"]
+          role_based_code?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           updated_at?: string
           user_id: string
@@ -591,6 +593,7 @@ export type Database = {
           institute_code?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
+          role_based_code?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           updated_at?: string
           user_id?: string
