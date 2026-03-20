@@ -243,10 +243,16 @@ export default function AdminApprovals() {
       if (reqError) throw reqError;
 
       if (action === "approved") {
+        // Build profile update — always approve, plus backfill role_based_code for student/teacher
+        const extra = (req.extra_data as Record<string, string>) || {};
+        const profileUpdates: Record<string, unknown> = { status: "approved" };
+        if (req.role === "student" && extra.studentId) profileUpdates.role_based_code = extra.studentId;
+        if (req.role === "teacher" && extra.teacherId) profileUpdates.role_based_code = extra.teacherId;
+
         // Fix #13: scope profile update to this institute
         const { error: profError } = await supabase
           .from("profiles")
-          .update({ status: "approved" })
+          .update(profileUpdates)
           .eq("user_id", req.user_id)
           .eq("institute_code", req.institute_code);
         if (profError) throw profError;

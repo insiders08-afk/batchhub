@@ -48,9 +48,8 @@ export default function StudentSettings() {
       if (!user) return;
       setUserId(user.id);
 
-      const [profileRes, requestRes, batchRes] = await Promise.all([
+      const [profileRes, batchRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", user.id).single(),
-        supabase.from("pending_requests").select("extra_data").eq("user_id", user.id).eq("role", "student").maybeSingle(),
         supabase.from("students_batches").select("id", { count: "exact" }).eq("student_id", user.id),
       ]);
 
@@ -63,6 +62,8 @@ export default function StudentSettings() {
         setPhone(profile.phone || "");
         setEditPhone(profile.phone || "");
         setInstituteCode(profile.institute_code || "");
+        // Read student ID directly from profile (no extra pending_requests query)
+        setStudentId((profile as Record<string, unknown>).role_based_code as string || "");
 
         if (profile.institute_code) {
           const { data: inst } = await supabase
@@ -72,11 +73,6 @@ export default function StudentSettings() {
             .single();
           if (inst) setInstituteName(`${inst.institute_name}${inst.city ? ", " + inst.city : ""}`);
         }
-      }
-
-      if (requestRes.data?.extra_data) {
-        const extra = requestRes.data.extra_data as Record<string, string>;
-        setStudentId(extra.studentId || "");
       }
 
       setBatchCount(batchRes.count || 0);
