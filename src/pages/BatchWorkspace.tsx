@@ -49,6 +49,7 @@ interface BatchInfo {
   name: string;
   course: string;
   teacher_name: string | null;
+  teacher_id: string | null;
   institute_code: string;
 }
 
@@ -431,18 +432,31 @@ export default function BatchWorkspace() {
       setAttachedFile(null);
       setReplyingTo(null);
 
-      // ─── Push rule: teacher message → notify all students in batch ───────
+      const msgText = chatInput.trim() || `📎 ${fileData?.name || "File shared"}`;
+
+      // ─── Push rule: teacher/admin message → notify all students in batch ─
       if ((currentUserRole === "teacher" || currentUserRole === "admin") && batch) {
         const studentIds = await getBatchStudentIds(batchId!);
         if (studentIds.length > 0) {
           sendPushNotification({
             institute_code: batch.institute_code,
             title: `${currentUserName} (${batch.name})`,
-            body: chatInput.trim() || `📎 ${fileData?.name || "File shared"}`,
+            body: msgText,
             url: `/batch/${batchId}`,
             target_user_ids: studentIds,
           });
         }
+      }
+
+      // ─── Push rule: student message → notify teacher of batch ────────────
+      if (currentUserRole === "student" && batch?.teacher_id) {
+        sendPushNotification({
+          institute_code: batch.institute_code,
+          title: `${currentUserName} in ${batch.name}`,
+          body: msgText,
+          url: `/batch/${batchId}`,
+          target_user_ids: [batch.teacher_id],
+        });
       }
     }
     setSendingMsg(false);

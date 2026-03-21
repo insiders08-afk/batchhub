@@ -51,6 +51,23 @@ export default function OwnerAuth() {
         return;
       }
 
+      // Ensure app_owner has a profiles row (create one if missing)
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (!existingProfile && data.user) {
+        await supabase.from("profiles").insert({
+          user_id: data.user.id,
+          email: data.user.email ?? form.email,
+          full_name: data.user.user_metadata?.full_name || "App Owner",
+          role: "app_owner",
+          status: "active",
+        });
+      }
+
       navigate("/owner");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Login failed";
