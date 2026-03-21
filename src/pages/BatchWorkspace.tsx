@@ -49,6 +49,7 @@ interface BatchInfo {
   name: string;
   course: string;
   teacher_name: string | null;
+  teacher_id: string | null;
   institute_code: string;
 }
 
