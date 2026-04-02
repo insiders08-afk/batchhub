@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, CalendarCheck, Megaphone,
   FlaskConical, IndianRupee, GraduationCap, Settings,
   LogOut, Zap, ChevronLeft, Menu, X, ShieldCheck,
-  BookOpen, Trophy, ClipboardList, UserCircle, BookMarked, PlusCircle, Download
+  BookOpen, Trophy, ClipboardList, UserCircle, PlusCircle, Download
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
