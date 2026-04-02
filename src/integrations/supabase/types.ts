@@ -258,6 +258,7 @@ export type Database = {
           course: string
           created_at: string
           description: string | null
+          enrollment_open: boolean
           id: string
           institute_code: string
           is_active: boolean
@@ -272,6 +273,7 @@ export type Database = {
           course: string
           created_at?: string
           description?: string | null
+          enrollment_open?: boolean
           id?: string
           institute_code: string
           is_active?: boolean
@@ -286,6 +288,7 @@ export type Database = {
           course?: string
           created_at?: string
           description?: string | null
+          enrollment_open?: boolean
           id?: string
           institute_code?: string
           is_active?: boolean
@@ -465,6 +468,7 @@ export type Database = {
       institutes: {
         Row: {
           attendance_marked_by: string
+          batch_application_open: boolean
           city: string | null
           created_at: string
           email: string
@@ -476,10 +480,13 @@ export type Database = {
           owner_user_id: string | null
           phone: string
           status: Database["public"]["Enums"]["institute_status"]
+          student_enrollment_open: boolean
+          teacher_enrollment_open: boolean
           updated_at: string
         }
         Insert: {
           attendance_marked_by?: string
+          batch_application_open?: boolean
           city?: string | null
           created_at?: string
           email: string
@@ -491,10 +498,13 @@ export type Database = {
           owner_user_id?: string | null
           phone: string
           status?: Database["public"]["Enums"]["institute_status"]
+          student_enrollment_open?: boolean
+          teacher_enrollment_open?: boolean
           updated_at?: string
         }
         Update: {
           attendance_marked_by?: string
+          batch_application_open?: boolean
           city?: string | null
           created_at?: string
           email?: string
@@ -506,6 +516,8 @@ export type Database = {
           owner_user_id?: string | null
           phone?: string
           status?: Database["public"]["Enums"]["institute_status"]
+          student_enrollment_open?: boolean
+          teacher_enrollment_open?: boolean
           updated_at?: string
         }
         Relationships: []
