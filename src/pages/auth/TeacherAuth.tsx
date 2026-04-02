@@ -74,11 +74,22 @@ export default function TeacherAuth() {
       // LIMIT-06: Check institute_code exists before creating account
       const { data: institute } = await supabase
         .from("institutes")
-        .select("id")
+        .select("id, teacher_enrollment_open")
         .eq("institute_code", instituteCode)
         .maybeSingle();
       if (!institute) {
         toast({ title: "Institute not found", description: `No institute with code "${instituteCode}" exists. Check with your admin for the correct code.`, variant: "destructive" });
+        setLoading(false);
+        return;
+      }
+
+      // Check if teacher enrollment is open
+      if (!institute.teacher_enrollment_open) {
+        toast({
+          title: "Registration Closed",
+          description: "The admin has disabled teacher enrollment for this institute. Please contact your admin.",
+          variant: "destructive",
+        });
         setLoading(false);
         return;
       }
