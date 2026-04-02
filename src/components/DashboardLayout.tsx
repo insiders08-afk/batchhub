@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, CalendarCheck, Megaphone,
   FlaskConical, IndianRupee, GraduationCap, Settings,
   LogOut, Zap, ChevronLeft, Menu, X, ShieldCheck,
-  BookOpen, Trophy, ClipboardList, UserCircle, BookMarked, PlusCircle, Download
+  BookOpen, Trophy, ClipboardList, UserCircle, PlusCircle, Download
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,6 @@ const menusByRole: Record<Role, { icon: React.ElementType; label: string; path: 
     { icon: GraduationCap, label: "Students", path: "/admin/students" },
     { icon: ClipboardList, label: "Team", path: "/admin/team" },
     { icon: ShieldCheck, label: "Approvals", path: "/admin/approvals" },
-    { icon: BookMarked, label: "Batch Applications", path: "/admin/batch-applications" },
     { icon: Settings, label: "Settings", path: "/admin/settings" },
   ],
   teacher: [

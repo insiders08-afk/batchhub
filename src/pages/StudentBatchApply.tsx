@@ -39,10 +39,29 @@ export default function StudentBatchApply() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
+    // Check institute-wide batch application lock
+    const { data: instCode } = await supabase.rpc("get_my_institute_code");
+    if (instCode) {
+      const { data: inst } = await supabase
+        .from("institutes")
+        .select("batch_application_open")
+        .eq("institute_code", instCode)
+        .single();
+      if (inst && !inst.batch_application_open) {
+        toast({
+          title: "Applications Closed",
+          description: "The admin has disabled batch applications for this institute. Please contact your admin.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+    }
+
     // All active batches in the student's institute
     const { data: activeBatches } = await supabase
       .from("batches")
-      .select("id, name, course, teacher_name, schedule")
+      .select("id, name, course, teacher_name, schedule, enrollment_open")
       .eq("is_active", true);
 
     if (!activeBatches) { setLoading(false); return; }
@@ -79,8 +98,9 @@ export default function StudentBatchApply() {
           ...b,
           studentCount: count || 0,
           enrolled,
+          enrollmentOpen: (b as any).enrollment_open !== false,
           applicationStatus: enrolled ? "approved" : (appStatus || "none"),
-        } as BatchWithStatus;
+        } as BatchWithStatus & { enrollmentOpen: boolean };
       })
     );
 
@@ -88,8 +108,18 @@ export default function StudentBatchApply() {
     setLoading(false);
   };
 
-  const handleApply = async (batchId: string) => {
-    setApplying(batchId);
+  const handleApply = async (batch: any) => {
+    // Check per-batch enrollment lock
+    if (batch.enrollmentOpen === false) {
+      toast({
+        title: "Applications Closed",
+        description: `The admin has disabled enrollment for batch "${batch.name}". Please contact your admin.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setApplying(batch.id);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -97,7 +127,7 @@ export default function StudentBatchApply() {
 
     const { error } = await supabase.from("batch_applications").insert({
       student_id: user.id,
-      batch_id: batchId,
+      batch_id: batch.id,
       institute_code: instituteCode.data,
       status: "pending",
     });
@@ -107,7 +137,7 @@ export default function StudentBatchApply() {
     } else {
       toast({ title: "Application sent!", description: "Your teacher/admin will review your request." });
       setBatches(prev =>
-        prev.map(b => b.id === batchId ? { ...b, applicationStatus: "pending" } : b)
+        prev.map(b => b.id === batch.id ? { ...b, applicationStatus: "pending" } : b)
       );
     }
     setApplying(null);
@@ -186,6 +216,10 @@ export default function StudentBatchApply() {
                     <Button disabled className="w-full h-8 text-xs bg-success-light text-success border border-success/20">
                       <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Already enrolled
                     </Button>
+                  ) : (b as any).enrollmentOpen === false ? (
+                    <Button disabled className="w-full h-8 text-xs bg-muted text-muted-foreground border border-border/50">
+                      Enrollment closed for this batch
+                    </Button>
                   ) : b.applicationStatus === "pending" ? (
                     <Button disabled className="w-full h-8 text-xs bg-accent-light text-accent border border-accent/20">
                       <Hourglass className="w-3.5 h-3.5 mr-1.5" /> Application pending...
@@ -193,7 +227,7 @@ export default function StudentBatchApply() {
                   ) : b.applicationStatus === "rejected" ? (
                     <Button
                       variant="outline"
-                      onClick={() => handleApply(b.id)}
+                      onClick={() => handleApply(b)}
                       disabled={applying === b.id}
                       className="w-full h-8 text-xs border-danger/30 text-danger hover:bg-danger-light"
                     >
@@ -202,7 +236,7 @@ export default function StudentBatchApply() {
                     </Button>
                   ) : (
                     <Button
-                      onClick={() => handleApply(b.id)}
+                      onClick={() => handleApply(b)}
                       disabled={applying === b.id}
                       className="w-full h-8 text-xs gradient-hero text-white border-0 hover:opacity-90"
                     >
