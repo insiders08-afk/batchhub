@@ -108,8 +108,18 @@ export default function StudentBatchApply() {
     setLoading(false);
   };
 
-  const handleApply = async (batchId: string) => {
-    setApplying(batchId);
+  const handleApply = async (batch: any) => {
+    // Check per-batch enrollment lock
+    if (batch.enrollmentOpen === false) {
+      toast({
+        title: "Applications Closed",
+        description: `The admin has disabled enrollment for batch "${batch.name}". Please contact your admin.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setApplying(batch.id);
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -117,7 +127,7 @@ export default function StudentBatchApply() {
 
     const { error } = await supabase.from("batch_applications").insert({
       student_id: user.id,
-      batch_id: batchId,
+      batch_id: batch.id,
       institute_code: instituteCode.data,
       status: "pending",
     });
@@ -127,7 +137,7 @@ export default function StudentBatchApply() {
     } else {
       toast({ title: "Application sent!", description: "Your teacher/admin will review your request." });
       setBatches(prev =>
-        prev.map(b => b.id === batchId ? { ...b, applicationStatus: "pending" } : b)
+        prev.map(b => b.id === batch.id ? { ...b, applicationStatus: "pending" } : b)
       );
     }
     setApplying(null);
