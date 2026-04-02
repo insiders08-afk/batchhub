@@ -1158,6 +1158,28 @@ export default function AdminBatches() {
                     </div>
                   </div>
 
+                  {/* Enrollment Toggle */}
+                  <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/40 border border-border/40 mb-2">
+                    <div>
+                      <span className="text-xs font-medium">Student Enrollment</span>
+                      <p className="text-[10px] text-muted-foreground">
+                        {batch.enrollment_open !== false ? "Open — students can apply" : "Closed — no new applications"}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={batch.enrollment_open !== false}
+                      onCheckedChange={async (v) => {
+                        const { error } = await supabase.from("batches").update({ enrollment_open: v }).eq("id", batch.id);
+                        if (error) {
+                          toast({ title: "Error", description: error.message, variant: "destructive" });
+                        } else {
+                          setBatches(prev => prev.map(b => b.id === batch.id ? { ...b, enrollment_open: v } : b));
+                          toast({ title: v ? "Enrollment opened" : "Enrollment closed", description: `${batch.name} enrollment is now ${v ? "open" : "closed"}.` });
+                        }
+                      }}
+                    />
+                  </div>
+
                   <div className="space-y-2">
                     <EnrollStudentsDialog
                       batch={batch}
