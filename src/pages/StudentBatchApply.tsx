@@ -216,6 +216,10 @@ export default function StudentBatchApply() {
                     <Button disabled className="w-full h-8 text-xs bg-success-light text-success border border-success/20">
                       <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" /> Already enrolled
                     </Button>
+                  ) : (b as any).enrollmentOpen === false ? (
+                    <Button disabled className="w-full h-8 text-xs bg-muted text-muted-foreground border border-border/50">
+                      Enrollment closed for this batch
+                    </Button>
                   ) : b.applicationStatus === "pending" ? (
                     <Button disabled className="w-full h-8 text-xs bg-accent-light text-accent border border-accent/20">
                       <Hourglass className="w-3.5 h-3.5 mr-1.5" /> Application pending...
@@ -223,7 +227,7 @@ export default function StudentBatchApply() {
                   ) : b.applicationStatus === "rejected" ? (
                     <Button
                       variant="outline"
-                      onClick={() => handleApply(b.id)}
+                      onClick={() => handleApply(b)}
                       disabled={applying === b.id}
                       className="w-full h-8 text-xs border-danger/30 text-danger hover:bg-danger-light"
                     >
@@ -232,7 +236,7 @@ export default function StudentBatchApply() {
                     </Button>
                   ) : (
                     <Button
-                      onClick={() => handleApply(b.id)}
+                      onClick={() => handleApply(b)}
                       disabled={applying === b.id}
                       className="w-full h-8 text-xs gradient-hero text-white border-0 hover:opacity-90"
                     >
