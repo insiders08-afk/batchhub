@@ -39,10 +39,29 @@ export default function StudentBatchApply() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setLoading(false); return; }
 
+    // Check institute-wide batch application lock
+    const { data: instCode } = await supabase.rpc("get_my_institute_code");
+    if (instCode) {
+      const { data: inst } = await supabase
+        .from("institutes")
+        .select("batch_application_open")
+        .eq("institute_code", instCode)
+        .single();
+      if (inst && !inst.batch_application_open) {
+        toast({
+          title: "Applications Closed",
+          description: "The admin has disabled batch applications for this institute. Please contact your admin.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
+    }
+
     // All active batches in the student's institute
     const { data: activeBatches } = await supabase
       .from("batches")
-      .select("id, name, course, teacher_name, schedule")
+      .select("id, name, course, teacher_name, schedule, enrollment_open")
       .eq("is_active", true);
 
     if (!activeBatches) { setLoading(false); return; }
@@ -79,8 +98,9 @@ export default function StudentBatchApply() {
           ...b,
           studentCount: count || 0,
           enrolled,
+          enrollmentOpen: (b as any).enrollment_open !== false,
           applicationStatus: enrolled ? "approved" : (appStatus || "none"),
-        } as BatchWithStatus;
+        } as BatchWithStatus & { enrollmentOpen: boolean };
       })
     );
 
