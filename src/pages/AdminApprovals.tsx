@@ -164,13 +164,13 @@ function MemberApprovalsSection({ instituteCode }: { instituteCode: string }) {
 
       if (action === "approved") {
         const extra = (req.extra_data as Record<string, string>) || {};
-        const profileUpdates: Record<string, unknown> = { status: "approved" };
+        const profileUpdates: { status: string; role_based_code?: string } = { status: "approved" };
         if (req.role === "student" && extra.studentId) profileUpdates.role_based_code = extra.studentId;
         if (req.role === "teacher" && extra.teacherId) profileUpdates.role_based_code = extra.teacherId;
 
         const { error: profError } = await supabase
           .from("profiles")
-          .update(profileUpdates)
+          .update(profileUpdates as any)
           .eq("user_id", req.user_id)
           .eq("institute_code", req.institute_code);
         if (profError) throw profError;
@@ -604,7 +604,7 @@ export default function AdminApprovals() {
     setLockLoading(field);
     const { error } = await supabase
       .from("institutes")
-      .update({ [field]: value })
+      .update({ [field]: value } as any)
       .eq("institute_code", instituteCode);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
